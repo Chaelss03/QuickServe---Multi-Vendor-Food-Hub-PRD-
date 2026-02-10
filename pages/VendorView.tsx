@@ -1,6 +1,6 @@
-import React, { useState, useRef, useMemo } from 'react';
+import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { Restaurant, Order, OrderStatus, MenuItem, MenuItemVariant } from '../types';
-import { ShoppingBag, BookOpen, BarChart3, Edit3, CheckCircle, Clock, X, Plus, Trash2, Image as ImageIcon, Thermometer, LayoutGrid, List, Filter, Archive, RotateCcw, XCircle, Power, Eye, Upload, Hash, MessageSquare, Download, Calendar, Ban } from 'lucide-react';
+import { ShoppingBag, BookOpen, BarChart3, Edit3, CheckCircle, Clock, X, Plus, Trash2, Image as ImageIcon, Thermometer, LayoutGrid, List, Filter, Archive, RotateCcw, XCircle, Power, Eye, Upload, Hash, MessageSquare, Download, Calendar, Ban, ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface Props {
   restaurant: Restaurant;
@@ -34,7 +34,7 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
   const [menuCategoryFilter, setMenuCategoryFilter] = useState<string>('All');
   const [menuStatusFilter, setMenuStatusFilter] = useState<'ACTIVE' | 'ARCHIVED'>('ACTIVE');
 
-  // Report Filters
+  // Report Filters & Pagination
   const [reportStatus, setReportStatus] = useState<'ALL' | OrderStatus>('ALL');
   const [reportStart, setReportStart] = useState<string>(() => {
     const d = new Date();
@@ -42,6 +42,8 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
     return d.toISOString().split('T')[0];
   });
   const [reportEnd, setReportEnd] = useState<string>(() => new Date().toISOString().split('T')[0]);
+  const [entriesPerPage, setEntriesPerPage] = useState<number>(30);
+  const [currentPage, setCurrentPage] = useState<number>(1);
 
   // Unified Form State
   const [formItem, setFormItem] = useState<Partial<MenuItem>>({
@@ -78,6 +80,17 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
       return matchesDate && matchesStatus;
     });
   }, [orders, reportStart, reportEnd, reportStatus]);
+
+  // Reset page when data or entry limit changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filteredReports.length, entriesPerPage, reportStatus, reportStart, reportEnd]);
+
+  const totalPages = Math.ceil(filteredReports.length / entriesPerPage);
+  const paginatedReports = useMemo(() => {
+    const startIdx = (currentPage - 1) * entriesPerPage;
+    return filteredReports.slice(startIdx, startIdx + entriesPerPage);
+  }, [filteredReports, currentPage, entriesPerPage]);
 
   const handleDownloadReport = () => {
     if (filteredReports.length === 0) return;
@@ -592,8 +605,8 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
           <div className="max-w-6xl mx-auto">
             <h1 className="text-2xl font-black mb-8 dark:text-white">Sales Performance</h1>
             
-            {/* Report Control Panel */}
-            <div className="bg-white dark:bg-gray-800 p-6 rounded-3xl border dark:border-gray-700 shadow-sm flex flex-col md:flex-row items-center gap-6 mb-8">
+            {/* Report Control Panel - Sharper Radius */}
+            <div className="bg-white dark:bg-gray-800 p-6 rounded-xl border dark:border-gray-700 shadow-sm flex flex-col md:flex-row items-center gap-6 mb-8">
               <div className="flex-1 flex flex-col md:flex-row gap-4 w-full">
                 <div className="flex-1">
                   <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Date Range</label>
@@ -604,7 +617,7 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
                         type="date" 
                         value={reportStart}
                         onChange={(e) => setReportStart(e.target.value)}
-                        className="w-full pl-9 pr-3 py-2 bg-gray-50 dark:bg-gray-700 border-none rounded-xl text-xs font-bold dark:text-white focus:ring-2 focus:ring-orange-500 outline-none" 
+                        className="w-full pl-9 pr-3 py-2 bg-gray-50 dark:bg-gray-700 border-none rounded-lg text-xs font-bold dark:text-white focus:ring-2 focus:ring-orange-500 outline-none" 
                       />
                     </div>
                     <span className="text-gray-300 dark:text-gray-600 font-bold">to</span>
@@ -614,7 +627,7 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
                         type="date" 
                         value={reportEnd}
                         onChange={(e) => setReportEnd(e.target.value)}
-                        className="w-full pl-9 pr-3 py-2 bg-gray-50 dark:bg-gray-700 border-none rounded-xl text-xs font-bold dark:text-white focus:ring-2 focus:ring-orange-500 outline-none" 
+                        className="w-full pl-9 pr-3 py-2 bg-gray-50 dark:bg-gray-700 border-none rounded-lg text-xs font-bold dark:text-white focus:ring-2 focus:ring-orange-500 outline-none" 
                       />
                     </div>
                   </div>
@@ -627,7 +640,7 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
                     <select 
                       value={reportStatus}
                       onChange={(e) => setReportStatus(e.target.value as any)}
-                      className="w-full pl-9 pr-4 py-2 bg-gray-50 dark:bg-gray-700 border-none rounded-xl text-xs font-bold dark:text-white appearance-none cursor-pointer outline-none focus:ring-2 focus:ring-orange-500"
+                      className="w-full pl-9 pr-4 py-2 bg-gray-50 dark:bg-gray-700 border-none rounded-lg text-xs font-bold dark:text-white appearance-none cursor-pointer outline-none focus:ring-2 focus:ring-orange-500"
                     >
                       <option value="ALL">All Orders</option>
                       <option value={OrderStatus.PENDING}>Pending</option>
@@ -642,23 +655,26 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
               <button 
                 onClick={handleDownloadReport}
                 disabled={filteredReports.length === 0}
-                className="w-full md:w-auto px-6 py-3 bg-gray-900 dark:bg-white text-white dark:text-gray-900 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-orange-500 dark:hover:bg-orange-500 hover:text-white transition-all disabled:opacity-50"
+                className="w-full md:w-auto px-6 py-3 bg-gray-900 dark:bg-white text-white dark:text-gray-900 rounded-xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-orange-500 dark:hover:bg-orange-500 hover:text-white transition-all disabled:opacity-50"
               >
                 <Download size={18} />
                 Download Report
               </button>
             </div>
 
+            {/* Sharper summary cards */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-              <div className="bg-white dark:bg-gray-800 p-6 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-700">
-                <p className="text-gray-400 dark:text-gray-500 text-[10px] font-black mb-1 uppercase tracking-widest">Total Sales</p>
-                <p className="text-3xl font-black text-gray-900 dark:text-white">${filteredReports.reduce((acc, o) => acc + o.total, 0).toFixed(2)}</p>
+              <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
+                <p className="text-gray-400 dark:text-gray-500 text-[10px] font-black mb-1 uppercase tracking-widest">Total Sales (Served)</p>
+                <p className="text-3xl font-black text-gray-900 dark:text-white">
+                  ${filteredReports.filter(o => o.status === OrderStatus.COMPLETED).reduce((acc, o) => acc + o.total, 0).toFixed(2)}
+                </p>
               </div>
-              <div className="bg-white dark:bg-gray-800 p-6 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-700">
+              <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
                 <p className="text-gray-400 dark:text-gray-500 text-[10px] font-black mb-1 uppercase tracking-widest">Total Orders</p>
                 <p className="text-3xl font-black text-gray-900 dark:text-white">{filteredReports.length}</p>
               </div>
-              <div className="bg-white dark:bg-gray-800 p-6 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-700">
+              <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
                 <p className="text-gray-400 dark:text-gray-500 text-[10px] font-black mb-1 uppercase tracking-widest">Served Rate</p>
                 <p className="text-3xl font-black text-green-500">
                   {filteredReports.length > 0 
@@ -668,8 +684,23 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
               </div>
             </div>
 
-            {/* Transaction Table */}
-            <div className="bg-white dark:bg-gray-800 rounded-3xl border dark:border-gray-700 overflow-hidden shadow-sm">
+            {/* Pagination Entries Selection - Minimal Container */}
+            <div className="flex items-center gap-2 mb-4 text-sm font-bold text-gray-500 dark:text-gray-400">
+              <span>Show</span>
+              <select 
+                className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-lg px-2 py-1 outline-none focus:ring-2 focus:ring-orange-500 cursor-pointer"
+                value={entriesPerPage}
+                onChange={(e) => setEntriesPerPage(Number(e.target.value))}
+              >
+                <option value={30}>30</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+              </select>
+              <span>entries</span>
+            </div>
+
+            {/* Transaction Table - Sharper Radius */}
+            <div className="bg-white dark:bg-gray-800 rounded-xl border dark:border-gray-700 overflow-hidden shadow-sm">
               <table className="w-full">
                 <thead className="bg-gray-50 dark:bg-gray-700/50 text-gray-400 text-[10px] font-black uppercase tracking-widest">
                   <tr>
@@ -681,14 +712,14 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
                   </tr>
                 </thead>
                 <tbody className="divide-y dark:divide-gray-700">
-                  {filteredReports.length === 0 ? (
+                  {paginatedReports.length === 0 ? (
                     <tr>
                       <td colSpan={5} className="px-8 py-20 text-center text-gray-500 dark:text-gray-400 italic">
                         No transactions found for the selected filters.
                       </td>
                     </tr>
                   ) : (
-                    filteredReports.map(report => (
+                    paginatedReports.map(report => (
                       <tr key={report.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors">
                         <td className="px-8 py-5">
                           <span className="font-black text-xs text-gray-900 dark:text-white">{report.id}</span>
@@ -725,6 +756,41 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
                 </tbody>
               </table>
             </div>
+
+            {/* Pagination Controls - No heavy container */}
+            {totalPages > 1 && (
+              <div className="mt-8 flex justify-center items-center gap-2">
+                <button 
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                  className="p-2 rounded-xl bg-white dark:bg-gray-800 border dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:text-orange-500 disabled:opacity-50 transition-colors shadow-sm"
+                >
+                  <ChevronLeft size={20} />
+                </button>
+                <div className="flex gap-2">
+                  {[...Array(totalPages)].map((_, i) => (
+                    <button
+                      key={i + 1}
+                      onClick={() => setCurrentPage(i + 1)}
+                      className={`w-10 h-10 rounded-xl font-bold text-sm transition-all ${
+                        currentPage === i + 1 
+                          ? 'bg-orange-500 text-white shadow-lg shadow-orange-100' 
+                          : 'bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400 border dark:border-gray-700 hover:bg-gray-50'
+                      }`}
+                    >
+                      {i + 1}
+                    </button>
+                  ))}
+                </div>
+                <button 
+                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages}
+                  className="p-2 rounded-xl bg-white dark:bg-gray-800 border dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:text-orange-500 disabled:opacity-50 transition-colors shadow-sm"
+                >
+                  <ChevronRight size={20} />
+                </button>
+              </div>
+            )}
           </div>
         )}
       </main>

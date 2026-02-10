@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { User, Restaurant, Order, Area, OrderStatus } from '../types';
-import { Users, Store, TrendingUp, Settings, ShieldCheck, Mail, Search, Filter, X, Plus, MapPin, Power, CheckCircle2, AlertCircle, LogIn, Trash2, LayoutGrid, List, ChevronRight, Eye, Globe, Phone, ShoppingBag, Edit3, Hash, Download, Calendar } from 'lucide-react';
+import { Users, Store, TrendingUp, Settings, ShieldCheck, Mail, Search, Filter, X, Plus, MapPin, Power, CheckCircle2, AlertCircle, LogIn, Trash2, LayoutGrid, List, ChevronRight, Eye, Globe, Phone, ShoppingBag, Edit3, Hash, Download, Calendar, ChevronLeft } from 'lucide-react';
 
 interface Props {
   vendors: User[];
@@ -24,7 +24,7 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   
-  // Report Filters
+  // Report Filters & Pagination
   const [reportStatus, setReportStatus] = useState<'ALL' | OrderStatus>('ALL');
   const [reportStart, setReportStart] = useState<string>(() => {
     const d = new Date();
@@ -32,6 +32,8 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
     return d.toISOString().split('T')[0];
   });
   const [reportEnd, setReportEnd] = useState<string>(() => new Date().toISOString().split('T')[0]);
+  const [entriesPerPage, setEntriesPerPage] = useState<number>(30);
+  const [currentPage, setCurrentPage] = useState<number>(1);
 
   // Location Registry Form State
   const [isAreaModalOpen, setIsAreaModalOpen] = useState(false);
@@ -134,6 +136,17 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
       return matchesDate && matchesStatus;
     });
   }, [orders, reportStart, reportEnd, reportStatus]);
+
+  // Pagination Logic
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filteredReports.length, entriesPerPage, reportStatus, reportStart, reportEnd]);
+
+  const totalPages = Math.ceil(filteredReports.length / entriesPerPage);
+  const paginatedReports = useMemo(() => {
+    const startIdx = (currentPage - 1) * entriesPerPage;
+    return filteredReports.slice(startIdx, startIdx + entriesPerPage);
+  }, [filteredReports, currentPage, entriesPerPage]);
 
   const handleDownloadReport = () => {
     if (filteredReports.length === 0) return;
@@ -268,21 +281,21 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
         <div className="flex bg-white dark:bg-gray-800 rounded-2xl p-1.5 border dark:border-gray-700 shadow-sm transition-colors overflow-x-auto hide-scrollbar">
           <button 
             onClick={() => setActiveTab('VENDORS')}
-            className={`flex items-center gap-2 px-6 py-3 rounded-xl font-bold transition-all whitespace-nowrap ${activeTab === 'VENDORS' ? 'bg-orange-500 text-white shadow-lg shadow-orange-100 dark:shadow-none' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
+            className={`flex items-center gap-2 px-6 py-3 rounded-xl font-bold transition-all whitespace-nowrap ${activeTab === 'VENDORS' ? 'bg-orange-500 text-white' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
           >
             <Store size={18} />
             Vendors
           </button>
           <button 
             onClick={() => setActiveTab('LOCATIONS')}
-            className={`flex items-center gap-2 px-6 py-3 rounded-xl font-bold transition-all whitespace-nowrap ${activeTab === 'LOCATIONS' ? 'bg-orange-500 text-white shadow-lg shadow-orange-100 dark:shadow-none' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
+            className={`flex items-center gap-2 px-6 py-3 rounded-xl font-bold transition-all whitespace-nowrap ${activeTab === 'LOCATIONS' ? 'bg-orange-500 text-white' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
           >
             <MapPin size={18} />
             Locations
           </button>
           <button 
             onClick={() => setActiveTab('REPORTS')}
-            className={`flex items-center gap-2 px-6 py-3 rounded-xl font-bold transition-all whitespace-nowrap ${activeTab === 'REPORTS' ? 'bg-orange-500 text-white shadow-lg shadow-orange-100 dark:shadow-none' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
+            className={`flex items-center gap-2 px-6 py-3 rounded-xl font-bold transition-all whitespace-nowrap ${activeTab === 'REPORTS' ? 'bg-orange-500 text-white' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
           >
             <TrendingUp size={18} />
             All Report
@@ -648,7 +661,8 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
 
       {activeTab === 'REPORTS' && (
         <div className="max-w-7xl mx-auto space-y-8">
-          <div className="flex flex-col md:flex-row items-center justify-between gap-6 bg-white dark:bg-gray-800 p-8 rounded-[2.5rem] border dark:border-gray-700 shadow-xl">
+          {/* Sharper report header container - rounded-lg */}
+          <div className="flex flex-col md:flex-row items-center justify-between gap-6 bg-white dark:bg-gray-800 p-8 rounded-lg border dark:border-gray-700 shadow-xl">
              <div className="flex-1 flex flex-col md:flex-row gap-6 w-full">
                 <div className="flex-1">
                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">Date Range Overview</label>
@@ -659,7 +673,7 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
                           type="date" 
                           value={reportStart}
                           onChange={(e) => setReportStart(e.target.value)}
-                          className="w-full pl-10 pr-4 py-3 bg-gray-50 dark:bg-gray-700 border-none rounded-2xl text-xs font-black dark:text-white focus:ring-2 focus:ring-orange-500 outline-none" 
+                          className="w-full pl-10 pr-4 py-3 bg-gray-50 dark:bg-gray-700 border-none rounded-lg text-xs font-black dark:text-white focus:ring-2 focus:ring-orange-500 outline-none" 
                         />
                       </div>
                       <span className="text-gray-300 dark:text-gray-600 font-bold">~</span>
@@ -669,7 +683,7 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
                           type="date" 
                           value={reportEnd}
                           onChange={(e) => setReportEnd(e.target.value)}
-                          className="w-full pl-10 pr-4 py-3 bg-gray-50 dark:bg-gray-700 border-none rounded-2xl text-xs font-black dark:text-white focus:ring-2 focus:ring-orange-500 outline-none" 
+                          className="w-full pl-10 pr-4 py-3 bg-gray-50 dark:bg-gray-700 border-none rounded-lg text-xs font-black dark:text-white focus:ring-2 focus:ring-orange-500 outline-none" 
                         />
                       </div>
                    </div>
@@ -682,7 +696,7 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
                       <select 
                         value={reportStatus}
                         onChange={(e) => setReportStatus(e.target.value as any)}
-                        className="w-full pl-10 pr-10 py-3 bg-gray-50 dark:bg-gray-700 border-none rounded-2xl text-xs font-black dark:text-white appearance-none cursor-pointer outline-none focus:ring-2 focus:ring-orange-500"
+                        className="w-full pl-10 pr-10 py-3 bg-gray-50 dark:bg-gray-700 border-none rounded-lg text-xs font-black dark:text-white appearance-none cursor-pointer outline-none focus:ring-2 focus:ring-orange-500"
                       >
                         <option value="ALL">All Reports</option>
                         <option value={OrderStatus.PENDING}>Pending</option>
@@ -697,14 +711,30 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
              <button 
                 onClick={handleDownloadReport}
                 disabled={filteredReports.length === 0}
-                className="w-full md:w-auto px-8 py-4 bg-black dark:bg-white text-white dark:text-gray-900 rounded-[1.25rem] font-black text-xs uppercase tracking-widest flex items-center justify-center gap-3 hover:scale-[1.02] active:scale-95 transition-all shadow-lg disabled:opacity-50"
+                className="w-full md:w-auto px-8 py-4 bg-black dark:bg-white text-white dark:text-gray-900 rounded-lg font-black text-xs uppercase tracking-widest flex items-center justify-center gap-3 hover:scale-[1.02] active:scale-95 transition-all shadow-lg disabled:opacity-50"
              >
                 <Download size={20} />
                 Export CSV
              </button>
           </div>
 
-          <div className="bg-white dark:bg-gray-800 rounded-[2.5rem] border dark:border-gray-700 shadow-xl overflow-hidden">
+          {/* Show entries - No container wrapping */}
+          <div className="flex items-center gap-4 text-sm font-bold text-gray-500 dark:text-gray-400">
+            <span>Show</span>
+            <select 
+              className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-lg px-2 py-1 outline-none focus:ring-2 focus:ring-orange-500 cursor-pointer"
+              value={entriesPerPage}
+              onChange={(e) => setEntriesPerPage(Number(e.target.value))}
+            >
+              <option value={30}>30</option>
+              <option value={50}>50</option>
+              <option value={100}>100</option>
+            </select>
+            <span>entries</span>
+          </div>
+
+          {/* Main reports table - Sharper radius rounded-lg */}
+          <div className="bg-white dark:bg-gray-800 rounded-lg border dark:border-gray-700 shadow-xl overflow-hidden">
              <div className="px-8 py-6 bg-gray-50/50 dark:bg-gray-700/50 border-b dark:border-gray-700 flex items-center justify-between">
                 <h3 className="font-black text-lg dark:text-white uppercase tracking-tighter">System-Wide Transactions</h3>
                 <span className="px-4 py-1.5 bg-orange-500 text-white rounded-full text-[10px] font-black">{filteredReports.length} Records</span>
@@ -724,7 +754,7 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
                     </tr>
                   </thead>
                   <tbody className="divide-y dark:divide-gray-700">
-                    {filteredReports.length === 0 ? (
+                    {paginatedReports.length === 0 ? (
                       <tr>
                         <td colSpan={7} className="px-8 py-24 text-center">
                           <div className="max-w-xs mx-auto text-gray-500 dark:text-gray-400">
@@ -735,7 +765,7 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
                         </td>
                       </tr>
                     ) : (
-                      filteredReports.map(report => {
+                      paginatedReports.map(report => {
                         const res = restaurants.find(r => r.id === report.restaurantId);
                         return (
                           <tr key={report.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/20 transition-colors">
@@ -788,6 +818,41 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
                 </table>
              </div>
           </div>
+
+          {/* Page numbers - No container wrapping */}
+          {totalPages > 1 && (
+            <div className="mt-8 flex justify-center items-center gap-2">
+              <button 
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+                className="p-2 rounded-xl bg-white dark:bg-gray-800 border dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:text-orange-500 disabled:opacity-50 transition-colors shadow-sm"
+              >
+                <ChevronLeft size={20} />
+              </button>
+              <div className="flex gap-2">
+                {[...Array(totalPages)].map((_, i) => (
+                  <button
+                    key={i + 1}
+                    onClick={() => setCurrentPage(i + 1)}
+                    className={`w-10 h-10 rounded-xl font-bold text-sm transition-all ${
+                      currentPage === i + 1 
+                        ? 'bg-orange-500 text-white shadow-lg shadow-orange-100' 
+                        : 'bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400 border dark:border-gray-700 hover:bg-gray-50'
+                    }`}
+                  >
+                    {i + 1}
+                  </button>
+                ))}
+              </div>
+              <button 
+                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages}
+                className="p-2 rounded-xl bg-white dark:bg-gray-800 border dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:text-orange-500 disabled:opacity-50 transition-colors shadow-sm"
+              >
+                <ChevronRight size={20} />
+              </button>
+            </div>
+          )}
         </div>
       )}
 
@@ -860,6 +925,7 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
         </div>
       )}
 
+      {/* Existing Modals ... */}
       {/* Register Area Modal */}
       {isAreaModalOpen && (
         <div className="fixed inset-0 z-[80] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
@@ -939,7 +1005,7 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
                 </div>
               </div>
               <div className="flex gap-4 mt-8">
-                <button type="button" onClick={() => setIsEditAreaModalOpen(false)} className="flex-1 py-4 bg-gray-100 dark:bg-gray-700 rounded-2xl font-bold text-gray-600 dark:text-gray-300">Cancel</button>
+                <button type="button" onClick={() => setIsEditAreaModalOpen(false)} className="flex-1 py-4 bg-gray-100 dark:bg-gray-700 rounded-2xl font-bold text-gray-600 dark:text-gray-300 hover:bg-gray-200 transition-all">Cancel</button>
                 <button type="submit" className="flex-1 py-4 bg-blue-500 text-white rounded-2xl font-black">Save Changes</button>
               </div>
             </form>
