@@ -1,5 +1,4 @@
-
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { QrCode, Utensils, ShieldCheck, ShoppingBag, Sun, Moon, X, MapPin, Hash, Camera, RefreshCcw } from 'lucide-react';
 import { Area } from '../types';
 import jsQR from 'jsqr';
@@ -21,48 +20,9 @@ const LandingPage: React.FC<Props> = ({ onScan, onLoginClick, isDarkMode, onTogg
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const requestRef = useRef<number>();
+  const requestRef = useRef<number>(0);
 
-  const startCamera = async () => {
-    setCameraError(null);
-    setShowCamera(true);
-
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      setCameraError('Camera API not supported in this browser.');
-      return;
-    }
-
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: { 
-          facingMode: 'environment',
-          width: { ideal: 1280 },
-          height: { ideal: 720 }
-        } 
-      });
-
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        videoRef.current.setAttribute("playsinline", "true");
-        // Explicitly calling play() after setting srcObject
-        try {
-          await videoRef.current.play();
-          requestRef.current = requestAnimationFrame(scanQRCode);
-        } catch (playErr) {
-          console.error("Video play failed:", playErr);
-          setCameraError("Failed to start video stream. Please ensure camera permissions are granted.");
-        }
-      }
-    } catch (err: any) {
-      const msg = err.name === 'NotAllowedError' 
-        ? 'Camera permission denied. Please allow access in settings.' 
-        : (err.message || 'Could not access camera');
-      setCameraError(msg);
-      console.error('Camera Error:', err);
-    }
-  };
-
-  const stopCamera = () => {
+  const stopCamera = useCallback(() => {
     if (videoRef.current && videoRef.current.srcObject) {
       const stream = videoRef.current.srcObject as MediaStream;
       stream.getTracks().forEach(track => track.stop());
@@ -70,11 +30,12 @@ const LandingPage: React.FC<Props> = ({ onScan, onLoginClick, isDarkMode, onTogg
     }
     if (requestRef.current) {
       cancelAnimationFrame(requestRef.current);
+      requestRef.current = 0;
     }
     setShowCamera(false);
-  };
+  }, []);
 
-  const scanQRCode = (time?: number) => {
+  const scanQRCode = useCallback((_time: number) => {
     if (videoRef.current && videoRef.current.readyState === videoRef.current.HAVE_ENOUGH_DATA && canvasRef.current) {
       const canvas = canvasRef.current;
       const video = videoRef.current;
@@ -115,6 +76,44 @@ const LandingPage: React.FC<Props> = ({ onScan, onLoginClick, isDarkMode, onTogg
       }
     }
     requestRef.current = requestAnimationFrame(scanQRCode);
+  }, [onScan, stopCamera]);
+
+  const startCamera = async () => {
+    setCameraError(null);
+    setShowCamera(true);
+
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      setCameraError('Camera API not supported in this browser.');
+      return;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        video: { 
+          facingMode: 'environment',
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        } 
+      });
+
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        videoRef.current.setAttribute("playsinline", "true");
+        try {
+          await videoRef.current.play();
+          requestRef.current = requestAnimationFrame(scanQRCode);
+        } catch (playErr) {
+          console.error("Video play failed:", playErr);
+          setCameraError("Failed to start video stream. Please ensure camera permissions are granted.");
+        }
+      }
+    } catch (err: any) {
+      const msg = err.name === 'NotAllowedError' 
+        ? 'Camera permission denied. Please allow access in settings.' 
+        : (err.message || 'Could not access camera');
+      setCameraError(msg);
+      console.error('Camera Error:', err);
+    }
   };
 
   useEffect(() => {
