@@ -1,6 +1,7 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { Restaurant, CartItem, Order, OrderStatus, MenuItem } from '../types';
-import { ShoppingCart, Plus, Minus, X, CheckCircle, ChevronRight, Info, ThermometerSun, Maximize2, MapPin, Hash, LayoutGrid, Grid3X3, MessageSquare, AlertTriangle } from 'lucide-react';
+import { ShoppingCart, Plus, Minus, X, CheckCircle, ChevronRight, Info, ThermometerSun, Maximize2, MapPin, Hash, LayoutGrid, Grid3X3, MessageSquare, AlertTriangle, UtensilsCrossed } from 'lucide-react';
 
 interface Props {
   restaurants: Restaurant[];
@@ -28,7 +29,7 @@ const CustomerView: React.FC<Props> = ({ restaurants, cart, orders, onAddToCart,
     setActiveRestaurant(id);
     const element = sectionRefs.current[id];
     if (element) {
-      const offset = 110; // Sticky header + Restaurant Navbar height
+      const offset = 140; // Adjust for sticky header + nav height
       const bodyRect = document.body.getBoundingClientRect().top;
       const elementRect = element.getBoundingClientRect().top;
       const elementPosition = elementRect - bodyRect;
@@ -45,7 +46,7 @@ const CustomerView: React.FC<Props> = ({ restaurants, cart, orders, onAddToCart,
 
   useEffect(() => {
     const handleScroll = () => {
-      const scrollPos = window.scrollY + 150;
+      const scrollPos = window.scrollY + 180;
       for (const res of restaurants) {
         const el = sectionRefs.current[res.id];
         if (el && el.offsetTop <= scrollPos && el.offsetTop + el.offsetHeight > scrollPos) {
@@ -104,49 +105,59 @@ const CustomerView: React.FC<Props> = ({ restaurants, cart, orders, onAddToCart,
 
   return (
     <div className="relative min-h-screen pb-28 bg-gray-50 dark:bg-gray-900 transition-colors">
-      {/* Restaurant Navbar - Minimalistic & High Contrast */}
-      <nav className="sticky top-16 z-40 bg-white/95 dark:bg-gray-800/95 backdrop-blur-md border-b dark:border-gray-700 overflow-x-auto hide-scrollbar flex items-center px-4 py-2 gap-2 shadow-sm">
-        {restaurants.map(res => (
-          <button
-            key={res.id}
-            onClick={() => scrollToSection(res.id)}
-            className={`whitespace-nowrap px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-tight transition-all duration-200 ${
-              activeRestaurant === res.id 
-                ? 'bg-orange-500 text-white shadow-md' 
-                : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
-            }`}
-          >
-            {res.name}
-          </button>
-        ))}
-      </nav>
+      {/* Restaurant Navbar - Enhanced for the 'Menu Page' requirement */}
+      <div className="sticky top-16 z-40 bg-white/95 dark:bg-gray-800/95 backdrop-blur-md border-b dark:border-gray-700 shadow-md">
+        <div className="px-4 py-2 border-b dark:border-gray-700 flex items-center justify-between">
+           <div className="flex items-center gap-2">
+              <UtensilsCrossed size={14} className="text-orange-500" />
+              <span className="text-[10px] font-black uppercase tracking-[0.2em] dark:text-gray-300">Available Kitchens</span>
+           </div>
+           <span className="text-[9px] font-bold text-gray-400 uppercase">{restaurants.length} Stores Online</span>
+        </div>
+        <nav className="overflow-x-auto hide-scrollbar flex items-center px-4 py-3 gap-3">
+          {restaurants.map(res => (
+            <button
+              key={res.id}
+              onClick={() => scrollToSection(res.id)}
+              className={`whitespace-nowrap flex items-center gap-2 px-4 py-2 rounded-xl text-[11px] font-black uppercase tracking-tight transition-all duration-300 border-2 ${
+                activeRestaurant === res.id 
+                  ? 'bg-orange-500 border-orange-500 text-white shadow-lg shadow-orange-100 dark:shadow-none scale-105' 
+                  : 'bg-white dark:bg-gray-700 border-gray-100 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-orange-200'
+              }`}
+            >
+              <img src={res.logo} className="w-4 h-4 rounded-full object-cover" />
+              {res.name}
+            </button>
+          ))}
+        </nav>
+      </div>
 
-      <div className="max-w-7xl mx-auto px-2 md:px-4 py-3">
-        {/* Ultra-Compact Info Header with View Toggle */}
-        <div className="mb-3 px-2 py-1 bg-white dark:bg-gray-800 rounded-lg border dark:border-gray-700 shadow-sm flex items-center justify-between gap-2 min-h-[36px]">
-          <div className="flex items-center gap-1.5 overflow-hidden">
-            <MapPin size={12} className="text-orange-500 shrink-0" />
-            <h2 className="text-[10px] font-black dark:text-white leading-tight uppercase tracking-tight truncate">
-              {locationName || 'QuickServe Hub'}
-            </h2>
+      <div className="max-w-7xl mx-auto px-2 md:px-4 py-4">
+        {/* Compact Location Info */}
+        <div className="mb-4 px-3 py-2 bg-white dark:bg-gray-800 rounded-xl border dark:border-gray-700 shadow-sm flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <MapPin size={14} className="text-orange-500 shrink-0" />
+            <div className="flex flex-col">
+               <span className="text-[8px] font-black text-gray-400 uppercase tracking-widest">Serving At</span>
+               <h2 className="text-[11px] font-black dark:text-white leading-tight uppercase tracking-tight truncate">
+                 {locationName || 'QuickServe Hub'}
+               </h2>
+            </div>
           </div>
           
           <div className="flex items-center gap-2">
             {tableNo && (
-              <div className="flex items-center gap-1 px-2 py-0.5 bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 rounded font-black text-[9px] uppercase tracking-tighter shrink-0">
-                <Hash size={10} className="text-orange-500" />
-                T-{tableNo}
+              <div className="flex items-center gap-1 px-3 py-1 bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 rounded-lg font-black text-[10px] uppercase tracking-tighter">
+                <Hash size={12} className="text-orange-500" />
+                Table {tableNo}
               </div>
             )}
             
-            {/* View Option Toggle */}
             <button 
               onClick={toggleGrid}
-              className="p-1.5 bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-300 rounded-md hover:text-orange-500 transition-colors flex items-center gap-1 shadow-sm active:scale-95"
-              title={`Switch to ${gridColumns === 3 ? '2' : '3'} columns`}
+              className="p-2 bg-gray-50 dark:bg-gray-700 text-gray-400 dark:text-gray-300 rounded-lg hover:text-orange-500 transition-colors flex items-center gap-1.5 border dark:border-gray-600"
             >
               {gridColumns === 3 ? <LayoutGrid size={14} /> : <Grid3X3 size={14} />}
-              <span className="text-[8px] font-black uppercase tracking-tighter">{gridColumns}X</span>
             </button>
           </div>
         </div>
@@ -155,31 +166,24 @@ const CustomerView: React.FC<Props> = ({ restaurants, cart, orders, onAddToCart,
         {activeOrders.length > 0 && (
           <div className="mb-6 space-y-2">
             {activeOrders.map(order => (
-              <div key={order.id} className={`p-3 rounded-xl border flex flex-col gap-2 transition-all ${
+              <div key={order.id} className={`p-4 rounded-2xl border flex flex-col gap-2 transition-all shadow-sm ${
                 order.status === OrderStatus.CANCELLED 
                   ? 'bg-red-50 dark:bg-red-900/10 border-red-200 dark:border-red-900/30' 
-                  : 'bg-orange-50 dark:bg-orange-900/10 border-orange-200 dark:border-orange-900/30 animate-pulse'
+                  : 'bg-orange-50 dark:bg-orange-900/10 border-orange-200 dark:border-orange-900/30'
               }`}>
                 <div className="flex items-center justify-between">
                    <div className="flex items-center gap-2">
-                      <div className={`w-2 h-2 rounded-full ${order.status === OrderStatus.CANCELLED ? 'bg-red-500' : 'bg-orange-500'}`}></div>
+                      <div className={`w-2 h-2 rounded-full ${order.status === OrderStatus.CANCELLED ? 'bg-red-500' : 'bg-orange-500 animate-pulse'}`}></div>
                       <span className={`text-[10px] font-black uppercase tracking-widest ${order.status === OrderStatus.CANCELLED ? 'text-red-700 dark:text-red-400' : 'text-orange-800 dark:text-orange-200'}`}>
-                        {order.status === OrderStatus.CANCELLED ? `Order Rejected: ${order.id}` : `Order Processing: ${order.id}`}
+                        {order.status === OrderStatus.CANCELLED ? `Rejected: ${order.id}` : `Preparing Your Meal: ${order.id}`}
                       </span>
                    </div>
-                   {order.status === OrderStatus.CANCELLED && <AlertTriangle size={14} className="text-red-500" />}
                 </div>
-                
                 {order.status === OrderStatus.CANCELLED && (
                   <div className="pl-4 border-l-2 border-red-200 dark:border-red-800">
                     <p className="text-[10px] font-bold text-red-800 dark:text-red-300">
-                      Reason: <span className="font-medium">{order.rejectionReason}</span>
+                      {order.rejectionReason}
                     </p>
-                    {order.rejectionNote && (
-                      <p className="text-[9px] text-red-600 dark:text-red-400 mt-0.5 italic">
-                        "{order.rejectionNote}"
-                      </p>
-                    )}
                   </div>
                 )}
               </div>
@@ -188,46 +192,44 @@ const CustomerView: React.FC<Props> = ({ restaurants, cart, orders, onAddToCart,
         )}
 
         {/* Menu Sections */}
-        <div className="space-y-8">
+        <div className="space-y-12">
           {restaurants.map(res => (
             <section 
               key={res.id} 
               id={res.id} 
               ref={el => { sectionRefs.current[res.id] = el; }}
-              className="scroll-mt-32"
+              className="scroll-mt-48"
             >
-              <div className="flex items-center gap-2 mb-3 px-1 border-l-2 border-orange-500 pl-2">
-                <img src={res.logo} alt={res.name} className="w-6 h-6 rounded object-cover shadow-sm border dark:border-gray-700" />
-                <h2 className="text-[11px] font-black text-gray-900 dark:text-white leading-tight tracking-tight uppercase">{res.name}</h2>
+              <div className="flex items-center justify-between mb-4 px-1">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl overflow-hidden border dark:border-gray-700 shadow-sm">
+                    <img src={res.logo} alt={res.name} className="w-full h-full object-cover" />
+                  </div>
+                  <h2 className="text-sm font-black text-gray-900 dark:text-white leading-tight tracking-tight uppercase">{res.name}</h2>
+                </div>
+                <span className="text-[10px] font-black text-orange-500 uppercase tracking-widest">Digital Menu</span>
               </div>
 
-              {/* Grid: Dynamic columns based on state */}
-              <div className={`grid gap-2 md:gap-6 ${gridColumns === 3 ? 'grid-cols-3' : 'grid-cols-2'}`}>
+              <div className={`grid gap-3 md:gap-6 ${gridColumns === 3 ? 'grid-cols-3' : 'grid-cols-2'}`}>
                 {res.menu.map(item => (
-                  <div key={item.id} className="group bg-white dark:bg-gray-800 rounded-lg md:rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm hover:shadow-md transition-all duration-300 overflow-hidden flex flex-col">
-                    <div className="relative aspect-square overflow-hidden bg-gray-100 dark:bg-gray-700">
-                      <img src={item.image} alt={item.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-                      <div className="absolute bottom-1 left-1 bg-black/50 backdrop-blur-sm px-1 py-0.5 rounded text-[6px] md:text-[8px] font-black text-white shadow-sm uppercase tracking-widest">
+                  <div key={item.id} className="group bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm hover:shadow-lg transition-all duration-300 overflow-hidden flex flex-col">
+                    <div className="relative aspect-[4/3] overflow-hidden bg-gray-100 dark:bg-gray-700">
+                      <img src={item.image} alt={item.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
+                      <div className="absolute top-2 left-2 bg-black/50 backdrop-blur-md px-2 py-0.5 rounded-lg text-[8px] font-black text-white shadow-sm uppercase tracking-widest">
                         {item.category}
                       </div>
                     </div>
-                    <div className="p-1.5 md:p-4 flex-1 flex flex-col">
-                      <div className="mb-1">
-                        <h4 className={`font-bold text-gray-900 dark:text-white leading-tight line-clamp-1 mb-0.5 ${gridColumns === 3 ? 'text-[9px] md:text-sm' : 'text-xs md:text-base'}`}>{item.name}</h4>
-                        <div className="flex items-baseline gap-1">
-                          <span className={`font-black text-orange-500 ${gridColumns === 3 ? 'text-[10px] md:text-lg' : 'text-sm md:text-xl'}`}>${item.price.toFixed(2)}</span>
-                        </div>
+                    <div className="p-2 md:p-4 flex-1 flex flex-col">
+                      <div className="mb-2">
+                        <h4 className={`font-black text-gray-900 dark:text-white leading-tight line-clamp-1 mb-1 ${gridColumns === 3 ? 'text-[10px] md:text-sm' : 'text-xs md:text-base'}`}>{item.name}</h4>
+                        <p className="font-black text-orange-500 text-xs md:text-lg">${item.price.toFixed(2)}</p>
                       </div>
-                      
-                      <p className={`text-gray-500 dark:text-gray-400 mb-2 line-clamp-2 leading-relaxed hidden sm:block ${gridColumns === 3 ? 'text-[8px] md:text-[10px]' : 'text-[10px] md:text-xs'}`}>
-                        {item.description}
-                      </p>
                       
                       <button 
                         onClick={() => handleInitialAdd(item, res.id)}
-                        className={`mt-auto w-full py-1.5 md:py-2.5 bg-gray-900 dark:bg-white text-white dark:text-gray-900 rounded-md md:rounded-xl font-black uppercase tracking-tighter hover:bg-orange-500 dark:hover:bg-orange-500 hover:text-white transition-all active:scale-95 shadow-sm ${gridColumns === 3 ? 'text-[8px] md:text-[10px]' : 'text-[10px] md:text-xs'}`}
+                        className={`mt-auto w-full py-2 bg-gray-900 dark:bg-white text-white dark:text-gray-900 rounded-xl font-black uppercase tracking-tighter hover:bg-orange-500 dark:hover:bg-orange-500 hover:text-white transition-all active:scale-95 shadow-sm text-[9px] md:text-xs`}
                       >
-                        Add
+                        Add to Order
                       </button>
                     </div>
                   </div>
@@ -237,50 +239,52 @@ const CustomerView: React.FC<Props> = ({ restaurants, cart, orders, onAddToCart,
           ))}
         </div>
 
-        {/* Rest of the file... */}
         {restaurants.length === 0 && (
-          <div className="text-center py-20 bg-white dark:bg-gray-800 rounded-2xl border-2 border-dashed border-gray-100 dark:border-gray-700">
-            <ShoppingCart size={24} className="mx-auto mb-2 text-gray-300" />
-            <h3 className="text-[10px] font-black text-gray-900 dark:text-white uppercase tracking-widest">No Vendors Online</h3>
+          <div className="text-center py-24 bg-white dark:bg-gray-800 rounded-3xl border-2 border-dashed border-gray-100 dark:border-gray-700">
+            <UtensilsCrossed size={48} className="mx-auto mb-4 text-gray-200" />
+            <h3 className="text-xl font-black text-gray-900 dark:text-white uppercase tracking-widest">No Active Kitchens</h3>
+            <p className="text-gray-400 text-xs mt-2">Check back later or try another location.</p>
           </div>
         )}
       </div>
 
       {/* Variant Selection Modal */}
       {selectedItemForVariants && (
-        <div className="fixed inset-0 z-[70] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-gray-800 w-full max-w-xs rounded-2xl overflow-hidden shadow-2xl animate-in zoom-in fade-in duration-300">
-            <div className="relative h-32">
+        <div className="fixed inset-0 z-[70] bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-gray-800 w-full max-w-sm rounded-[2.5rem] overflow-hidden shadow-2xl animate-in zoom-in fade-in duration-300">
+            <div className="relative h-48">
               <img src={selectedItemForVariants.item.image} className="w-full h-full object-cover" />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
               <button 
                 onClick={() => setSelectedItemForVariants(null)}
-                className="absolute top-3 right-3 p-1.5 bg-black/40 text-white rounded-full hover:bg-black/60 transition-colors"
+                className="absolute top-4 right-4 p-2 bg-white/20 backdrop-blur-md text-white rounded-full hover:bg-white/40 transition-colors"
               >
-                <X size={14} />
+                <X size={20} />
               </button>
+              <div className="absolute bottom-6 left-6">
+                <h3 className="text-xl font-black text-white uppercase tracking-tight">{selectedItemForVariants.item.name}</h3>
+                <p className="text-[10px] text-orange-300 font-bold uppercase tracking-[0.3em]">{selectedItemForVariants.item.category}</p>
+              </div>
             </div>
             
-            <div className="p-4">
-              <h3 className="text-sm font-black dark:text-white mb-1 uppercase tracking-tight">{selectedItemForVariants.item.name}</h3>
-              <p className="text-[8px] text-gray-500 dark:text-gray-400 mb-4 uppercase tracking-wider font-bold">{selectedItemForVariants.item.category}</p>
-              
-              <div className="space-y-4">
+            <div className="p-8">
+              <div className="space-y-6">
                 {selectedItemForVariants.item.sizes && selectedItemForVariants.item.sizes.length > 0 && (
                   <div>
-                    <label className="block text-[8px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-2">Select Size</label>
-                    <div className="grid grid-cols-2 gap-2">
+                    <label className="block text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-3 ml-1">Choose Portion</label>
+                    <div className="grid grid-cols-2 gap-3">
                       {selectedItemForVariants.item.sizes.map(size => (
                         <button
                           key={size.name}
                           onClick={() => setSelectedSize(size.name)}
-                          className={`p-2 rounded-lg border-2 text-left transition-all ${
+                          className={`p-4 rounded-2xl border-2 text-left transition-all duration-300 ${
                             selectedSize === size.name 
-                              ? 'border-orange-500 bg-orange-50 dark:bg-orange-900/10 text-orange-600 dark:text-orange-400' 
-                              : 'border-gray-100 dark:border-gray-700 text-gray-500 dark:text-gray-400'
+                              ? 'border-orange-500 bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400 shadow-lg shadow-orange-100 dark:shadow-none' 
+                              : 'border-gray-50 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:border-orange-200'
                           }`}
                         >
-                          <p className="text-[7px] font-black uppercase tracking-tighter">{size.name}</p>
-                          <p className="font-black text-xs">+${size.price.toFixed(2)}</p>
+                          <p className="text-[10px] font-black uppercase tracking-tighter mb-1">{size.name}</p>
+                          <p className="font-black text-sm">+{size.price > 0 ? `$${size.price.toFixed(2)}` : 'FREE'}</p>
                         </button>
                       ))}
                     </div>
@@ -289,39 +293,39 @@ const CustomerView: React.FC<Props> = ({ restaurants, cart, orders, onAddToCart,
 
                 {selectedItemForVariants.item.tempOptions?.enabled && (
                   <div>
-                    <label className="block text-[8px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-2">Temp</label>
-                    <div className="flex gap-2">
+                    <label className="block text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-3 ml-1">Temperature</label>
+                    <div className="flex gap-3">
                       <button
                         onClick={() => setSelectedTemp('Hot')}
-                        className={`flex-1 py-2 rounded-lg border-2 flex flex-col items-center gap-0.5 transition-all ${
+                        className={`flex-1 py-4 rounded-2xl border-2 flex flex-col items-center gap-2 transition-all duration-300 ${
                           selectedTemp === 'Hot' 
-                            ? 'border-orange-500 bg-orange-50 dark:bg-orange-900/10 text-orange-600 dark:text-orange-400' 
-                            : 'border-gray-100 dark:border-gray-700 text-gray-500 dark:text-gray-400'
+                            ? 'border-orange-500 bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400 shadow-lg' 
+                            : 'border-gray-50 dark:border-gray-700 text-gray-500 dark:text-gray-400'
                         }`}
                       >
-                        <ThermometerSun size={14} className="text-orange-500" />
-                        <span className="text-[8px] font-black uppercase tracking-widest">Hot</span>
+                        <ThermometerSun size={20} className="text-orange-500" />
+                        <span className="text-[10px] font-black uppercase tracking-widest">Hot Serving</span>
                       </button>
                       <button
                         onClick={() => setSelectedTemp('Cold')}
-                        className={`flex-1 py-2 rounded-lg border-2 flex flex-col items-center gap-0.5 transition-all ${
+                        className={`flex-1 py-4 rounded-2xl border-2 flex flex-col items-center gap-2 transition-all duration-300 ${
                           selectedTemp === 'Cold' 
-                            ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/10 text-blue-600 dark:text-blue-400' 
-                            : 'border-gray-100 dark:border-gray-700 text-gray-500 dark:text-gray-400'
+                            ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 shadow-lg' 
+                            : 'border-gray-50 dark:border-gray-700 text-gray-500 dark:text-gray-400'
                         }`}
                       >
-                        <Info size={14} className="text-blue-500" />
-                        <span className="text-[8px] font-black uppercase tracking-widest">Cold</span>
+                        <Info size={20} className="text-blue-500" />
+                        <span className="text-[10px] font-black uppercase tracking-widest">Cold Serving</span>
                       </button>
                     </div>
                   </div>
                 )}
               </div>
 
-              <div className="mt-6 pt-4 border-t dark:border-gray-700 flex items-center justify-between gap-3">
+              <div className="mt-10 pt-6 border-t dark:border-gray-700 flex items-center justify-between gap-6">
                 <div className="text-left">
-                   <p className="text-[7px] font-black text-gray-400 uppercase tracking-widest">Price</p>
-                   <p className="text-xl font-black dark:text-white">
+                   <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">Total Price</p>
+                   <p className="text-3xl font-black dark:text-white">
                       ${(
                         selectedItemForVariants.item.price + 
                         (selectedItemForVariants.item.sizes?.find(s => s.name === selectedSize)?.price || 0) +
@@ -331,9 +335,9 @@ const CustomerView: React.FC<Props> = ({ restaurants, cart, orders, onAddToCart,
                 </div>
                 <button 
                   onClick={confirmVariantAdd}
-                  className="flex-1 py-2.5 bg-orange-500 text-white rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-orange-200 dark:shadow-none hover:bg-orange-600 transition-all active:scale-95"
+                  className="flex-1 py-4 bg-orange-500 text-white rounded-2xl font-black text-xs uppercase tracking-[0.2em] shadow-xl shadow-orange-100 dark:shadow-none hover:bg-orange-600 transition-all active:scale-95"
                 >
-                  Confirm Add
+                  Add to Cart
                 </button>
               </div>
             </div>
@@ -343,74 +347,72 @@ const CustomerView: React.FC<Props> = ({ restaurants, cart, orders, onAddToCart,
 
       {/* Persistent Cart FAB */}
       {cart.length > 0 && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 w-full max-w-[320px] px-4 z-50">
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 w-full max-w-[340px] px-4 z-50">
           <button 
             onClick={() => setShowCart(true)}
-            className="w-full bg-black dark:bg-gray-100 text-white dark:text-gray-900 p-3 rounded-2xl shadow-2xl flex items-center justify-between hover:scale-[1.02] active:scale-95 transition-all"
+            className="w-full bg-black dark:bg-gray-100 text-white dark:text-gray-900 p-4 rounded-[2rem] shadow-[0_20px_50px_rgba(0,0,0,0.3)] flex items-center justify-between hover:scale-[1.02] active:scale-95 transition-all border-4 border-white dark:border-gray-800"
           >
-            <div className="flex items-center gap-2">
-              <div className="w-7 h-7 bg-orange-500 rounded-lg flex items-center justify-center font-black text-[10px] text-white tracking-tighter">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 bg-orange-500 rounded-xl flex items-center justify-center font-black text-xs text-white">
                 {cart.length}
               </div>
-              <span className="font-black text-[10px] uppercase tracking-widest">View My Order</span>
+              <span className="font-black text-[11px] uppercase tracking-[0.2em]">View Your Tray</span>
             </div>
-            <span className="font-black text-lg tracking-tight">${cartTotal.toFixed(2)}</span>
+            <span className="font-black text-xl tracking-tight">${cartTotal.toFixed(2)}</span>
           </button>
         </div>
       )}
 
       {/* Cart Drawer */}
       {showCart && (
-        <div className="fixed inset-0 z-[80] bg-black/60 backdrop-blur-md flex justify-end">
+        <div className="fixed inset-0 z-[80] bg-black/70 backdrop-blur-md flex justify-end">
           <div className="w-full max-w-md bg-white dark:bg-gray-900 h-full shadow-2xl flex flex-col animate-slide-left transition-colors">
-            <div className="p-5 border-b dark:border-gray-800 flex items-center justify-between bg-gray-50/50 dark:bg-gray-800/50">
-              <h2 className="text-xs font-black dark:text-white uppercase tracking-[0.2em]">Order Review</h2>
-              <button onClick={() => setShowCart(false)} className="p-2 hover:bg-gray-200 dark:hover:bg-gray-800 rounded-full dark:text-gray-400 transition-colors">
-                <X size={20} />
+            <div className="p-6 border-b dark:border-gray-800 flex items-center justify-between bg-gray-50/50 dark:bg-gray-800/50">
+              <h2 className="text-sm font-black dark:text-white uppercase tracking-[0.3em]">Your Order Summary</h2>
+              <button onClick={() => setShowCart(false)} className="p-3 hover:bg-gray-200 dark:hover:bg-gray-800 rounded-full dark:text-gray-400 transition-colors">
+                <X size={24} />
               </button>
             </div>
             
-            <div className="flex-1 overflow-y-auto p-4 space-y-4">
-              {cart.map(item => (
-                <div key={`${item.id}-${item.selectedSize}-${item.selectedTemp}`} className="flex gap-3 p-3 bg-gray-50 dark:bg-gray-800/50 rounded-xl border dark:border-gray-700">
-                  <img src={item.image} className="w-14 h-14 rounded-lg object-cover shadow-sm" />
+            <div className="flex-1 overflow-y-auto p-6 space-y-6">
+              {cart.map((item, idx) => (
+                <div key={`${item.id}-${idx}`} className="flex gap-4 p-4 bg-gray-50 dark:bg-gray-800/50 rounded-2xl border dark:border-gray-700 shadow-sm">
+                  <img src={item.image} className="w-16 h-16 rounded-xl object-cover shadow-sm" />
                   <div className="flex-1">
-                    <div className="flex justify-between font-bold dark:text-white mb-1">
-                      <p className="text-[11px] font-black uppercase tracking-tight">{item.name}</p>
-                      <p className="text-[11px] font-black">${(item.price * item.quantity).toFixed(2)}</p>
+                    <div className="flex justify-between font-bold dark:text-white mb-2">
+                      <p className="text-xs font-black uppercase tracking-tight">{item.name}</p>
+                      <p className="text-xs font-black text-orange-500">${(item.price * item.quantity).toFixed(2)}</p>
                     </div>
-                    {(item.selectedSize || item.selectedTemp) && (
-                      <div className="flex flex-wrap gap-1 mb-2">
-                        {item.selectedSize && <span className="text-[7px] font-black px-1.5 py-0.5 bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 rounded-md uppercase tracking-tighter">{item.selectedSize}</span>}
-                        {item.selectedTemp && <span className={`text-[7px] font-black px-1.5 py-0.5 rounded-md uppercase tracking-tighter ${item.selectedTemp === 'Hot' ? 'bg-orange-50 text-orange-600' : 'bg-blue-50 text-blue-600'}`}>{item.selectedTemp}</span>}
-                      </div>
-                    )}
-                    <div className="flex items-center justify-between mt-1">
-                      <div className="flex items-center bg-white dark:bg-gray-700 rounded-lg border dark:border-gray-600 overflow-hidden">
-                        <button onClick={() => onRemoveFromCart(item.id)} className="p-1.5 hover:bg-red-50 dark:hover:bg-red-900/20 text-red-500 transition-colors"><Minus size={10} /></button>
-                        <span className="px-3 font-black text-[10px] dark:text-white">{item.quantity}</span>
-                        <button onClick={() => onAddToCart(item)} className="p-1.5 hover:bg-green-50 dark:hover:bg-green-900/20 text-green-600 transition-colors"><Plus size={10} /></button>
+                    <div className="flex flex-wrap gap-1 mb-3">
+                      {item.selectedSize && <span className="text-[8px] font-black px-2 py-0.5 bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 rounded uppercase">{item.selectedSize}</span>}
+                      {item.selectedTemp && <span className={`text-[8px] font-black px-2 py-0.5 rounded uppercase ${item.selectedTemp === 'Hot' ? 'bg-orange-50 text-orange-600' : 'bg-blue-50 text-blue-600'}`}>{item.selectedTemp}</span>}
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center bg-white dark:bg-gray-700 rounded-xl border dark:border-gray-600 overflow-hidden shadow-inner">
+                        <button onClick={() => onRemoveFromCart(item.id)} className="p-2 hover:bg-red-50 dark:hover:bg-red-900/20 text-red-500 transition-colors"><Minus size={12} /></button>
+                        <span className="px-4 font-black text-xs dark:text-white">{item.quantity}</span>
+                        <button onClick={() => onAddToCart(item)} className="p-2 hover:bg-green-50 dark:hover:bg-green-900/20 text-green-600 transition-colors"><Plus size={12} /></button>
                       </div>
                     </div>
                   </div>
                 </div>
               ))}
               {cart.length === 0 && (
-                 <div className="text-center py-20">
-                    <ShoppingCart size={24} className="mx-auto mb-3 text-gray-300" />
-                    <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Order tray is empty</p>
+                 <div className="text-center py-24">
+                    <ShoppingCart size={48} className="mx-auto mb-4 text-gray-200" />
+                    <p className="text-xs font-black text-gray-400 uppercase tracking-widest">Your tray is empty</p>
                  </div>
               )}
 
               {cart.length > 0 && (
-                <div className="pt-4 mt-4 border-t dark:border-gray-800">
-                   <div className="flex items-center gap-2 mb-2">
-                     <MessageSquare size={12} className="text-orange-500" />
-                     <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Add Remark / Special Instructions</label>
+                <div className="pt-6 mt-6 border-t dark:border-gray-800">
+                   <div className="flex items-center gap-2 mb-3">
+                     <MessageSquare size={16} className="text-orange-500" />
+                     <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Chef Instructions</label>
                    </div>
                    <textarea 
-                     className="w-full p-4 bg-gray-50 dark:bg-gray-800 border dark:border-gray-700 rounded-xl text-xs dark:text-white outline-none focus:ring-2 focus:ring-orange-500 transition-all resize-none"
-                     placeholder="e.g. No onions, less spicy, extra napkins..."
+                     className="w-full p-4 bg-gray-50 dark:bg-gray-800 border dark:border-gray-700 rounded-2xl text-xs dark:text-white outline-none focus:ring-2 focus:ring-orange-500 transition-all resize-none shadow-inner"
+                     placeholder="e.g. No dairy, extra spicy..."
                      rows={3}
                      value={orderRemark}
                      onChange={(e) => setOrderRemark(e.target.value)}
@@ -419,29 +421,29 @@ const CustomerView: React.FC<Props> = ({ restaurants, cart, orders, onAddToCart,
               )}
             </div>
 
-            <div className="p-6 border-t dark:border-gray-800 bg-gray-50 dark:bg-gray-800/80 backdrop-blur-lg">
-              <div className="space-y-2 mb-6 text-gray-600 dark:text-gray-400">
-                <div className="flex justify-between text-[9px] font-bold uppercase tracking-[0.2em]">
+            <div className="p-8 border-t dark:border-gray-800 bg-gray-50 dark:bg-gray-800/80 backdrop-blur-xl">
+              <div className="space-y-3 mb-8">
+                <div className="flex justify-between text-[10px] font-black text-gray-400 uppercase tracking-widest">
                   <span>Subtotal</span>
                   <span className="text-gray-900 dark:text-white font-black">${cartTotal.toFixed(2)}</span>
                 </div>
                 {tableNo && (
-                  <div className="flex justify-between text-[9px] font-bold uppercase tracking-[0.2em]">
-                    <span>Table</span>
-                    <span className="text-orange-500 font-black">#{tableNo}</span>
+                  <div className="flex justify-between text-[10px] font-black text-gray-400 uppercase tracking-widest">
+                    <span>Table Service</span>
+                    <span className="text-orange-500 font-black">Zone {tableNo}</span>
                   </div>
                 )}
-                <div className="flex justify-between text-xl font-black text-gray-900 dark:text-white border-t dark:border-gray-700 pt-4 mt-4 uppercase tracking-[0.1em]">
-                  <span>Total</span>
-                  <span>${cartTotal.toFixed(2)}</span>
+                <div className="flex justify-between text-2xl font-black text-gray-900 dark:text-white border-t dark:border-gray-700 pt-6 mt-6 uppercase tracking-tighter">
+                  <span>Grand Total</span>
+                  <span className="text-orange-500">${cartTotal.toFixed(2)}</span>
                 </div>
               </div>
               <button 
                 disabled={cart.length === 0}
                 onClick={() => { onPlaceOrder(orderRemark); setShowCart(false); setOrderRemark(''); }}
-                className="w-full py-4 bg-orange-500 text-white rounded-2xl font-black text-[12px] uppercase tracking-[0.3em] shadow-xl shadow-orange-100 dark:shadow-none hover:bg-orange-600 transition-all active:scale-[0.98] disabled:opacity-50 disabled:grayscale"
+                className="w-full py-5 bg-orange-500 text-white rounded-[2rem] font-black text-sm uppercase tracking-[0.3em] shadow-2xl shadow-orange-100 dark:shadow-none hover:bg-orange-600 transition-all active:scale-[0.98] disabled:opacity-50"
               >
-                Place My Order
+                Send Order to Kitchen
               </button>
             </div>
           </div>

@@ -1,37 +1,25 @@
+
 import React, { useState, useEffect } from 'react';
 import { User, Role, Restaurant, Order, OrderStatus, CartItem, MenuItem, Area } from './types';
-import { MOCK_RESTAURANTS, INITIAL_USERS } from './constants';
 import CustomerView from './pages/CustomerView';
 import VendorView from './pages/VendorView';
 import AdminView from './pages/AdminView';
 import LandingPage from './pages/LandingPage';
 import LoginPage from './pages/LoginPage';
+import { supabase } from './lib/supabase';
 import { LogOut, Sun, Moon, MapPin } from 'lucide-react';
 
-const INITIAL_AREAS: Area[] = [
-  { id: 'area_1', name: 'Floor 1 - Zone A', city: 'San Francisco', state: 'CA', code: 'SF1', isActive: true },
-  { id: 'area_2', name: 'Floor 2 - Zone B', city: 'San Francisco', state: 'CA', code: 'SF2', isActive: true },
-  { id: 'area_3', name: 'Floor 1 - Zone C', city: 'New York', state: 'NY', code: 'NY1', isActive: true },
-  { id: 'area_4', name: 'Food Court - West', city: 'London', state: 'UK', code: 'LNW', isActive: true }
-];
-
 const App: React.FC = () => {
-  const getStored = <T,>(key: string, fallback: T): T => {
-    const saved = localStorage.getItem(key);
-    return saved ? JSON.parse(saved) : fallback;
-  };
-
-  const [allUsers, setAllUsers] = useState<User[]>(() => getStored('qs_users', INITIAL_USERS));
-  const [restaurants, setRestaurants] = useState<Restaurant[]>(() => getStored('qs_restaurants', MOCK_RESTAURANTS));
-  const [orders, setOrders] = useState<Order[]>(() => getStored('qs_orders', []));
-  const [locations, setLocations] = useState<Area[]>(() => getStored('qs_locations', INITIAL_AREAS));
+  const [allUsers, setAllUsers] = useState<User[]>([]);
+  const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [locations, setLocations] = useState<Area[]>([]);
   
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [currentRole, setCurrentRole] = useState<Role | null>(null);
   const [view, setView] = useState<'LANDING' | 'LOGIN' | 'APP'>('LANDING');
   const [cart, setCart] = useState<CartItem[]>([]);
   
-  // Scanned Session State
   const [sessionLocation, setSessionLocation] = useState<string | null>(null);
   const [sessionTable, setSessionTable] = useState<string | null>(null);
 
@@ -40,21 +28,104 @@ const App: React.FC = () => {
       (!localStorage.getItem('theme') && window.matchMedia('(prefers-color-scheme: dark)').matches);
   });
 
+  // 1. Initial Data Fetching from Supabase
   useEffect(() => {
-    localStorage.setItem('qs_users', JSON.stringify(allUsers));
-  }, [allUsers]);
+    const initApp = async () => {
+      await Promise.all([
+        fetchUsers(),
+        fetchLocations(),
+        fetchRestaurants(),
+        fetchOrders()
+      ]);
+    };
+    initApp();
 
-  useEffect(() => {
-    localStorage.setItem('qs_restaurants', JSON.stringify(restaurants));
-  }, [restaurants]);
+    // 2. Real-time Subscription for Orders
+    const orderSubscription = supabase
+      .channel('public:orders')
+      .on('postgres_changes', { event: '*', table: 'orders' }, (payload) => {
+        fetchOrders();
+      })
+      .subscribe();
 
-  useEffect(() => {
-    localStorage.setItem('qs_orders', JSON.stringify(orders));
-  }, [orders]);
+    return () => {
+      supabase.removeChannel(orderSubscription);
+    };
+  }, []);
 
-  useEffect(() => {
-    localStorage.setItem('qs_locations', JSON.stringify(locations));
-  }, [locations]);
+  const fetchUsers = async () => {
+    const { data } = await supabase.from('users').select('*');
+    if (data) {
+      setAllUsers(data.map(u => ({
+        id: u.id,
+        username: u.username,
+        role: u.role,
+        restaurantId: u.restaurant_id,
+        password: u.password,
+        isActive: u.is_active,
+        email: u.email,
+        phone: u.phone
+      })));
+    }
+  };
+
+  const fetchLocations = async () => {
+    const { data } = await supabase.from('areas').select('*');
+    if (data) setLocations(data);
+  };
+
+  const fetchRestaurants = async () => {
+    const { data: resData } = await supabase.from('restaurants').select('*');
+    const { data: menuData } = await supabase.from('menu_items').select('*');
+    
+    if (resData && menuData) {
+      const formatted: Restaurant[] = resData.map(res => ({
+        id: res.id,
+        name: res.name,
+        logo: res.logo,
+        vendorId: res.vendor_id,
+        location: res.location_name,
+        menu: menuData
+          .filter(m => m.restaurant_id === res.id)
+          .map(m => ({
+            id: m.id,
+            name: m.name,
+            description: m.description,
+            price: Number(m.price),
+            image: m.image,
+            category: m.category,
+            isArchived: m.is_archived,
+            sizes: m.sizes,
+            tempOptions: m.temp_options
+          }))
+      }));
+      setRestaurants(formatted);
+    }
+  };
+
+  const fetchOrders = async () => {
+    const { data } = await supabase
+      .from('orders')
+      .select('*')
+      .order('timestamp', { ascending: false });
+    
+    if (data) {
+      setOrders(data.map(o => ({
+        id: o.id,
+        items: o.items,
+        total: Number(o.total),
+        status: o.status as OrderStatus,
+        timestamp: Number(o.timestamp),
+        customerId: o.customer_id,
+        restaurantId: o.restaurant_id,
+        tableNumber: o.table_number,
+        locationName: o.location_name,
+        remark: o.remark,
+        rejectionReason: o.rejection_reason,
+        rejectionNote: o.rejection_note
+      })));
+    }
+  };
 
   useEffect(() => {
     if (isDarkMode) {
@@ -112,99 +183,151 @@ const App: React.FC = () => {
     });
   };
 
-  const placeOrder = (remark: string) => {
+  const placeOrder = async (remark: string) => {
     if (cart.length === 0) return;
     
-    // Generate Location-based Order ID: XX000001
     const area = locations.find(l => l.name === sessionLocation);
     const code = area?.code || 'QS';
     const locationOrdersCount = orders.filter(o => o.locationName === sessionLocation).length;
     const sequence = (locationOrdersCount + 1).toString().padStart(6, '0');
     const orderId = `${code}${sequence}`;
 
-    const newOrder: Order = {
+    const newOrder = {
       id: orderId,
-      items: [...cart],
+      items: cart,
       total: cart.reduce((acc, item) => acc + item.price * item.quantity, 0),
       status: OrderStatus.PENDING,
       timestamp: Date.now(),
-      customerId: 'guest_user',
-      restaurantId: cart[0].restaurantId,
-      tableNumber: sessionTable || 'N/A',
-      locationName: sessionLocation || 'Unspecified',
+      customer_id: 'guest_user',
+      restaurant_id: cart[0].restaurantId,
+      table_number: sessionTable || 'N/A',
+      location_name: sessionLocation || 'Unspecified',
       remark: remark
     };
     
-    setOrders(prev => [newOrder, ...prev]);
-    setCart([]);
-    alert(`Order ${orderId} placed successfully! Table: ${sessionTable || 'N/A'}`);
-  };
-
-  const updateOrderStatus = (orderId: string, status: OrderStatus, rejectionReason?: string, rejectionNote?: string) => {
-    setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status, rejectionReason, rejectionNote } : o));
-  };
-
-  const updateMenuItem = (restaurantId: string, updatedItem: MenuItem) => {
-    setRestaurants(prev => prev.map(r => {
-      if (r.id === restaurantId) {
-        return {
-          ...r,
-          menu: r.menu.map(m => m.id === updatedItem.id ? updatedItem : m)
-        };
-      }
-      return r;
-    }));
-  };
-
-  const handleAddMenuItem = (restaurantId: string, newItem: MenuItem) => {
-    setRestaurants(prev => prev.map(r => {
-      if (r.id === restaurantId) {
-        return {
-          ...r,
-          menu: [...r.menu, newItem]
-        };
-      }
-      return r;
-    }));
-  };
-
-  const handlePermanentDeleteMenuItem = (restaurantId: string, itemId: string) => {
-    setRestaurants(prev => prev.map(r => {
-      if (r.id === restaurantId) {
-        return {
-          ...r,
-          menu: r.menu.filter(m => m.id !== itemId)
-        };
-      }
-      return r;
-    }));
-  };
-
-  const handleAddVendor = (newUser: User, newRestaurant: Restaurant) => {
-    setAllUsers(prev => [...prev, { ...newUser, isActive: true }]);
-    setRestaurants(prev => [...prev, newRestaurant]);
-  };
-
-  const handleUpdateVendor = (updatedUser: User, updatedRestaurant: Restaurant) => {
-    setAllUsers(prev => prev.map(u => u.id === updatedUser.id ? updatedUser : u));
-    setRestaurants(prev => prev.map(r => r.id === updatedRestaurant.id ? updatedRestaurant : r));
-  };
-
-  const handleAddLocation = (newArea: Area) => {
-    setLocations(prev => [...prev, { ...newArea, isActive: true }]);
-  };
-
-  const handleUpdateLocation = (updatedArea: Area) => {
-    const oldArea = locations.find(l => l.id === updatedArea.id);
-    setLocations(prev => prev.map(l => l.id === updatedArea.id ? updatedArea : l));
-    // Update restaurants location string if name changed
-    if (oldArea && oldArea.name !== updatedArea.name) {
-      setRestaurants(prev => prev.map(r => r.location === oldArea.name ? { ...r, location: updatedArea.name } : r));
+    const { error } = await supabase.from('orders').insert([newOrder]);
+    if (error) {
+      alert("Error placing order: " + error.message);
+    } else {
+      setCart([]);
+      alert(`Order ${orderId} placed successfully!`);
     }
   };
 
-  const handleDeleteLocation = (areaId: string) => {
-    setLocations(prev => prev.filter(l => l.id !== areaId));
+  const updateOrderStatus = async (orderId: string, status: OrderStatus, rejectionReason?: string, rejectionNote?: string) => {
+    const { error } = await supabase
+      .from('orders')
+      .update({ 
+        status, 
+        rejection_reason: rejectionReason, 
+        rejection_note: rejectionNote 
+      })
+      .eq('id', orderId);
+
+    if (error) alert("Error updating order: " + error.message);
+  };
+
+  const updateMenuItem = async (restaurantId: string, updatedItem: MenuItem) => {
+    const { error } = await supabase
+      .from('menu_items')
+      .update({
+        name: updatedItem.name,
+        description: updatedItem.description,
+        price: updatedItem.price,
+        image: updatedItem.image,
+        category: updatedItem.category,
+        is_archived: updatedItem.isArchived,
+        sizes: updatedItem.sizes,
+        temp_options: updatedItem.tempOptions
+      })
+      .eq('id', updatedItem.id);
+    
+    if (error) alert("Error updating menu: " + error.message);
+    else fetchRestaurants();
+  };
+
+  const handleAddMenuItem = async (restaurantId: string, newItem: MenuItem) => {
+    const { error } = await supabase
+      .from('menu_items')
+      .insert([{
+        restaurant_id: restaurantId,
+        name: newItem.name,
+        description: newItem.description,
+        price: newItem.price,
+        image: newItem.image,
+        category: newItem.category,
+        sizes: newItem.sizes,
+        temp_options: newItem.tempOptions
+      }]);
+    
+    if (error) alert("Error adding menu item: " + error.message);
+    else fetchRestaurants();
+  };
+
+  const handlePermanentDeleteMenuItem = async (restaurantId: string, itemId: string) => {
+    const { error } = await supabase.from('menu_items').delete().eq('id', itemId);
+    if (error) alert("Error deleting item: " + error.message);
+    else fetchRestaurants();
+  };
+
+  const handleAddVendor = async (newUser: User, newRestaurant: Restaurant) => {
+    const { data: userData, error: userError } = await supabase
+      .from('users')
+      .insert([{
+        username: newUser.username,
+        password: newUser.password,
+        role: 'VENDOR',
+        email: newUser.email,
+        phone: newUser.phone,
+        is_active: true
+      }])
+      .select();
+
+    if (userData && !userError) {
+      const { error: resError } = await supabase
+        .from('restaurants')
+        .insert([{
+          name: newRestaurant.name,
+          logo: newRestaurant.logo,
+          vendor_id: userData[0].id,
+          location_name: newRestaurant.location
+        }]);
+      
+      if (!resError) {
+        await Promise.all([fetchUsers(), fetchRestaurants()]);
+      }
+    }
+  };
+
+  const handleUpdateVendor = async (updatedUser: User, updatedRestaurant: Restaurant) => {
+    await supabase.from('users').update({
+      username: updatedUser.username,
+      email: updatedUser.email,
+      phone: updatedUser.phone,
+      is_active: updatedUser.isActive
+    }).eq('id', updatedUser.id);
+
+    await supabase.from('restaurants').update({
+      name: updatedRestaurant.name,
+      location_name: updatedRestaurant.location
+    }).eq('id', updatedRestaurant.id);
+
+    await Promise.all([fetchUsers(), fetchRestaurants()]);
+  };
+
+  const handleAddLocation = async (newArea: Area) => {
+    const { error } = await supabase.from('areas').insert([newArea]);
+    if (!error) fetchLocations();
+  };
+
+  const handleUpdateLocation = async (updatedArea: Area) => {
+    const { error } = await supabase.from('areas').update(updatedArea).eq('id', updatedArea.id);
+    if (!error) fetchLocations();
+  };
+
+  const handleDeleteLocation = async (areaId: string) => {
+    const { error } = await supabase.from('areas').delete().eq('id', areaId);
+    if (!error) fetchLocations();
   };
 
   if (view === 'LANDING') {
@@ -241,43 +364,21 @@ const App: React.FC = () => {
         <div className="flex items-center gap-4">
           <button 
             onClick={() => setIsDarkMode(!isDarkMode)}
-            className="p-2 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
-            title="Toggle Dark Mode"
+            className="p-2 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-600 transition-colors"
           >
             {isDarkMode ? <Sun size={20} /> : <Moon size={20} />}
           </button>
 
-          {currentRole === 'CUSTOMER' && (
-            <button 
-              onClick={() => { setSessionLocation(null); setSessionTable(null); setView('LANDING'); }} 
-              className="text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-orange-500 dark:hover:text-orange-400"
-            >
-              Exit Scan
-            </button>
-          )}
-          
           {currentUser ? (
             <div className="flex items-center gap-3">
               <div className="text-right hidden sm:block">
                 <p className="text-xs text-gray-400 capitalize">{currentUser.role}</p>
                 <p className="text-sm font-semibold dark:text-white">{currentUser.username}</p>
               </div>
-              <button 
-                onClick={handleLogout}
-                className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400 transition-colors"
-              >
-                <LogOut size={20} />
-              </button>
+              <button onClick={handleLogout} className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"><LogOut size={20} /></button>
             </div>
           ) : (
-            currentRole !== 'CUSTOMER' && (
-              <button 
-                onClick={() => setView('LOGIN')} 
-                className="px-4 py-2 bg-orange-500 text-white rounded-lg font-medium hover:bg-orange-600 transition-all shadow-md shadow-orange-200"
-              >
-                Sign In
-              </button>
-            )
+            currentRole !== 'CUSTOMER' && <button onClick={() => setView('LOGIN')} className="px-4 py-2 bg-orange-500 text-white rounded-lg font-medium hover:bg-orange-600 transition-all shadow-md">Sign In</button>
           )}
         </div>
       </header>
