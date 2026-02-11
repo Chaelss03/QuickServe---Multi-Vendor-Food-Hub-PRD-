@@ -8,6 +8,7 @@ import LandingPage from './pages/LandingPage';
 import LoginPage from './pages/LoginPage';
 import { supabase } from './lib/supabase';
 import { LogOut, Sun, Moon, MapPin } from 'lucide-react';
+import { RealtimePostgresChangesPayload } from '@supabase/supabase-js';
 
 const App: React.FC = () => {
   const [allUsers, setAllUsers] = useState<User[]>([]);
@@ -41,11 +42,20 @@ const App: React.FC = () => {
     initApp();
 
     // 2. Real-time Subscription for Orders
+    // Fix: Added schema and explicit payload type to satisfy TS
     const orderSubscription = supabase
       .channel('public:orders')
-      .on('postgres_changes', { event: '*', table: 'orders' }, (payload) => {
-        fetchOrders();
-      })
+      .on(
+        'postgres_changes', 
+        { 
+          event: '*', 
+          schema: 'public', 
+          table: 'orders' 
+        }, 
+        (_payload: RealtimePostgresChangesPayload<any>) => {
+          fetchOrders();
+        }
+      )
       .subscribe();
 
     return () => {
@@ -59,7 +69,7 @@ const App: React.FC = () => {
       setAllUsers(data.map(u => ({
         id: u.id,
         username: u.username,
-        role: u.role,
+        role: u.role as Role,
         restaurantId: u.restaurant_id,
         password: u.password,
         isActive: u.is_active,
@@ -364,7 +374,7 @@ const App: React.FC = () => {
         <div className="flex items-center gap-4">
           <button 
             onClick={() => setIsDarkMode(!isDarkMode)}
-            className="p-2 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-600 transition-colors"
+            className="p-2 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
           >
             {isDarkMode ? <Sun size={20} /> : <Moon size={20} />}
           </button>
