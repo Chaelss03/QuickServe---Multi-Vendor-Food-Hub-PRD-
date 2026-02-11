@@ -26,18 +26,38 @@ const LandingPage: React.FC<Props> = ({ onScan, onLoginClick, isDarkMode, onTogg
   const startCamera = async () => {
     setCameraError(null);
     setShowCamera(true);
+
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      setCameraError('Camera API not supported in this browser.');
+      return;
+    }
+
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: { facingMode: 'environment' } 
+        video: { 
+          facingMode: 'environment',
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        } 
       });
+
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         videoRef.current.setAttribute("playsinline", "true");
-        videoRef.current.play();
-        requestRef.current = requestAnimationFrame(scanQRCode);
+        // Explicitly calling play() after setting srcObject
+        try {
+          await videoRef.current.play();
+          requestRef.current = requestAnimationFrame(scanQRCode);
+        } catch (playErr) {
+          console.error("Video play failed:", playErr);
+          setCameraError("Failed to start video stream. Please ensure camera permissions are granted.");
+        }
       }
     } catch (err: any) {
-      setCameraError(err.message || 'Could not access camera');
+      const msg = err.name === 'NotAllowedError' 
+        ? 'Camera permission denied. Please allow access in settings.' 
+        : (err.message || 'Could not access camera');
+      setCameraError(msg);
       console.error('Camera Error:', err);
     }
   };
@@ -46,6 +66,7 @@ const LandingPage: React.FC<Props> = ({ onScan, onLoginClick, isDarkMode, onTogg
     if (videoRef.current && videoRef.current.srcObject) {
       const stream = videoRef.current.srcObject as MediaStream;
       stream.getTracks().forEach(track => track.stop());
+      videoRef.current.srcObject = null;
     }
     if (requestRef.current) {
       cancelAnimationFrame(requestRef.current);
@@ -53,7 +74,7 @@ const LandingPage: React.FC<Props> = ({ onScan, onLoginClick, isDarkMode, onTogg
     setShowCamera(false);
   };
 
-  const scanQRCode = (_time: number) => {
+  const scanQRCode = (time?: number) => {
     if (videoRef.current && videoRef.current.readyState === videoRef.current.HAVE_ENOUGH_DATA && canvasRef.current) {
       const canvas = canvasRef.current;
       const video = videoRef.current;
@@ -69,7 +90,6 @@ const LandingPage: React.FC<Props> = ({ onScan, onLoginClick, isDarkMode, onTogg
         });
 
         if (code) {
-          // Parse logic: assuming URL like ?loc=ZoneA&table=5 or similar
           try {
             if (code.data.startsWith('http')) {
               const url = new URL(code.data);
@@ -81,7 +101,6 @@ const LandingPage: React.FC<Props> = ({ onScan, onLoginClick, isDarkMode, onTogg
                 return;
               }
             } else {
-              // If it's just plain text like "ZoneA,5"
               const parts = code.data.split(',');
               if (parts.length === 2) {
                 onScan(parts[0].trim(), parts[1].trim());
@@ -92,7 +111,6 @@ const LandingPage: React.FC<Props> = ({ onScan, onLoginClick, isDarkMode, onTogg
           } catch (e) {
             console.error("QR Parse Error", e);
           }
-          console.log("Found QR Raw:", code.data);
         }
       }
     }
@@ -102,6 +120,10 @@ const LandingPage: React.FC<Props> = ({ onScan, onLoginClick, isDarkMode, onTogg
   useEffect(() => {
     return () => {
       if (requestRef.current) cancelAnimationFrame(requestRef.current);
+      if (videoRef.current && videoRef.current.srcObject) {
+        const stream = videoRef.current.srcObject as MediaStream;
+        stream.getTracks().forEach(track => track.stop());
+      }
     };
   }, []);
 
@@ -175,6 +197,9 @@ const LandingPage: React.FC<Props> = ({ onScan, onLoginClick, isDarkMode, onTogg
                   <video 
                     ref={videoRef} 
                     className="w-full h-full object-cover" 
+                    playsInline 
+                    muted 
+                    autoPlay
                   />
                   <canvas ref={canvasRef} className="hidden" />
                   
@@ -186,7 +211,7 @@ const LandingPage: React.FC<Props> = ({ onScan, onLoginClick, isDarkMode, onTogg
                   </div>
                   
                   {cameraError && (
-                    <div className="absolute inset-0 flex items-center justify-center bg-black/80 p-6 text-center">
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/80 p-6 text-center z-10">
                       <div>
                         <X className="mx-auto text-red-500 mb-2" size={32} />
                         <p className="text-white font-bold text-sm mb-4">{cameraError}</p>
