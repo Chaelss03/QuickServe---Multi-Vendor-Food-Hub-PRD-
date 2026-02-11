@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { User, Role, Restaurant, Order, OrderStatus, CartItem, MenuItem, Area } from './types';
 import CustomerView from './pages/CustomerView';
 import VendorView from './pages/VendorView';
@@ -16,54 +16,33 @@ const App: React.FC = () => {
   const [orders, setOrders] = useState<Order[]>([]);
   const [locations, setLocations] = useState<Area[]>([]);
   
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [currentRole, setCurrentRole] = useState<Role | null>(null);
-  const [view, setView] = useState<'LANDING' | 'LOGIN' | 'APP'>('LANDING');
-  const [cart, setCart] = useState<CartItem[]>([]);
+  // Persistence Initialization
+  const [currentUser, setCurrentUser] = useState<User | null>(() => {
+    const saved = localStorage.getItem('qs_user');
+    return saved ? JSON.parse(saved) : null;
+  });
+  const [currentRole, setCurrentRole] = useState<Role | null>(() => {
+    return localStorage.getItem('qs_role') as Role | null;
+  });
+  const [view, setView] = useState<'LANDING' | 'LOGIN' | 'APP'>(() => {
+    return localStorage.getItem('qs_view') as any || 'LANDING';
+  });
   
-  const [sessionLocation, setSessionLocation] = useState<string | null>(null);
-  const [sessionTable, setSessionTable] = useState<string | null>(null);
+  const [sessionLocation, setSessionLocation] = useState<string | null>(() => {
+    return localStorage.getItem('qs_session_location');
+  });
+  const [sessionTable, setSessionTable] = useState<string | null>(() => {
+    return localStorage.getItem('qs_session_table');
+  });
 
+  const [cart, setCart] = useState<CartItem[]>([]);
   const [isDarkMode, setIsDarkMode] = useState(() => {
     return localStorage.getItem('theme') === 'dark' || 
       (!localStorage.getItem('theme') && window.matchMedia('(prefers-color-scheme: dark)').matches);
   });
 
-  // 1. Initial Data Fetching from Supabase
-  useEffect(() => {
-    const initApp = async () => {
-      await Promise.all([
-        fetchUsers(),
-        fetchLocations(),
-        fetchRestaurants(),
-        fetchOrders()
-      ]);
-    };
-    initApp();
-
-    // 2. Real-time Subscription for Orders
-    // Fix: Added schema and explicit payload type to satisfy TS
-    const orderSubscription = supabase
-      .channel('public:orders')
-      .on(
-        'postgres_changes', 
-        { 
-          event: '*', 
-          schema: 'public', 
-          table: 'orders' 
-        }, 
-        (_payload: RealtimePostgresChangesPayload<any>) => {
-          fetchOrders();
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(orderSubscription);
-    };
-  }, []);
-
-  const fetchUsers = async () => {
+  // Fetching Data
+  const fetchUsers = useCallback(async () => {
     const { data } = await supabase.from('users').select('*');
     if (data) {
       setAllUsers(data.map(u => ({
@@ -77,14 +56,14 @@ const App: React.FC = () => {
         phone: u.phone
       })));
     }
-  };
+  }, []);
 
-  const fetchLocations = async () => {
+  const fetchLocations = useCallback(async () => {
     const { data } = await supabase.from('areas').select('*');
     if (data) setLocations(data);
-  };
+  }, []);
 
-  const fetchRestaurants = async () => {
+  const fetchRestaurants = useCallback(async () => {
     const { data: resData } = await supabase.from('restaurants').select('*');
     const { data: menuData } = await supabase.from('menu_items').select('*');
     
@@ -111,9 +90,9 @@ const App: React.FC = () => {
       }));
       setRestaurants(formatted);
     }
-  };
+  }, []);
 
-  const fetchOrders = async () => {
+  const fetchOrders = useCallback(async () => {
     const { data } = await supabase
       .from('orders')
       .select('*')
@@ -135,7 +114,40 @@ const App: React.FC = () => {
         rejectionNote: o.rejection_note
       })));
     }
-  };
+  }, []);
+
+  // 1. Initial Data Fetching from Supabase
+  useEffect(() => {
+    const initApp = async () => {
+      await Promise.all([
+        fetchUsers(),
+        fetchLocations(),
+        fetchRestaurants(),
+        fetchOrders()
+      ]);
+    };
+    initApp();
+
+    // 2. Real-time Subscription for Orders
+    const orderSubscription = supabase
+      .channel('public:orders_live')
+      .on(
+        'postgres_changes', 
+        { 
+          event: '*', 
+          schema: 'public', 
+          table: 'orders' 
+        }, 
+        () => {
+          fetchOrders();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(orderSubscription);
+    };
+  }, [fetchUsers, fetchLocations, fetchRestaurants, fetchOrders]);
 
   useEffect(() => {
     if (isDarkMode) {
@@ -151,6 +163,9 @@ const App: React.FC = () => {
     setCurrentUser(user);
     setCurrentRole(user.role);
     setView('APP');
+    localStorage.setItem('qs_user', JSON.stringify(user));
+    localStorage.setItem('qs_role', user.role);
+    localStorage.setItem('qs_view', 'APP');
   };
 
   const handleLogout = () => {
@@ -159,6 +174,11 @@ const App: React.FC = () => {
     setSessionLocation(null);
     setSessionTable(null);
     setView('LANDING');
+    localStorage.removeItem('qs_user');
+    localStorage.removeItem('qs_role');
+    localStorage.removeItem('qs_view');
+    localStorage.removeItem('qs_session_location');
+    localStorage.removeItem('qs_session_table');
   };
 
   const handleScanSimulation = (locationName: string, tableNo: string) => {
@@ -166,11 +186,17 @@ const App: React.FC = () => {
     setSessionTable(tableNo);
     setCurrentRole('CUSTOMER');
     setView('APP');
+    localStorage.setItem('qs_role', 'CUSTOMER');
+    localStorage.setItem('qs_view', 'APP');
+    localStorage.setItem('qs_session_location', locationName);
+    localStorage.setItem('qs_session_table', tableNo);
   };
 
   const handleImpersonateVendor = (user: User) => {
     setCurrentUser(user);
     setCurrentRole('VENDOR');
+    localStorage.setItem('qs_user', JSON.stringify(user));
+    localStorage.setItem('qs_role', 'VENDOR');
   };
 
   const addToCart = (item: CartItem) => {
@@ -220,6 +246,7 @@ const App: React.FC = () => {
       alert("Error placing order: " + error.message);
     } else {
       setCart([]);
+      fetchOrders(); // Local update for responsiveness
       alert(`Order ${orderId} placed successfully!`);
     }
   };
@@ -234,7 +261,11 @@ const App: React.FC = () => {
       })
       .eq('id', orderId);
 
-    if (error) alert("Error updating order: " + error.message);
+    if (error) {
+      alert("Error updating order: " + error.message);
+    } else {
+      fetchOrders(); // Manual update for immediate live feedback
+    }
   };
 
   const updateMenuItem = async (restaurantId: string, updatedItem: MenuItem) => {
@@ -344,7 +375,10 @@ const App: React.FC = () => {
     return (
       <LandingPage 
         onScan={handleScanSimulation} 
-        onLoginClick={() => setView('LOGIN')} 
+        onLoginClick={() => {
+          setView('LOGIN');
+          localStorage.setItem('qs_view', 'LOGIN');
+        }} 
         isDarkMode={isDarkMode} 
         onToggleDarkMode={() => setIsDarkMode(!isDarkMode)} 
         locations={locations.filter(l => l.isActive !== false)}
@@ -353,13 +387,19 @@ const App: React.FC = () => {
   }
 
   if (view === 'LOGIN') {
-    return <LoginPage allUsers={allUsers} onLogin={handleLogin} onBack={() => setView('LANDING')} />;
+    return <LoginPage allUsers={allUsers} onLogin={handleLogin} onBack={() => {
+      setView('LANDING');
+      localStorage.setItem('qs_view', 'LANDING');
+    }} />;
   }
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-50 dark:bg-gray-900 transition-colors duration-300">
       <header className="sticky top-0 z-50 bg-white dark:bg-gray-800 border-b dark:border-gray-700 shadow-sm h-16 flex items-center justify-between px-4 lg:px-8">
-        <div className="flex items-center gap-2 cursor-pointer" onClick={() => setView('LANDING')}>
+        <div className="flex items-center gap-2 cursor-pointer" onClick={() => {
+          setView('LANDING');
+          localStorage.setItem('qs_view', 'LANDING');
+        }}>
           <div className="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center text-white font-bold">Q</div>
           <h1 className="text-xl font-bold text-gray-800 dark:text-white tracking-tight">QuickServe</h1>
         </div>
@@ -388,7 +428,10 @@ const App: React.FC = () => {
               <button onClick={handleLogout} className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"><LogOut size={20} /></button>
             </div>
           ) : (
-            currentRole !== 'CUSTOMER' && <button onClick={() => setView('LOGIN')} className="px-4 py-2 bg-orange-500 text-white rounded-lg font-medium hover:bg-orange-600 transition-all shadow-md">Sign In</button>
+            currentRole !== 'CUSTOMER' && <button onClick={() => {
+              setView('LOGIN');
+              localStorage.setItem('qs_view', 'LOGIN');
+            }} className="px-4 py-2 bg-orange-500 text-white rounded-lg font-medium hover:bg-orange-600 transition-all shadow-md">Sign In</button>
           )}
         </div>
       </header>

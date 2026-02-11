@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { QrCode, Utensils, ShieldCheck, ShoppingBag, Sun, Moon, X, MapPin, Hash, Camera, RefreshCcw } from 'lucide-react';
 import { Area } from '../types';
@@ -14,13 +15,20 @@ interface Props {
 const LandingPage: React.FC<Props> = ({ onScan, onLoginClick, isDarkMode, onToggleDarkMode, locations }) => {
   const [showSimModal, setShowSimModal] = useState(false);
   const [showCamera, setShowCamera] = useState(false);
-  const [selectedLocation, setSelectedLocation] = useState(locations[0]?.name || '');
+  const [selectedLocation, setSelectedLocation] = useState('');
   const [tableNo, setTableNo] = useState('1');
   const [cameraError, setCameraError] = useState<string | null>(null);
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const requestRef = useRef<number>(0);
+
+  // Sync selectedLocation once locations are loaded
+  useEffect(() => {
+    if (locations.length > 0 && !selectedLocation) {
+      setSelectedLocation(locations[0].name);
+    }
+  }, [locations, selectedLocation]);
 
   const stopCamera = useCallback(() => {
     if (videoRef.current && videoRef.current.srcObject) {
@@ -127,8 +135,9 @@ const LandingPage: React.FC<Props> = ({ onScan, onLoginClick, isDarkMode, onTogg
   }, []);
 
   const handleSimulate = () => {
-    if (!selectedLocation || !tableNo) return;
-    onScan(selectedLocation, tableNo);
+    const locToUse = selectedLocation || (locations.length > 0 ? locations[0].name : '');
+    if (!locToUse || !tableNo) return;
+    onScan(locToUse, tableNo);
   };
 
   return (
