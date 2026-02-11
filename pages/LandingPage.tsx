@@ -2,7 +2,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { QrCode, Utensils, ShieldCheck, ShoppingBag, Sun, Moon, X, MapPin, Hash, Camera, RefreshCcw } from 'lucide-react';
 import { Area } from '../types';
-import jsQR from 'https://esm.sh/jsqr@1.4.0';
+import jsQR from 'jsqr';
 
 interface Props {
   onScan: (location: string, table: string) => void;
@@ -53,7 +53,7 @@ const LandingPage: React.FC<Props> = ({ onScan, onLoginClick, isDarkMode, onTogg
     setShowCamera(false);
   };
 
-  const scanQRCode = () => {
+  const scanQRCode = (_time: number) => {
     if (videoRef.current && videoRef.current.readyState === videoRef.current.HAVE_ENOUGH_DATA && canvasRef.current) {
       const canvas = canvasRef.current;
       const video = videoRef.current;
@@ -71,25 +71,28 @@ const LandingPage: React.FC<Props> = ({ onScan, onLoginClick, isDarkMode, onTogg
         if (code) {
           // Parse logic: assuming URL like ?loc=ZoneA&table=5 or similar
           try {
-            const url = new URL(code.data);
-            const loc = url.searchParams.get("loc");
-            const tbl = url.searchParams.get("table");
-            if (loc && tbl) {
-              onScan(loc, tbl);
-              stopCamera();
-              return;
+            if (code.data.startsWith('http')) {
+              const url = new URL(code.data);
+              const loc = url.searchParams.get("loc");
+              const tbl = url.searchParams.get("table");
+              if (loc && tbl) {
+                onScan(loc, tbl);
+                stopCamera();
+                return;
+              }
+            } else {
+              // If it's just plain text like "ZoneA,5"
+              const parts = code.data.split(',');
+              if (parts.length === 2) {
+                onScan(parts[0].trim(), parts[1].trim());
+                stopCamera();
+                return;
+              }
             }
           } catch (e) {
-            // If it's just plain text like "ZoneA,5"
-            const parts = code.data.split(',');
-            if (parts.length === 2) {
-              onScan(parts[0].trim(), parts[1].trim());
-              stopCamera();
-              return;
-            }
+            console.error("QR Parse Error", e);
           }
-          // Default fallthrough if data recognized but not parsed
-          console.log("Found QR:", code.data);
+          console.log("Found QR Raw:", code.data);
         }
       }
     }
@@ -250,7 +253,7 @@ const LandingPage: React.FC<Props> = ({ onScan, onLoginClick, isDarkMode, onTogg
 
             <div className="space-y-6">
               <div>
-                <label className="block text-xs font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-2 ml-1">Physical Location</label>
+                <label className="block text-xs font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-1.5 ml-1">Physical Location</label>
                 <div className="relative">
                   <MapPin size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
                   <select 
@@ -266,7 +269,7 @@ const LandingPage: React.FC<Props> = ({ onScan, onLoginClick, isDarkMode, onTogg
               </div>
 
               <div>
-                <label className="block text-xs font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-2 ml-1">Table Number</label>
+                <label className="block text-xs font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-1.5 ml-1">Table Number</label>
                 <div className="relative">
                   <Hash size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
                   <input 
