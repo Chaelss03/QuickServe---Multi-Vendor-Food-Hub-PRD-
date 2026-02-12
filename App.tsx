@@ -86,6 +86,7 @@ const App: React.FC = () => {
         logo: res.logo,
         vendorId: res.vendor_id,
         location: res.location_name,
+        created_at: res.created_at,
         menu: menuData
           .filter(m => m.restaurant_id === res.id)
           .map(m => ({
