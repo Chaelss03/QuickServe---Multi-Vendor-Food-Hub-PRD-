@@ -10,11 +10,33 @@ import { supabase } from './lib/supabase';
 import { LogOut, Sun, Moon, MapPin, LogIn, Loader2 } from 'lucide-react';
 
 const App: React.FC = () => {
-  const [allUsers, setAllUsers] = useState<User[]>([]);
-  const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [locations, setLocations] = useState<Area[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  // --- HYDRATED STATE (Instant Boot from Cache) ---
+  const [allUsers, setAllUsers] = useState<User[]>(() => {
+    const saved = localStorage.getItem('qs_cache_users');
+    return saved ? JSON.parse(saved) : [];
+  });
+  
+  const [restaurants, setRestaurants] = useState<Restaurant[]>(() => {
+    const saved = localStorage.getItem('qs_cache_restaurants');
+    return saved ? JSON.parse(saved) : [];
+  });
+  
+  const [orders, setOrders] = useState<Order[]>(() => {
+    const saved = localStorage.getItem('qs_cache_orders');
+    return saved ? JSON.parse(saved) : [];
+  });
+  
+  const [locations, setLocations] = useState<Area[]>(() => {
+    const saved = localStorage.getItem('qs_cache_locations');
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  const [isLoading, setIsLoading] = useState(() => {
+    // Only show loader if we have NO cached structural data
+    const hasCache = localStorage.getItem('qs_cache_restaurants') && localStorage.getItem('qs_cache_locations');
+    return !hasCache;
+  });
+
   const [lastSyncTime, setLastSyncTime] = useState<Date>(new Date());
   
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
@@ -46,23 +68,16 @@ const App: React.FC = () => {
       (!localStorage.getItem('theme') && window.matchMedia('(prefers-color-scheme: dark)').matches);
   });
 
-  // Deep Linking: Detect QR parameters on mount
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const loc = params.get('loc');
-    const table = params.get('table');
-    
-    if (loc && table) {
-      handleScanSimulation(loc, table);
-      // Clean up URL without refreshing to keep a clean experience
-      window.history.replaceState({}, document.title, window.location.pathname);
-    }
-  }, []);
+  // --- PERSISTENCE HELPERS ---
+  const persistCache = (key: string, data: any) => {
+    localStorage.setItem(key, JSON.stringify(data));
+  };
 
+  // --- FETCHING ENGINE ---
   const fetchUsers = useCallback(async () => {
     const { data } = await supabase.from('users').select('*');
     if (data) {
-      setAllUsers(data.map(u => ({
+      const mapped = data.map(u => ({
         id: u.id,
         username: u.username,
         role: u.role as Role,
@@ -71,21 +86,25 @@ const App: React.FC = () => {
         isActive: u.is_active,
         email: u.email,
         phone: u.phone
-      })));
+      }));
+      setAllUsers(mapped);
+      persistCache('qs_cache_users', mapped);
     }
   }, []);
 
   const fetchLocations = useCallback(async () => {
     const { data } = await supabase.from('areas').select('*').order('name');
     if (data) {
-      setLocations(data.map(l => ({
+      const mapped = data.map(l => ({
         id: l.id,
         name: l.name,
         city: l.city,
         state: l.state,
         code: l.code,
         isActive: l.is_active ?? true
-      })));
+      }));
+      setLocations(mapped);
+      persistCache('qs_cache_locations', mapped);
     }
   }, []);
 
@@ -116,13 +135,14 @@ const App: React.FC = () => {
           }))
       }));
       setRestaurants(formatted);
+      persistCache('qs_cache_restaurants', formatted);
     }
   }, []);
 
   const fetchOrders = useCallback(async () => {
-    const { data } = await supabase.from('orders').select('*').order('timestamp', { ascending: false });
+    const { data } = await supabase.from('orders').select('*').order('timestamp', { ascending: false }).limit(500);
     if (data) {
-      setOrders(data.map(o => ({
+      const mapped = data.map(o => ({
         id: o.id,
         items: o.items,
         total: Number(o.total),
@@ -135,21 +155,19 @@ const App: React.FC = () => {
         remark: o.remark,
         rejectionReason: o.rejection_reason,
         rejectionNote: o.rejection_note
-      })));
+      }));
+      setOrders(mapped);
       setLastSyncTime(new Date());
+      persistCache('qs_cache_orders', mapped);
     }
   }, []);
 
+  // Initialization: Background sync while showing cached UI
   useEffect(() => {
     const initApp = async () => {
-      setIsLoading(true);
-      try {
-        await Promise.all([fetchUsers(), fetchLocations(), fetchRestaurants(), fetchOrders()]);
-      } catch (err) {
-        console.error("Init Error", err);
-      } finally {
-        setIsLoading(false);
-      }
+      // Background sync
+      Promise.allSettled([fetchUsers(), fetchLocations(), fetchRestaurants(), fetchOrders()])
+        .finally(() => setIsLoading(false));
     };
     initApp();
 
@@ -158,7 +176,6 @@ const App: React.FC = () => {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => fetchOrders())
       .subscribe();
 
-    // Heartbeat scheduler: poll every 5 seconds for aggressive real-time performance
     const interval = setInterval(() => {
       fetchOrders();
     }, 5000);
@@ -169,11 +186,23 @@ const App: React.FC = () => {
     };
   }, [fetchUsers, fetchLocations, fetchRestaurants, fetchOrders]);
 
+  // Handle dark mode
   useEffect(() => {
     if (isDarkMode) document.documentElement.classList.add('dark');
     else document.documentElement.classList.remove('dark');
     localStorage.setItem('theme', isDarkMode ? 'dark' : 'light');
   }, [isDarkMode]);
+
+  // Deep Linking
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const loc = params.get('loc');
+    const table = params.get('table');
+    if (loc && table) {
+      handleScanSimulation(loc, table);
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  }, []);
 
   const handleLogin = (user: User) => {
     setCurrentUser(user);
@@ -205,23 +234,25 @@ const App: React.FC = () => {
   };
 
   const updateOrderStatus = async (orderId: string, status: OrderStatus, reason?: string, note?: string) => {
-    // OPTIMISTIC UPDATE: Update local state immediately for instant feedback
-    setOrders(prev => prev.map(o => 
-      o.id === orderId ? { ...o, status, rejectionReason: reason, rejectionNote: note } : o
-    ));
+    // 1. OPTIMISTIC UPDATE: Immediate UI response
+    setOrders(prev => {
+      const updated = prev.map(o => 
+        o.id === orderId ? { ...o, status, rejectionReason: reason, rejectionNote: note } : o
+      );
+      persistCache('qs_cache_orders', updated); // Persist optimistic state
+      return updated;
+    });
 
-    // Database update in background
-    const { error } = await supabase.from('orders').update({ 
-      status, rejection_reason: reason, rejection_note: note 
-    }).eq('id', orderId);
-    
-    if (error) {
-      alert("System Error: Update failed. Re-syncing with server.");
-      fetchOrders(); // Revert to server truth on error
-    } else {
-      // Background re-fetch to ensure everything is perfectly in sync
-      fetchOrders();
-    }
+    // 2. BACKGROUND SYNC: No 'await' blocking the UI
+    supabase.from('orders')
+      .update({ status, rejection_reason: reason, rejection_note: note })
+      .eq('id', orderId)
+      .then(({ error }) => {
+        if (error) {
+          console.error("Sync Failure", error);
+          fetchOrders(); // Correct state if failed
+        }
+      });
   };
 
   const addToCart = (item: CartItem) => {
@@ -318,7 +349,7 @@ const App: React.FC = () => {
         email: u.email, 
         phone: u.phone, 
         is_active: u.isActive,
-        password: u.password // Allow updating password too
+        password: u.password 
       }).eq('id', u.id);
       
       const { error: resError } = await supabase.from('restaurants').update({ 
@@ -351,14 +382,11 @@ const App: React.FC = () => {
   const handleUpdateLocation = async (a: Area) => {
     const oldArea = locations.find(loc => loc.id === a.id);
     if (!oldArea) return;
-
     const nameChanged = oldArea.name !== a.name;
-
     try {
       if (nameChanged) {
         const { data: dependents } = await supabase.from('restaurants').select('id').eq('location_name', oldArea.name);
         const relinkIds = dependents?.map(d => d.id) || [];
-
         if (relinkIds.length > 0) {
           await supabase.from('restaurants').update({ location_name: null }).in('id', relinkIds);
           const { error: areaErr } = await supabase.from('areas').update({ 
@@ -414,7 +442,8 @@ const App: React.FC = () => {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 dark:bg-gray-900">
         <Loader2 className="w-12 h-12 text-orange-500 animate-spin mb-4" />
-        <p className="text-gray-500 font-black uppercase tracking-[0.2em] text-[10px]">Syncing Engine...</p>
+        <p className="text-gray-500 font-black uppercase tracking-[0.2em] text-[10px]">Cold Booting Engine...</p>
+        <p className="text-gray-400 text-[8px] mt-2 uppercase">Fetching fresh data from Supabase Hub</p>
       </div>
     );
   }
@@ -430,7 +459,7 @@ const App: React.FC = () => {
   const activeVendorRes = currentUser?.role === 'VENDOR' ? restaurants.find(r => r.id === currentUser.restaurantId) : null;
 
   return (
-    <div className="min-h-screen flex flex-col bg-gray-50 dark:bg-gray-900">
+    <div className="min-h-screen flex flex-col bg-gray-50 dark:bg-gray-900 transition-colors">
       <header className="sticky top-0 z-50 bg-white dark:bg-gray-800 border-b dark:border-gray-700 h-16 flex items-center justify-between px-8 shadow-sm">
         <div className="flex items-center gap-2 cursor-pointer" onClick={() => setView('LANDING')}>
           <div className="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center text-white font-black">Q</div>
