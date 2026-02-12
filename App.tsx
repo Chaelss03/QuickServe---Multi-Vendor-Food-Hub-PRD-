@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { User, Role, Restaurant, Order, OrderStatus, CartItem, MenuItem, Area } from './types';
 import CustomerView from './pages/CustomerView';
@@ -86,7 +85,6 @@ const App: React.FC = () => {
     }
   };
 
-  // Improved timestamp parser to handle string dates or numbers correctly
   const parseTimestamp = (ts: any): number => {
     if (!ts) return Date.now();
     const date = new Date(ts);
@@ -171,7 +169,7 @@ const App: React.FC = () => {
 
   const fetchOrders = useCallback(async () => {
     try {
-      const { data, error } = await supabase.from('orders').select('*').order('timestamp', { ascending: false }).limit(200);
+      const { data, error } = await supabase.from('orders').select('*').order('timestamp', { ascending: false }).limit(300);
       if (error) throw error;
       if (data) {
         const mapped = data.map(o => ({
@@ -223,7 +221,7 @@ const App: React.FC = () => {
 
     const interval = setInterval(() => {
       fetchOrders();
-    }, 10000); // Check every 10s as a hard fallback
+    }, 8000); 
 
     return () => { 
       supabase.removeChannel(channel); 
@@ -319,18 +317,22 @@ const App: React.FC = () => {
 
   const placeOrder = async (remark: string) => {
     if (cart.length === 0) return;
+    
+    // Improved Global Uniqueness for Order IDs
+    // Format: CODE-TIMESTAMP_SEGMENT-RANDOM_HEX
+    // This eliminates "duplicate key value violates unique constraint" errors
     const area = locations.find(l => l.name === sessionLocation);
     const code = area?.code || 'QS';
-    const locationOrdersCount = orders.filter(o => o.locationName === sessionLocation).length;
-    const sequence = (locationOrdersCount + 1).toString().padStart(6, '0');
-    const orderId = `${code}${sequence}`;
+    const timestampSegment = Date.now().toString(36).toUpperCase().slice(-5);
+    const randomSegment = Math.random().toString(36).substring(2, 5).toUpperCase();
+    const orderId = `${code}-${timestampSegment}-${randomSegment}`;
 
     const newOrder = {
       id: orderId,
       items: cart,
       total: cart.reduce((acc, item) => acc + item.price * item.quantity, 0),
       status: OrderStatus.PENDING,
-      timestamp: new Date().toISOString(), // Use ISO string for Supabase standard compatibility
+      timestamp: new Date().toISOString(), 
       customer_id: 'guest_user',
       restaurant_id: cart[0].restaurantId,
       table_number: sessionTable || 'N/A',
@@ -339,11 +341,28 @@ const App: React.FC = () => {
     };
     
     const { error } = await supabase.from('orders').insert([newOrder]);
-    if (error) alert("Placement Error: " + error.message);
-    else {
+    if (error) {
+      console.error("Critical Database Rejection:", error);
+      alert("Placement Error: " + error.message);
+    } else {
       setCart([]);
-      fetchOrders();
-      alert(`Order ${orderId} placed!`);
+      // Optimistically add to local state to avoid race conditions with realtime sync
+      // Fix: Manually map snake_case Supabase fields to camelCase properties required by the Order interface.
+      setOrders(prev => [{
+        id: newOrder.id,
+        items: newOrder.items,
+        total: Number(newOrder.total),
+        status: newOrder.status,
+        timestamp: Date.now(),
+        customerId: newOrder.customer_id,
+        restaurantId: newOrder.restaurant_id,
+        tableNumber: newOrder.table_number,
+        locationName: newOrder.location_name,
+        remark: newOrder.remark
+      }, ...prev]);
+      
+      fetchOrders(); // Full sync
+      alert(`Order ${orderId} submitted!`);
     }
   };
 
