@@ -13,9 +13,10 @@ interface Props {
   locationName?: string;
   tableNo?: string;
   onLoginClick?: () => void;
+  areaType?: 'MULTI' | 'SINGLE';
 }
 
-const CustomerView: React.FC<Props> = ({ restaurants, cart, orders, onAddToCart, onRemoveFromCart, onPlaceOrder, locationName, tableNo, onLoginClick }) => {
+const CustomerView: React.FC<Props> = ({ restaurants, cart, orders, onAddToCart, onRemoveFromCart, onPlaceOrder, locationName, tableNo, onLoginClick, areaType = 'MULTI' }) => {
   const [activeRestaurant, setActiveRestaurant] = useState(restaurants[0]?.id || '');
   const [showCart, setShowCart] = useState(false);
   const [selectedItemForVariants, setSelectedItemForVariants] = useState<{item: MenuItem, resId: string} | null>(null);
@@ -47,6 +48,7 @@ const CustomerView: React.FC<Props> = ({ restaurants, cart, orders, onAddToCart,
   const cartTotal = cart.reduce((acc, item) => acc + item.price * item.quantity, 0);
 
   useEffect(() => {
+    if (areaType === 'SINGLE') return;
     const handleScroll = () => {
       const scrollPos = window.scrollY + 180;
       for (const res of restaurants) {
@@ -58,7 +60,7 @@ const CustomerView: React.FC<Props> = ({ restaurants, cart, orders, onAddToCart,
     };
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
-  }, [restaurants]);
+  }, [restaurants, areaType]);
 
   useEffect(() => {
     if (restaurants.length > 0 && !activeRestaurant) {
@@ -111,32 +113,34 @@ const CustomerView: React.FC<Props> = ({ restaurants, cart, orders, onAddToCart,
 
   return (
     <div className="relative min-h-screen pb-28 bg-gray-50 dark:bg-gray-900 transition-colors">
-      {/* Restaurant Navbar */}
-      <div className="sticky top-16 z-40 bg-white/95 dark:bg-gray-800/95 backdrop-blur-md border-b dark:border-gray-700 shadow-md">
-        <div className="px-4 py-2 border-b dark:border-gray-700 flex items-center justify-between">
-           <div className="flex items-center gap-2">
-              <UtensilsCrossed size={14} className="text-orange-500" />
-              <span className="text-[10px] font-black uppercase tracking-[0.2em] dark:text-gray-300">Available Kitchens</span>
-           </div>
-           <span className="text-[9px] font-bold text-gray-400 uppercase">{restaurants.length} Stores Online</span>
+      {/* Restaurant Navbar - Only shown for MULTI vendor hubs */}
+      {areaType !== 'SINGLE' && (
+        <div className="sticky top-16 z-40 bg-white/95 dark:bg-gray-800/95 backdrop-blur-md border-b dark:border-gray-700 shadow-md">
+          <div className="px-4 py-2 border-b dark:border-gray-700 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+                <UtensilsCrossed size={14} className="text-orange-500" />
+                <span className="text-[10px] font-black uppercase tracking-[0.2em] dark:text-gray-300">Available Kitchens</span>
+            </div>
+            <span className="text-[9px] font-bold text-gray-400 uppercase">{restaurants.length} Stores Online</span>
+          </div>
+          <nav className="overflow-x-auto hide-scrollbar flex items-center px-4 py-3 gap-3">
+            {restaurants.map(res => (
+              <button
+                key={res.id}
+                onClick={() => scrollToSection(res.id)}
+                className={`whitespace-nowrap flex items-center gap-2 px-4 py-2 rounded-xl text-[11px] font-black uppercase tracking-tight transition-all duration-300 border-2 ${
+                  activeRestaurant === res.id 
+                    ? 'bg-orange-500 border-orange-500 text-white shadow-lg shadow-orange-100 dark:shadow-none scale-105' 
+                    : 'bg-white dark:bg-gray-700 border-gray-100 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-orange-200'
+                }`}
+              >
+                <img src={res.logo} className="w-4 h-4 rounded-full object-cover" />
+                {res.name}
+              </button>
+            ))}
+          </nav>
         </div>
-        <nav className="overflow-x-auto hide-scrollbar flex items-center px-4 py-3 gap-3">
-          {restaurants.map(res => (
-            <button
-              key={res.id}
-              onClick={() => scrollToSection(res.id)}
-              className={`whitespace-nowrap flex items-center gap-2 px-4 py-2 rounded-xl text-[11px] font-black uppercase tracking-tight transition-all duration-300 border-2 ${
-                activeRestaurant === res.id 
-                  ? 'bg-orange-500 border-orange-500 text-white shadow-lg shadow-orange-100 dark:shadow-none scale-105' 
-                  : 'bg-white dark:bg-gray-700 border-gray-100 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-orange-200'
-              }`}
-            >
-              <img src={res.logo} className="w-4 h-4 rounded-full object-cover" />
-              {res.name}
-            </button>
-          ))}
-        </nav>
-      </div>
+      )}
 
       <div className="max-w-7xl mx-auto px-2 md:px-4 py-4">
         {/* Compact Location Info */}
@@ -210,7 +214,7 @@ const CustomerView: React.FC<Props> = ({ restaurants, cart, orders, onAddToCart,
               key={res.id} 
               id={res.id} 
               ref={el => { sectionRefs.current[res.id] = el; }}
-              className="scroll-mt-48"
+              className={areaType === 'SINGLE' ? "mt-4" : "scroll-mt-48"}
             >
               <div className="flex items-center justify-between mb-4 px-1">
                 <div className="flex items-center gap-3">

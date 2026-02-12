@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { User, Role, Restaurant, Order, OrderStatus, CartItem, MenuItem, Area } from './types';
 import CustomerView from './pages/CustomerView';
@@ -128,7 +129,7 @@ const App: React.FC = () => {
         menu: menuData.filter(m => m.restaurant_id === res.id).map(m => ({
           id: m.id, name: m.name, description: m.description, price: Number(m.price),
           image: m.image, category: m.category, isArchived: m.is_archived,
-          sizes: m.sizes, tempOptions: m.temp_options
+          sizes: m.sizes, temp_options: m.temp_options
         }))
       }));
       setRestaurants(formatted);
@@ -358,6 +359,7 @@ const App: React.FC = () => {
   }
 
   const activeVendorRes = currentUser?.role === 'VENDOR' ? restaurants.find(r => r.id === currentUser.restaurantId) : null;
+  const currentArea = locations.find(l => l.name === sessionLocation);
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-50 dark:bg-gray-900 transition-colors">
@@ -382,7 +384,7 @@ const App: React.FC = () => {
         </div>
       </header>
       <main className="flex-1">
-        {currentRole === 'CUSTOMER' && <CustomerView restaurants={restaurants.filter(r => r.location === sessionLocation)} cart={cart} orders={orders} onAddToCart={addToCart} onRemoveFromCart={removeFromCart} onPlaceOrder={placeOrder} locationName={sessionLocation || undefined} tableNo={sessionTable || undefined} />}
+        {currentRole === 'CUSTOMER' && <CustomerView restaurants={restaurants.filter(r => r.location === sessionLocation)} cart={cart} orders={orders} onAddToCart={addToCart} onRemoveFromCart={removeFromCart} onPlaceOrder={placeOrder} locationName={sessionLocation || undefined} tableNo={sessionTable || undefined} areaType={currentArea?.type || 'MULTI'} />}
         {currentRole === 'VENDOR' && activeVendorRes && <VendorView restaurant={activeVendorRes} orders={orders.filter(o => o.restaurantId === currentUser?.restaurantId)} onUpdateOrder={updateOrderStatus} onUpdateMenu={handleUpdateMenuItem} onAddMenuItem={handleAddMenuItem} onPermanentDeleteMenuItem={handleDeleteMenuItem} lastSyncTime={lastSyncTime} />}
         {currentRole === 'ADMIN' && <AdminView vendors={allUsers.filter(u => u.role === 'VENDOR')} restaurants={restaurants} orders={orders} locations={locations} onAddVendor={handleAddVendor} onUpdateVendor={handleUpdateVendor} onImpersonateVendor={handleLogin} onAddLocation={handleAddLocation} onUpdateLocation={handleUpdateLocation} onDeleteLocation={handleDeleteLocation} onRemoveVendorFromHub={(rid) => supabase.from('restaurants').update({ location_name: null }).eq('id', rid).then(() => fetchRestaurants())} />}
       </main>
