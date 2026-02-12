@@ -46,8 +46,6 @@ export interface Restaurant {
   vendorId: string;
   location: string; // This refers to the Area name
   created_at?: string;
-  isOffline?: boolean;
-  categories?: string[];
 }
 
 export interface CartItem extends MenuItem {
