@@ -36,6 +36,7 @@ export interface Area {
   state: string;
   code: string; // Unique prefix for Order IDs (e.g., NY, SF, LD)
   isActive?: boolean;
+  type: 'MULTI' | 'SINGLE';
 }
 
 export interface Restaurant {

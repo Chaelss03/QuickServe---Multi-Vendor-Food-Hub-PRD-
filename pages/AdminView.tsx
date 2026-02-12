@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useEffect } from 'react';
 import { User, Restaurant, Order, Area, OrderStatus } from '../types';
 import { Users, Store, TrendingUp, Settings, ShieldCheck, Mail, Search, Filter, X, Plus, MapPin, Power, CheckCircle2, AlertCircle, LogIn, Trash2, LayoutGrid, List, ChevronRight, Eye, EyeOff, Globe, Phone, ShoppingBag, Edit3, Hash, Download, Calendar, ChevronLeft, Database, Image as ImageIcon, Key, QrCode, Printer, Layers } from 'lucide-react';
@@ -39,7 +40,7 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
   // Hub Modal State
   const [isAreaModalOpen, setIsAreaModalOpen] = useState(false);
   const [editingArea, setEditingArea] = useState<Area | null>(null);
-  const [formArea, setFormArea] = useState({ name: '', city: '', state: '', code: '' });
+  const [formArea, setFormArea] = useState({ name: '', city: '', state: '', code: '', type: 'MULTI' as 'MULTI' | 'SINGLE' });
   
   const [viewingHubVendors, setViewingHubVendors] = useState<Area | null>(null);
 
@@ -170,13 +171,13 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
 
   const handleOpenHubEdit = (loc: Area) => {
     setEditingArea(loc);
-    setFormArea({ name: loc.name, city: loc.city, state: loc.state, code: loc.code });
+    setFormArea({ name: loc.name, city: loc.city, state: loc.state, code: loc.code, type: loc.type || 'MULTI' });
     setIsAreaModalOpen(true);
   };
 
   const handleOpenHubAdd = () => {
     setEditingArea(null);
-    setFormArea({ name: '', city: '', state: '', code: '' });
+    setFormArea({ name: '', city: '', state: '', code: '', type: 'MULTI' });
     setIsAreaModalOpen(true);
   };
 
@@ -185,7 +186,7 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
     if (editingArea) {
       onUpdateLocation({ ...editingArea, ...formArea });
     } else {
-      onAddLocation({ ...formArea, id: '', isActive: true });
+      onAddLocation({ ...formArea, id: '', isActive: true } as Area);
     }
     setIsAreaModalOpen(false);
   };
@@ -313,7 +314,7 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
                 <thead className="bg-gray-50 dark:bg-gray-700/50 text-gray-400 text-[10px] font-black uppercase tracking-widest">
                   <tr>
                     <th className="px-8 py-4 text-left">Hub Identity</th>
-                    <th className="px-8 py-4 text-left">City / State</th>
+                    <th className="px-8 py-4 text-left">City / Type</th>
                     <th className="px-8 py-4 text-center">Partners</th>
                     <th className="px-8 py-4 text-center">Status</th>
                     <th className="px-8 py-4 text-right">Actions</th>
@@ -331,7 +332,10 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
                           </div>
                         </div>
                       </td>
-                      <td className="px-8 py-5 text-sm font-bold text-gray-500 uppercase">{loc.city}</td>
+                      <td className="px-8 py-5">
+                        <p className="text-sm font-bold text-gray-500 uppercase">{loc.city}</p>
+                        <span className="text-[8px] font-black px-2 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-400 rounded uppercase">{loc.type === 'SINGLE' ? 'Single Vendor' : 'Multi-Vendor'}</span>
+                      </td>
                       <td className="px-8 py-5 text-center">
                         <button onClick={() => setViewingHubVendors(loc)} className="px-4 py-1.5 bg-gray-100 dark:bg-gray-700 text-orange-500 rounded-full font-black text-[10px] uppercase hover:bg-orange-500 hover:text-white transition-all">
                           {restaurants.filter(r => r.location === loc.name).length} Kitchens
@@ -449,69 +453,7 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
         )}
       </div>
 
-      {/* Vendor Modal - Compact Layout */}
-      {isModalOpen && (
-        <div className="fixed inset-0 z-[100] bg-black/70 backdrop-blur-md flex items-center justify-center p-4 no-print">
-          <div className="bg-white dark:bg-gray-800 rounded-[2.5rem] max-w-lg w-full p-8 shadow-2xl relative animate-in zoom-in duration-300">
-            <button onClick={() => setIsModalOpen(false)} className="absolute top-6 right-6 p-2 text-gray-400 hover:text-red-500 transition-colors"><X size={20} /></button>
-            <h2 className="text-2xl font-black mb-6 dark:text-white uppercase tracking-tighter">{editingVendor ? 'Edit Vendor' : 'Register Vendor'}</h2>
-            <form onSubmit={handleSubmitVendor} className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Username</label>
-                  <input required placeholder="Login ID" className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none text-sm font-bold dark:text-white" value={formVendor.username} onChange={e => setFormVendor({...formVendor, username: e.target.value})} />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Password</label>
-                  <div className="relative">
-                    <input required placeholder="••••••••" type={showPassword ? 'text' : 'password'} className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none text-sm font-bold dark:text-white" value={formVendor.password} onChange={e => setFormVendor({...formVendor, password: e.target.value})} />
-                    <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-orange-500 transition-colors">
-                      {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Email Contact</label>
-                  <input type="email" placeholder="vendor@example.com" className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none text-sm font-bold dark:text-white" value={formVendor.email} onChange={e => setFormVendor({...formVendor, email: e.target.value})} />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Phone Number</label>
-                  <input type="tel" placeholder="+60 12-345 6789" className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none text-sm font-bold dark:text-white" value={formVendor.phone} onChange={e => setFormVendor({...formVendor, phone: e.target.value})} />
-                </div>
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Kitchen Name</label>
-                <input required placeholder="e.g. Burger Palace" className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none text-sm font-bold dark:text-white" value={formVendor.restaurantName} onChange={e => setFormVendor({...formVendor, restaurantName: e.target.value})} />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Physical Hub</label>
-                  <select required className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none text-sm font-bold dark:text-white appearance-none cursor-pointer" value={formVendor.location} onChange={e => setFormVendor({...formVendor, location: e.target.value})}>
-                    <option value="">Select Hub</option>
-                    {locations.map(loc => <option key={loc.id} value={loc.name}>{loc.name}</option>)}
-                  </select>
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Logo URL</label>
-                  <input placeholder="Image Link" className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none text-sm font-bold dark:text-white" value={formVendor.logo} onChange={e => setFormVendor({...formVendor, logo: e.target.value})} />
-                </div>
-              </div>
-
-              <div className="flex gap-4 pt-4">
-                <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 py-3 bg-gray-100 dark:bg-gray-700 rounded-xl font-black uppercase text-[10px] tracking-widest text-gray-500">Cancel</button>
-                <button type="submit" className="flex-1 py-3 bg-orange-500 text-white rounded-xl font-black uppercase text-[10px] tracking-widest shadow-xl">Confirm</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Hub Modal - Compact Layout */}
+      {/* Hub Modal */}
       {isAreaModalOpen && (
         <div className="fixed inset-0 z-[100] bg-black/70 backdrop-blur-md flex items-center justify-center p-4 no-print">
           <div className="bg-white dark:bg-gray-800 rounded-[2.5rem] max-w-sm w-full p-8 shadow-2xl relative animate-in zoom-in duration-300">
@@ -533,8 +475,11 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
                 </div>
               </div>
               <div className="space-y-1">
-                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">State / Territory</label>
-                <input required placeholder="Selangor" className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none text-sm font-bold dark:text-white" value={formArea.state} onChange={e => setFormArea({...formArea, state: e.target.value})} />
+                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Hub Type</label>
+                <select className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none text-sm font-bold dark:text-white appearance-none cursor-pointer" value={formArea.type} onChange={e => setFormArea({...formArea, type: e.target.value as any})}>
+                  <option value="MULTI">Multi-Vendor</option>
+                  <option value="SINGLE">Single-Vendor</option>
+                </select>
               </div>
               <div className="flex gap-4 pt-4">
                 <button type="button" onClick={() => { setIsAreaModalOpen(false); setEditingArea(null); }} className="flex-1 py-3 bg-gray-100 dark:bg-gray-700 rounded-xl font-black uppercase text-[10px] tracking-widest text-gray-500">Cancel</button>
@@ -544,6 +489,123 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
           </div>
         </div>
       )}
+
+      {/* QR Selection Modal */}
+      {isHubSelectionModalOpen && (
+        <div className="fixed inset-0 z-[100] bg-black/70 backdrop-blur-md flex items-center justify-center p-4 no-print">
+          <div className="bg-white dark:bg-gray-800 rounded-[2.5rem] max-w-sm w-full p-8 shadow-2xl relative animate-in zoom-in duration-300">
+            <button onClick={() => setIsHubSelectionModalOpen(false)} className="absolute top-6 right-6 p-2 text-gray-400 hover:text-red-500 transition-colors"><X size={20} /></button>
+            <h2 className="text-2xl font-black mb-6 dark:text-white uppercase tracking-tighter text-center">Select Hub</h2>
+            <div className="space-y-3 max-h-[300px] overflow-y-auto px-2 custom-scrollbar">
+              {locations.map(loc => (
+                <button key={loc.id} onClick={() => { setGeneratingQrHub(loc); setIsHubSelectionModalOpen(false); }} className="w-full flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700 hover:bg-orange-500 hover:text-white rounded-2xl transition-all group">
+                  <span className="font-black text-sm uppercase tracking-tight">{loc.name}</span>
+                  <ChevronRight size={18} className="text-gray-400 group-hover:text-white" />
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* QR Forge Modal */}
+      {generatingQrHub && (
+        <div className="fixed inset-0 z-[110] bg-[#000]/95 backdrop-blur-xl flex items-center justify-center p-4 overflow-y-auto no-print">
+          <div className="bg-white dark:bg-gray-800 rounded-[3rem] max-w-4xl w-full p-10 shadow-2xl relative">
+            <button onClick={() => setGeneratingQrHub(null)} className="absolute top-8 right-8 p-3 text-gray-400 hover:text-red-500 transition-colors"><X size={24} /></button>
+            <div className="mb-10 text-center">
+              <h2 className="text-3xl font-black dark:text-white uppercase tracking-tighter mb-2">QR Forge: {generatingQrHub.name}</h2>
+              <p className="text-gray-500 font-bold uppercase tracking-widest text-[10px]">Create Order Access Tokens</p>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+              <div className="space-y-6">
+                <div className="flex bg-gray-50 dark:bg-gray-700 p-1.5 rounded-2xl border dark:border-gray-600 shadow-inner">
+                  <button onClick={() => setQrMode('SINGLE')} className={`flex-1 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all ${qrMode === 'SINGLE' ? 'bg-orange-500 text-white shadow-lg' : 'text-gray-400'}`}>Single</button>
+                  <button onClick={() => setQrMode('BATCH')} className={`flex-1 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all ${qrMode === 'BATCH' ? 'bg-orange-500 text-white shadow-lg' : 'text-gray-400'}`}>Batch</button>
+                </div>
+                {qrMode === 'SINGLE' ? (
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Table Number</label>
+                    <input type="number" className="w-full px-5 py-4 bg-gray-50 dark:bg-gray-700 border-none rounded-2xl outline-none font-black text-lg dark:text-white" value={qrTableNo} onChange={e => setQrTableNo(e.target.value)} />
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Start</label>
+                      <input type="number" className="w-full px-5 py-4 bg-gray-50 dark:bg-gray-700 border-none rounded-2xl outline-none font-black text-lg dark:text-white" value={qrStartRange} onChange={e => setQrStartRange(e.target.value)} />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">End</label>
+                      <input type="number" className="w-full px-5 py-4 bg-gray-50 dark:bg-gray-700 border-none rounded-2xl outline-none font-black text-lg dark:text-white" value={qrEndRange} onChange={e => setQrEndRange(e.target.value)} />
+                    </div>
+                  </div>
+                )}
+                <button onClick={handlePrintQr} className="w-full py-5 bg-gray-900 text-white dark:bg-white dark:text-gray-900 rounded-[2rem] font-black text-sm uppercase tracking-widest flex items-center justify-center gap-3 shadow-2xl hover:bg-orange-500 transition-all active:scale-95">
+                  <Printer size={20} /> Print Tokens
+                </button>
+              </div>
+              <div className="bg-gray-50 dark:bg-gray-700 rounded-[2.5rem] p-8 flex items-center justify-center border-4 border-dashed border-gray-200 dark:border-gray-600 overflow-y-auto max-h-[400px]">
+                <div className="flex flex-wrap justify-center gap-6">
+                  {qrMode === 'SINGLE' ? (
+                    <div className="bg-white p-6 rounded-[2rem] shadow-xl text-center flex flex-col items-center">
+                       <img src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(getQrUrl(generatingQrHub.name, qrTableNo))}`} className="w-32 h-32 mb-4" />
+                       <span className="text-2xl font-black text-gray-900 leading-none">{qrTableNo}</span>
+                    </div>
+                  ) : (
+                    Array.from({ length: Math.min(Number(qrEndRange) - Number(qrStartRange) + 1, 30) }).map((_, idx) => {
+                      const num = Number(qrStartRange) + idx;
+                      return (
+                        <div key={num} className="bg-white p-4 rounded-[1.5rem] shadow-md text-center flex flex-col items-center">
+                           <img src={`https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(getQrUrl(generatingQrHub.name, String(num)))}`} className="w-20 h-20 mb-2" />
+                           <span className="text-sm font-black text-gray-900">{num}</span>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Global Print Layout */}
+      <div className="hidden print:block fixed inset-0 z-[200] bg-white p-0">
+         {generatingQrHub && (
+            <div className="grid grid-cols-2 gap-10 p-10">
+               {qrMode === 'SINGLE' ? (
+                 <div className="border-4 border-black rounded-[3rem] p-12 text-center flex flex-col items-center break-inside-avoid">
+                    <h2 className="text-5xl font-black uppercase mb-4">ServeFlow</h2>
+                    <p className="text-gray-500 font-bold mb-10 text-xl">{generatingQrHub.name}</p>
+                    <img src={`https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(getQrUrl(generatingQrHub.name, qrTableNo))}`} className="w-80 h-80 mb-10" />
+                    <div className="bg-black text-white px-10 py-4 rounded-3xl font-black text-4xl">TABLE {qrTableNo}</div>
+                 </div>
+               ) : (
+                 Array.from({ length: Number(qrEndRange) - Number(qrStartRange) + 1 }).map((_, idx) => {
+                   const num = Number(qrStartRange) + idx;
+                   return (
+                    <div key={num} className="border-2 border-black rounded-[2rem] p-8 text-center flex flex-col items-center break-inside-avoid mb-10">
+                       <h2 className="text-2xl font-black uppercase mb-2">ServeFlow</h2>
+                       <p className="text-gray-500 font-bold mb-6 text-sm">{generatingQrHub.name}</p>
+                       <img src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(getQrUrl(generatingQrHub.name, String(num)))}`} className="w-48 h-48 mb-6" />
+                       <div className="bg-black text-white px-6 py-2 rounded-2xl font-black text-xl">TABLE {num}</div>
+                    </div>
+                   );
+                 })
+               )}
+            </div>
+         )}
+      </div>
+
+      <style>{`
+        @media print {
+          body * { visibility: hidden; overflow: visible !important; }
+          .print\\:block, .print\\:block * { visibility: visible; }
+          .print\\:block { position: absolute; left: 0; top: 0; width: 100%; height: auto; }
+        }
+        .no-print { display: block; }
+        @media print { .no-print { display: none !important; } }
+      `}</style>
     </div>
   );
 };

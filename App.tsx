@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { User, Role, Restaurant, Order, OrderStatus, CartItem, MenuItem, Area } from './types';
 import CustomerView from './pages/CustomerView';
@@ -111,7 +112,8 @@ const App: React.FC = () => {
     const { data, error } = await supabase.from('areas').select('*').order('name');
     if (!error && data) {
       const mapped = data.map(l => ({
-        id: l.id, name: l.name, city: l.city, state: l.state, code: l.code, isActive: l.is_active ?? true
+        id: l.id, name: l.name, city: l.city, state: l.state, code: l.code, isActive: l.is_active ?? true,
+        type: l.type || 'MULTI'
       }));
       setLocations(mapped);
       persistCache('qs_cache_locations', mapped);
@@ -165,14 +167,12 @@ const App: React.FC = () => {
     };
     initApp();
 
-    // Optimize Real-time: Listen for all events and trigger immediate fetch
     const channel = supabase.channel('order-updates')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => {
-        fetchOrders(); // Immediate sync on change
+        fetchOrders();
       })
       .subscribe();
 
-    // Reduced fallback interval to 5 seconds for snappier experience if realtime fails
     const interval = setInterval(fetchOrders, 5000); 
 
     return () => { 
@@ -204,7 +204,6 @@ const App: React.FC = () => {
     const area = locations.find(l => l.name === sessionLocation);
     const code = area?.code || 'QS';
     
-    // NEW Order ID Logic: Find max and increment (xxx0000001 format)
     let nextNum = 1;
     const { data: lastOrder } = await supabase
       .from('orders')
@@ -241,7 +240,6 @@ const App: React.FC = () => {
       alert("Placement Error: " + error.message);
     } else {
       setCart([]);
-      // Optimistic local update
       setOrders(prev => [{
         id: newOrder.id, items: newOrder.items, total: Number(newOrder.total),
         status: newOrder.status as OrderStatus, timestamp: numericTimestamp,
@@ -249,14 +247,11 @@ const App: React.FC = () => {
         tableNumber: newOrder.table_number, locationName: newOrder.location_name,
         remark: newOrder.remark
       }, ...prev]);
-      fetchOrders(); // Rapidly sync
+      fetchOrders();
       alert(`Order ${orderId} submitted!`);
     }
   };
 
-  // Rest of the existing methods (handleLogin, handleLogout, updateOrderStatus, etc.) remain the same
-  // (Adding them back for file completeness)
-  
   const handleLogin = (user: User) => {
     setCurrentUser(user);
     setCurrentRole(user.role);
@@ -314,12 +309,12 @@ const App: React.FC = () => {
   };
 
   const handleAddLocation = async (a: Area) => {
-    await supabase.from('areas').insert([{ name: a.name, city: a.city, state: a.state, code: a.code, is_active: a.isActive }]);
+    await supabase.from('areas').insert([{ name: a.name, city: a.city, state: a.state, code: a.code, is_active: a.isActive, type: a.type }]);
     fetchLocations();
   };
 
   const handleUpdateLocation = async (a: Area) => {
-    await supabase.from('areas').update({ name: a.name, city: a.city, state: a.state, code: a.code, is_active: a.isActive }).eq('id', a.id);
+    await supabase.from('areas').update({ name: a.name, city: a.city, state: a.state, code: a.code, is_active: a.isActive, type: a.type }).eq('id', a.id);
     await Promise.all([fetchLocations(), fetchRestaurants()]);
   };
 
@@ -366,8 +361,8 @@ const App: React.FC = () => {
     <div className="min-h-screen flex flex-col bg-gray-50 dark:bg-gray-900 transition-colors">
       <header className="sticky top-0 z-50 bg-white dark:bg-gray-800 border-b dark:border-gray-700 h-16 flex items-center justify-between px-8 shadow-sm">
         <div className="flex items-center gap-2 cursor-pointer" onClick={() => setView('LANDING')}>
-          <div className="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center text-white font-black">Q</div>
-          <h1 className="text-xl font-black dark:text-white">QuickServe</h1>
+          <div className="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center text-white font-black">S</div>
+          <h1 className="text-xl font-black dark:text-white">ServeFlow</h1>
         </div>
         <div className="flex items-center gap-4">
           <button onClick={() => setIsDarkMode(!isDarkMode)} className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 dark:text-white">
