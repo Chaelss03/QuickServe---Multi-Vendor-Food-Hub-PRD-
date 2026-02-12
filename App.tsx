@@ -178,6 +178,25 @@ const App: React.FC = () => {
   }, []);
 
   useEffect(() => {
+    // Handling direct QR Code Navigation from URL params
+    const params = new URLSearchParams(window.location.search);
+    const loc = params.get('loc');
+    const table = params.get('table');
+    if (loc && table) {
+      setSessionLocation(loc);
+      setSessionTable(table);
+      setCurrentRole('CUSTOMER');
+      setView('APP');
+      localStorage.setItem('qs_role', 'CUSTOMER');
+      localStorage.setItem('qs_view', 'APP');
+      localStorage.setItem('qs_session_location', loc);
+      localStorage.setItem('qs_session_table', table);
+      // Strip params from URL for a clean experience
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, []);
+
+  useEffect(() => {
     const initApp = async () => {
       await Promise.allSettled([fetchUsers(), fetchLocations(), fetchRestaurants(), fetchOrders()]);
       setIsLoading(false);
@@ -232,7 +251,6 @@ const App: React.FC = () => {
   const placeOrder = async (remark: string) => {
     if (cart.length === 0) return;
     
-    // 1. Safety check: Ensure ALL restaurants in the cart are online
     const uniqueRestaurantIdsInCart = Array.from(new Set(cart.map(item => item.restaurantId)));
     const offlineRestaurants = uniqueRestaurantIdsInCart
       .map(rid => restaurants.find(r => r.id === rid))
@@ -243,7 +261,6 @@ const App: React.FC = () => {
       return;
     }
 
-    // 2. Generate Base Order ID Sequence
     const area = locations.find(l => l.name === sessionLocation);
     const code = area?.code || 'QS';
     let nextNum = 1;
@@ -255,7 +272,6 @@ const App: React.FC = () => {
       .limit(1);
 
     if (lastOrder && lastOrder[0]) {
-      // Strip potential suffix like -1, -2 for numeric increment
       const lastIdFull = lastOrder[0].id;
       const basePart = lastIdFull.split('-')[0];
       const numPart = basePart.substring(code.length);
@@ -264,12 +280,10 @@ const App: React.FC = () => {
     }
     const baseOrderId = `${code}${String(nextNum).padStart(7, '0')}`;
 
-    // 3. Prepare Split Orders for Batch Insertion
     const ordersToInsert = uniqueRestaurantIdsInCart.map((rid, index) => {
       const itemsForThisRestaurant = cart.filter(item => item.restaurantId === rid);
       const totalForThisRestaurant = itemsForThisRestaurant.reduce((acc, item) => acc + (item.price * item.quantity), 0);
       
-      // Use suffix only if multiple vendors are involved
       const finalOrderId = uniqueRestaurantIdsInCart.length > 1 
         ? `${baseOrderId}-${index + 1}` 
         : baseOrderId;
@@ -288,14 +302,12 @@ const App: React.FC = () => {
       };
     });
 
-    // 4. Remote Batch Insertion
     const { error } = await supabase.from('orders').insert(ordersToInsert);
 
     if (error) {
       alert("Placement Error: " + error.message);
     } else {
       setCart([]);
-      // Force immediate local refresh to show split orders in UI
       fetchOrders();
       alert(`Your order(s) have been placed! Reference: ${baseOrderId}${uniqueRestaurantIdsInCart.length > 1 ? ` (Split into ${uniqueRestaurantIdsInCart.length} kitchens)` : ''}`);
     }
