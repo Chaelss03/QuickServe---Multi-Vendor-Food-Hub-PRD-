@@ -1,7 +1,7 @@
 
 import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { Restaurant, Order, OrderStatus, MenuItem, MenuItemVariant } from '../types';
-import { ShoppingBag, BookOpen, BarChart3, Edit3, CheckCircle, Clock, X, Plus, Trash2, Image as ImageIcon, Thermometer, LayoutGrid, List, Filter, Archive, RotateCcw, XCircle, Power, Eye, Upload, Hash, MessageSquare, Download, Calendar, Ban, ChevronLeft, ChevronRight, Bell, AlertTriangle, RefreshCw } from 'lucide-react';
+import { ShoppingBag, BookOpen, BarChart3, Edit3, CheckCircle, Clock, X, Plus, Trash2, Image as ImageIcon, Thermometer, LayoutGrid, List, Filter, Archive, RotateCcw, XCircle, Power, Eye, Upload, Hash, MessageSquare, Download, Calendar, Ban, ChevronLeft, ChevronRight, Bell, AlertTriangle, RefreshCw, Activity } from 'lucide-react';
 
 interface Props {
   restaurant: Restaurant;
@@ -25,6 +25,7 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
   const [orderFilter, setOrderFilter] = useState<OrderStatus | 'ONGOING_ALL'>( 'ONGOING_ALL');
   const [editingItem, setEditingItem] = useState<MenuItem | null>(null);
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<'IDLE' | 'SYNCING'>('IDLE');
   
   // Rejection State
   const [rejectingOrderId, setRejectingOrderId] = useState<string | null>(null);
@@ -51,6 +52,15 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
   const [showNewOrderAlert, setShowNewOrderAlert] = useState(false);
   const pendingOrders = useMemo(() => orders.filter(o => o.status === OrderStatus.PENDING), [orders]);
   const prevPendingCount = useRef(pendingOrders.length);
+
+  // Sync Timer Visual Feedback
+  useEffect(() => {
+    if (lastSyncTime) {
+      setSyncStatus('SYNCING');
+      const timer = setTimeout(() => setSyncStatus('IDLE'), 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [lastSyncTime]);
 
   // Sound & Visual Alert for New Orders
   useEffect(() => {
@@ -286,11 +296,17 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
           </button>
         </nav>
         
-        {/* Live Sync Badge in Sidebar */}
-        <div className="p-4 mt-auto border-t dark:border-gray-700">
-          <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 dark:bg-gray-700/50 rounded-xl">
-             <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
-             <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Live Connection Active</span>
+        {/* Advanced Live Sync Badge in Sidebar */}
+        <div className="p-4 mt-auto border-t dark:border-gray-700 space-y-2">
+          <div className="flex items-center justify-between px-3 py-2 bg-gray-50 dark:bg-gray-700/50 rounded-xl border dark:border-gray-600">
+             <div className="flex items-center gap-2">
+                <div className={`w-2 h-2 rounded-full ${syncStatus === 'SYNCING' ? 'bg-blue-500 scale-125' : 'bg-green-500'} transition-all duration-300 animate-pulse`}></div>
+                <span className="text-[9px] font-black text-gray-500 dark:text-gray-400 uppercase tracking-widest">Live Feed</span>
+             </div>
+             {syncStatus === 'SYNCING' && <RefreshCw size={10} className="animate-spin text-blue-500" />}
+          </div>
+          <div className="px-3">
+             <p className="text-[8px] font-bold text-gray-400 uppercase tracking-[0.2em] text-center">Automatic Update: 5s</p>
           </div>
         </div>
       </aside>
@@ -315,9 +331,9 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
               <div className="flex items-center gap-4">
                 <h1 className="text-2xl font-black dark:text-white uppercase tracking-tighter">Kitchen Feed</h1>
                 {lastSyncTime && (
-                  <div className="flex items-center gap-2 text-[10px] font-black text-gray-400 bg-white dark:bg-gray-800 px-3 py-1 rounded-full border dark:border-gray-700">
-                    <RefreshCw size={10} className="animate-spin text-green-500" />
-                    SYNCED {lastSyncTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                  <div className={`flex items-center gap-2 text-[10px] font-black px-3 py-1.5 rounded-full border transition-all duration-300 ${syncStatus === 'SYNCING' ? 'bg-blue-50 border-blue-200 text-blue-600' : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-400'}`}>
+                    <Activity size={12} className={syncStatus === 'SYNCING' ? 'animate-pulse' : ''} />
+                    {syncStatus === 'SYNCING' ? 'SYNCING...' : `LAST SYNC: ${lastSyncTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}`}
                   </div>
                 )}
               </div>
@@ -350,7 +366,7 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
                     <ShoppingBag size={24} />
                   </div>
                   <h3 className="text-xl font-bold text-gray-900 dark:text-white uppercase tracking-tighter">Kitchen Quiet</h3>
-                  <p className="text-gray-500 dark:text-gray-400 text-xs">Waiting for incoming signals...</p>
+                  <p className="text-gray-500 dark:text-gray-400 text-xs">Waiting for incoming signals... (Autocheck every 5s)</p>
                 </div>
               ) : (
                 filteredOrders.map(order => (

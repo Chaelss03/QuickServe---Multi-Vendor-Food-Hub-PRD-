@@ -205,11 +205,23 @@ const App: React.FC = () => {
   };
 
   const updateOrderStatus = async (orderId: string, status: OrderStatus, reason?: string, note?: string) => {
+    // OPTIMISTIC UPDATE: Update local state immediately for instant feedback
+    setOrders(prev => prev.map(o => 
+      o.id === orderId ? { ...o, status, rejectionReason: reason, rejectionNote: note } : o
+    ));
+
+    // Database update in background
     const { error } = await supabase.from('orders').update({ 
       status, rejection_reason: reason, rejection_note: note 
     }).eq('id', orderId);
-    if (error) alert("Error: " + error.message);
-    fetchOrders();
+    
+    if (error) {
+      alert("System Error: Update failed. Re-syncing with server.");
+      fetchOrders(); // Revert to server truth on error
+    } else {
+      // Background re-fetch to ensure everything is perfectly in sync
+      fetchOrders();
+    }
   };
 
   const addToCart = (item: CartItem) => {
