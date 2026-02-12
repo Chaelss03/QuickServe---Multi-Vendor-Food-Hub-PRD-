@@ -123,7 +123,6 @@ const App: React.FC = () => {
   }, []);
 
   const fetchRestaurants = useCallback(async () => {
-    // If we just manually toggled the status, don't let background fetches overwrite it for 3 seconds
     if (isStatusLocked.current) return;
 
     const { data: resData, error: resError } = await supabase.from('restaurants').select('*');
@@ -132,7 +131,7 @@ const App: React.FC = () => {
       const formatted: Restaurant[] = resData.map(res => ({
         id: res.id, name: res.name, logo: res.logo, vendorId: res.vendor_id,
         location: res.location_name, created_at: res.created_at,
-        isOnline: res.is_online === true || res.is_online === null, // Treat null as online default
+        isOnline: res.is_online === true || res.is_online === null,
         menu: menuData.filter(m => m.restaurant_id === res.id).map(m => ({
           id: m.id, name: m.name, description: m.description, price: Number(m.price),
           image: m.image, category: m.category, isArchived: m.is_archived,
@@ -160,7 +159,6 @@ const App: React.FC = () => {
               remark: o.remark, rejectionReason: o.rejection_reason, rejectionNote: o.rejection_note
             };
 
-            // IF ORDER IS LOCKED: Do not let the server overwrite the status we just set locally
             if (lockedOrderIds.current.has(o.id)) {
               const localOrder = prev.find(p => p.id === o.id);
               if (localOrder) {
@@ -200,16 +198,11 @@ const App: React.FC = () => {
     };
   }, [fetchUsers, fetchLocations, fetchRestaurants, fetchOrders]);
 
-  // Scheduler with Strict Offline Pause
   useEffect(() => {
     const activeVendorRes = currentUser?.role === 'VENDOR' ? restaurants.find(r => r.id === currentUser.restaurantId) : null;
     const isOffline = activeVendorRes && activeVendorRes.isOnline === false;
 
-    // If offline, stop the scheduler immediately
-    if (isOffline) {
-      console.log("Scheduler suspended (Vendor Offline)");
-      return;
-    }
+    if (isOffline) return;
 
     const interval = setInterval(() => {
       fetchOrders();
@@ -239,42 +232,72 @@ const App: React.FC = () => {
   const placeOrder = async (remark: string) => {
     if (cart.length === 0) return;
     
-    // Safety check: Ensure the restaurant is still online
-    const targetRestaurantId = cart[0].restaurantId;
-    const targetRes = restaurants.find(r => r.id === targetRestaurantId);
-    
-    if (!targetRes || targetRes.isOnline === false) {
-      alert("Error: This kitchen is currently offline and cannot accept orders. Your cart will be cleared.");
-      setCart([]);
+    // 1. Safety check: Ensure ALL restaurants in the cart are online
+    const uniqueRestaurantIdsInCart = Array.from(new Set(cart.map(item => item.restaurantId)));
+    const offlineRestaurants = uniqueRestaurantIdsInCart
+      .map(rid => restaurants.find(r => r.id === rid))
+      .filter(res => !res || res.isOnline === false);
+
+    if (offlineRestaurants.length > 0) {
+      alert(`Error: The following kitchen(s) are currently offline: ${offlineRestaurants.map(r => r?.name).join(', ')}. Please remove these items from your cart.`);
       return;
     }
 
+    // 2. Generate Base Order ID Sequence
     const area = locations.find(l => l.name === sessionLocation);
     const code = area?.code || 'QS';
     let nextNum = 1;
-    const { data: lastOrder } = await supabase.from('orders').select('id').ilike('id', `${code}%`).order('id', { ascending: false }).limit(1);
+
+    const { data: lastOrder } = await supabase.from('orders')
+      .select('id')
+      .ilike('id', `${code}%`)
+      .order('id', { ascending: false })
+      .limit(1);
+
     if (lastOrder && lastOrder[0]) {
-      const lastId = lastOrder[0].id;
-      const numPart = lastId.substring(code.length);
+      // Strip potential suffix like -1, -2 for numeric increment
+      const lastIdFull = lastOrder[0].id;
+      const basePart = lastIdFull.split('-')[0];
+      const numPart = basePart.substring(code.length);
       const parsed = parseInt(numPart);
       if (!isNaN(parsed)) nextNum = parsed + 1;
     }
-    const orderId = `${code}${String(nextNum).padStart(7, '0')}`;
-    const numericTimestamp = Date.now();
-    const newOrder = {
-      id: orderId, items: cart, total: cart.reduce((acc, item) => acc + item.price * item.quantity, 0),
-      status: OrderStatus.PENDING, timestamp: numericTimestamp, customer_id: 'guest_user',
-      restaurant_id: targetRestaurantId, table_number: sessionTable || 'N/A',
-      location_name: sessionLocation || 'Unspecified', remark: remark
-    };
-    const { error } = await supabase.from('orders').insert([newOrder]);
+    const baseOrderId = `${code}${String(nextNum).padStart(7, '0')}`;
+
+    // 3. Prepare Split Orders for Batch Insertion
+    const ordersToInsert = uniqueRestaurantIdsInCart.map((rid, index) => {
+      const itemsForThisRestaurant = cart.filter(item => item.restaurantId === rid);
+      const totalForThisRestaurant = itemsForThisRestaurant.reduce((acc, item) => acc + (item.price * item.quantity), 0);
+      
+      // Use suffix only if multiple vendors are involved
+      const finalOrderId = uniqueRestaurantIdsInCart.length > 1 
+        ? `${baseOrderId}-${index + 1}` 
+        : baseOrderId;
+
+      return {
+        id: finalOrderId,
+        items: itemsForThisRestaurant,
+        total: totalForThisRestaurant,
+        status: OrderStatus.PENDING,
+        timestamp: Date.now(),
+        customer_id: 'guest_user',
+        restaurant_id: rid,
+        table_number: sessionTable || 'N/A',
+        location_name: sessionLocation || 'Unspecified',
+        remark: remark
+      };
+    });
+
+    // 4. Remote Batch Insertion
+    const { error } = await supabase.from('orders').insert(ordersToInsert);
+
     if (error) {
       alert("Placement Error: " + error.message);
     } else {
       setCart([]);
-      setOrders(prev => [{ ...newOrder, customerId: newOrder.customer_id, restaurantId: newOrder.restaurant_id, tableNumber: newOrder.table_number, locationName: newOrder.location_name, total: Number(newOrder.total) } as any, ...prev]);
+      // Force immediate local refresh to show split orders in UI
       fetchOrders();
-      alert(`Order ${orderId} submitted!`);
+      alert(`Your order(s) have been placed! Reference: ${baseOrderId}${uniqueRestaurantIdsInCart.length > 1 ? ` (Split into ${uniqueRestaurantIdsInCart.length} kitchens)` : ''}`);
     }
   };
 
@@ -291,54 +314,32 @@ const App: React.FC = () => {
   };
 
   const updateOrderStatus = async (orderId: string, status: OrderStatus, reason?: string, note?: string) => {
-    // 1. Lock the order ID so background fetch doesn't overwrite it
     lockedOrderIds.current.add(orderId);
-    
-    // 2. Optimistic Update
     setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status, rejectionReason: reason, rejectionNote: note } : o));
-    
-    // 3. Remote Update
     await supabase.from('orders').update({ status, rejection_reason: reason, rejection_note: note }).eq('id', orderId);
-    
-    // 4. Release lock after 3 seconds (enough time for DB propagation)
     setTimeout(() => {
       lockedOrderIds.current.delete(orderId);
     }, 3000);
-    
     fetchOrders();
   };
 
   const toggleVendorOnline = async (restaurantId: string, currentStatus: boolean) => {
     const newStatus = !currentStatus;
-    
-    // 1. Lock status sync
     isStatusLocked.current = true;
-    
-    // 2. Optimistic Update
     setRestaurants(prev => prev.map(r => r.id === restaurantId ? { ...r, isOnline: newStatus } : r));
-    
-    // 3. Remote Update
     const { error } = await supabase.from('restaurants').update({ is_online: newStatus }).eq('id', restaurantId);
-    
-    if (error) {
-       console.error("Failed to update status", error);
-       fetchRestaurants(); // Rollback
-    }
-
-    // 4. Release lock after 3 seconds
+    if (error) fetchRestaurants();
     setTimeout(() => {
       isStatusLocked.current = false;
     }, 3000);
   };
 
   const addToCart = (item: CartItem) => {
-    // Safety check: Only add if restaurant is still online in the local state
     const res = restaurants.find(r => r.id === item.restaurantId);
     if (res && res.isOnline === false) {
       alert("This kitchen is currently offline and cannot take new orders.");
       return;
     }
-
     setCart(prev => {
       const existing = prev.find(i => i.id === item.id && i.selectedSize === item.selectedSize && i.selectedTemp === item.selectedTemp);
       if (existing) return prev.map(i => (i.id === item.id && i.selectedSize === item.selectedSize && i.selectedTemp === item.selectedTemp) ? { ...i, quantity: i.quantity + 1 } : i);
