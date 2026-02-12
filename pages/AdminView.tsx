@@ -1,6 +1,6 @@
+
 import React, { useState, useMemo, useEffect } from 'react';
 import { User, Restaurant, Order, Area, OrderStatus } from '../types';
-// Added XCircle to the lucide-react imports
 import { Users, Store, TrendingUp, Settings, ShieldCheck, Mail, Search, Filter, X, Plus, MapPin, Power, CheckCircle2, AlertCircle, LogIn, Trash2, LayoutGrid, List, ChevronRight, Eye, EyeOff, Globe, Phone, ShoppingBag, Edit3, Hash, Download, Calendar, ChevronLeft, Database, Image as ImageIcon, Key, QrCode, Printer, Layers, Info, ExternalLink, XCircle } from 'lucide-react';
 
 interface Props {
@@ -57,6 +57,7 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
   const [isHubSelectionModalOpen, setIsHubSelectionModalOpen] = useState(false);
 
   // Reports State
+  const [reportSearchQuery, setReportSearchQuery] = useState('');
   const [reportStatus, setReportStatus] = useState<'ALL' | OrderStatus>('ALL');
   const [reportStart, setReportStart] = useState<string>(() => {
     const d = new Date();
@@ -64,7 +65,7 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
     return d.toISOString().split('T')[0];
   });
   const [reportEnd, setReportEnd] = useState<string>(() => new Date().toISOString().split('T')[0]);
-  const [entriesPerPage, setEntriesPerPage] = useState<number>(30);
+  const [entriesPerPage, setEntriesPerPage] = useState<number>(25);
   const [currentPage, setCurrentPage] = useState<number>(1);
 
   const filteredVendors = useMemo(() => {
@@ -94,9 +95,17 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
       } catch { return false; }
       const matchesDate = orderDate >= reportStart && orderDate <= reportEnd;
       const matchesStatus = reportStatus === 'ALL' || o.status === reportStatus;
-      return matchesDate && matchesStatus;
+      
+      const res = restaurants.find(r => r.id === o.restaurantId);
+      const searchLower = reportSearchQuery.toLowerCase();
+      const matchesSearch = o.id.toLowerCase().includes(searchLower) || 
+                           (res?.name.toLowerCase().includes(searchLower) || false);
+      
+      return matchesDate && matchesStatus && matchesSearch;
     });
-  }, [orders, reportStart, reportEnd, reportStatus]);
+  }, [orders, reportStart, reportEnd, reportStatus, reportSearchQuery, restaurants]);
+
+  const totalPages = Math.ceil(filteredReports.length / entriesPerPage);
 
   const paginatedReports = useMemo(() => {
     const startIdx = (currentPage - 1) * entriesPerPage;
@@ -239,7 +248,7 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
               <div className="flex flex-wrap gap-4">
                 <div className="relative">
                   <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
-                  <input type="text" placeholder="Search..." className="pl-11 pr-4 py-2.5 bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-xl text-sm" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
+                  <input type="text" placeholder="Search..." className="pl-11 pr-4 py-2.5 bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-xl text-sm outline-none" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
                 </div>
                 <div className="relative">
                    <Filter size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -303,7 +312,7 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
               <div className="flex flex-wrap gap-4">
                 <div className="relative">
                   <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
-                  <input type="text" placeholder="Search hubs..." className="pl-11 pr-4 py-2.5 bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-xl text-sm" value={hubSearchQuery} onChange={e => setHubSearchQuery(e.target.value)} />
+                  <input type="text" placeholder="Search hubs..." className="pl-11 pr-4 py-2.5 bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-xl text-sm outline-none" value={hubSearchQuery} onChange={e => setHubSearchQuery(e.target.value)} />
                 </div>
                 <button onClick={() => setIsHubSelectionModalOpen(true)} className="px-6 py-2.5 bg-white dark:bg-gray-700 text-orange-500 border-2 border-orange-500 rounded-xl font-black uppercase tracking-widest text-[10px] shadow-sm flex items-center gap-2 hover:bg-orange-500 hover:text-white transition-all">
                   <QrCode size={16} /> Generate QR
@@ -369,49 +378,61 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
 
         {activeTab === 'REPORTS' && (
           <div className="bg-white dark:bg-gray-800 rounded-3xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden animate-in fade-in duration-500">
-            <div className="px-8 py-6 border-b dark:border-gray-700 bg-gray-50/50 dark:bg-gray-700/50">
-              <h3 className="font-black dark:text-white uppercase tracking-tighter text-lg">Platform Sales Report</h3>
-              <p className="text-xs text-gray-500 dark:text-gray-400 font-medium italic">Unified transactional data from all active hubs.</p>
+            <div className="px-8 py-6 border-b dark:border-gray-700 bg-gray-50/50 dark:bg-gray-700/50 flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div>
+                <h3 className="font-black dark:text-white uppercase tracking-tighter text-lg">Platform Sales Report</h3>
+                <p className="text-[10px] text-gray-500 dark:text-gray-400 font-bold uppercase tracking-widest">Unified transactional data from all active hubs.</p>
+              </div>
+              <div className="relative w-full md:w-64">
+                <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input 
+                  type="text" 
+                  placeholder="Search by ID or Kitchen..." 
+                  className="w-full pl-10 pr-4 py-2 bg-white dark:bg-gray-800 border dark:border-gray-600 rounded-xl text-xs outline-none focus:ring-1 focus:ring-orange-500 transition-all"
+                  value={reportSearchQuery}
+                  onChange={e => {setReportSearchQuery(e.target.value); setCurrentPage(1);}}
+                />
+              </div>
             </div>
             
             <div className="p-8">
-              <div className="bg-gray-50 dark:bg-gray-700/30 p-6 rounded-2xl border dark:border-gray-700 flex flex-col md:flex-row items-center gap-6 mb-8">
+              <div className="bg-gray-50 dark:bg-gray-700/30 p-4 rounded-xl border dark:border-gray-700 flex flex-col md:flex-row items-center gap-6 mb-8">
                 <div className="flex-1 flex flex-col md:flex-row gap-4 w-full">
                   <div className="flex-1">
-                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Period Selection</label>
+                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 ml-1">Period Selection</label>
                     <div className="flex items-center gap-2">
                       <Calendar size={14} className="text-orange-500" />
-                      <input type="date" value={reportStart} onChange={(e) => setReportStart(e.target.value)} className="flex-1 bg-white dark:bg-gray-700 border dark:border-gray-600 rounded-lg text-xs font-bold dark:text-white p-2" />
+                      <input type="date" value={reportStart} onChange={(e) => {setReportStart(e.target.value); setCurrentPage(1);}} className="flex-1 bg-white dark:bg-gray-700 border dark:border-gray-600 rounded-lg text-xs font-bold dark:text-white p-2" />
                       <span className="text-gray-400 font-bold">to</span>
-                      <input type="date" value={reportEnd} onChange={(e) => setReportEnd(e.target.value)} className="flex-1 bg-white dark:bg-gray-700 border dark:border-gray-600 rounded-lg text-xs font-bold dark:text-white p-2" />
+                      <input type="date" value={reportEnd} onChange={(e) => {setReportEnd(e.target.value); setCurrentPage(1);}} className="flex-1 bg-white dark:bg-gray-700 border dark:border-gray-600 rounded-lg text-xs font-bold dark:text-white p-2" />
                     </div>
                   </div>
                   <div className="w-48">
-                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Order Status</label>
-                    <select value={reportStatus} onChange={(e) => setReportStatus(e.target.value as any)} className="w-full p-2 bg-white dark:bg-gray-700 border dark:border-gray-600 rounded-lg text-xs font-bold dark:text-white appearance-none cursor-pointer">
+                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 ml-1">Order Status</label>
+                    <select value={reportStatus} onChange={(e) => {setReportStatus(e.target.value as any); setCurrentPage(1);}} className="w-full p-2 bg-white dark:bg-gray-700 border dark:border-gray-600 rounded-lg text-xs font-bold dark:text-white appearance-none cursor-pointer">
                       <option value="ALL">All Outcomes</option>
                       <option value={OrderStatus.COMPLETED}>Served</option>
                       <option value={OrderStatus.CANCELLED}>Rejected</option>
                     </select>
                   </div>
                 </div>
-                <button onClick={handleDownloadReport} disabled={filteredReports.length === 0} className="w-full md:w-auto px-6 py-3 bg-gray-900 text-white dark:bg-white dark:text-gray-900 rounded-xl font-black text-xs uppercase tracking-widest flex items-center gap-2 hover:bg-orange-500 transition-all shadow-lg"><Download size={18} /> Global Export</button>
+                <button onClick={handleDownloadReport} disabled={filteredReports.length === 0} className="w-full md:w-auto px-6 py-2.5 bg-gray-900 text-white dark:bg-white dark:text-gray-900 rounded-xl font-black text-xs uppercase tracking-widest flex items-center gap-2 hover:bg-orange-500 transition-all shadow-lg"><Download size={16} /> Global Export</button>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                <div className="bg-white dark:bg-gray-800 p-8 rounded-[2rem] shadow-sm border border-gray-100 dark:border-gray-700">
-                  <p className="text-gray-400 dark:text-gray-500 text-[10px] font-black mb-1 uppercase tracking-widest">Platform Revenue</p>
-                  <p className="text-4xl font-black text-gray-900 dark:text-white tracking-tighter leading-none">
+                <div className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 flex flex-col justify-center">
+                  <p className="text-gray-400 dark:text-gray-500 text-[9px] font-black mb-1 uppercase tracking-widest">Platform Revenue</p>
+                  <p className="text-2xl font-black text-gray-900 dark:text-white tracking-tighter leading-none">
                     RM{filteredReports.filter(o => o.status === OrderStatus.COMPLETED).reduce((acc, o) => acc + o.total, 0).toFixed(2)}
                   </p>
                 </div>
-                <div className="bg-white dark:bg-gray-800 p-8 rounded-[2rem] shadow-sm border border-gray-100 dark:border-gray-700">
-                  <p className="text-gray-400 dark:text-gray-500 text-[10px] font-black mb-1 uppercase tracking-widest">Global Volume</p>
-                  <p className="text-4xl font-black text-gray-900 dark:text-white tracking-tighter leading-none">{filteredReports.length}</p>
+                <div className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 flex flex-col justify-center">
+                  <p className="text-gray-400 dark:text-gray-500 text-[9px] font-black mb-1 uppercase tracking-widest">Global Volume</p>
+                  <p className="text-2xl font-black text-gray-900 dark:text-white tracking-tighter leading-none">{filteredReports.length}</p>
                 </div>
-                <div className="bg-white dark:bg-gray-800 p-8 rounded-[2rem] shadow-sm border border-gray-100 dark:border-gray-700">
-                  <p className="text-gray-400 dark:text-gray-500 text-[10px] font-black mb-1 uppercase tracking-widest">Served Efficiency</p>
-                  <p className="text-4xl font-black text-green-500 tracking-tighter leading-none">
+                <div className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 flex flex-col justify-center">
+                  <p className="text-gray-400 dark:text-gray-500 text-[9px] font-black mb-1 uppercase tracking-widest">Served Efficiency</p>
+                  <p className="text-2xl font-black text-green-500 tracking-tighter leading-none">
                     {filteredReports.length > 0 ? Math.round((filteredReports.filter(r => r.status === OrderStatus.COMPLETED).length / filteredReports.length) * 100) : 0}%
                   </p>
                 </div>
@@ -421,11 +442,11 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
                 <table className="w-full">
                   <thead className="bg-gray-50 dark:bg-gray-700/50 text-gray-400 text-[10px] font-black uppercase tracking-widest">
                     <tr>
-                      <th className="px-8 py-4 text-left">Order ID</th>
-                      <th className="px-8 py-4 text-left">Kitchen</th>
-                      <th className="px-8 py-4 text-left">Time</th>
-                      <th className="px-8 py-4 text-left">Status</th>
-                      <th className="px-8 py-4 text-right">Total Bill</th>
+                      <th className="px-8 py-3 text-left">Order ID</th>
+                      <th className="px-8 py-3 text-left">Kitchen</th>
+                      <th className="px-8 py-3 text-left">Time</th>
+                      <th className="px-8 py-3 text-left">Status</th>
+                      <th className="px-8 py-3 text-right">Total Bill</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y dark:divide-gray-700">
@@ -433,26 +454,52 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
                       const res = restaurants.find(r => r.id === report.restaurantId);
                       return (
                         <tr key={report.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors">
-                          <td className="px-8 py-5 text-xs font-black dark:text-white uppercase tracking-widest">{report.id}</td>
-                          <td className="px-8 py-5">
+                          <td className="px-8 py-2.5 text-[10px] font-black dark:text-white uppercase tracking-widest">{report.id}</td>
+                          <td className="px-8 py-2.5">
                              <div className="flex items-center gap-2">
-                               <img src={res?.logo} className="w-5 h-5 rounded object-cover" />
+                               <img src={res?.logo} className="w-4 h-4 rounded object-cover" />
                                <span className="text-[10px] font-black dark:text-white uppercase tracking-tight">{res?.name}</span>
                              </div>
                           </td>
-                          <td className="px-8 py-5">
-                            <p className="text-xs font-bold text-gray-700 dark:text-gray-300">{new Date(report.timestamp).toLocaleDateString()}</p>
-                            <p className="text-[10px] text-gray-400 font-bold uppercase">{new Date(report.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+                          <td className="px-8 py-2.5">
+                            <div className="flex flex-col">
+                              <span className="text-[10px] font-bold text-gray-700 dark:text-gray-300">{new Date(report.timestamp).toLocaleDateString()}</span>
+                              <span className="text-[8px] text-gray-400 font-bold uppercase">{new Date(report.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                            </div>
                           </td>
-                          <td className="px-8 py-5">
-                            <span className={`text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-tighter ${report.status === OrderStatus.COMPLETED ? 'bg-green-100 text-green-600' : 'bg-orange-100 text-orange-600'}`}>{report.status === OrderStatus.COMPLETED ? 'Served' : report.status}</span>
+                          <td className="px-8 py-2.5">
+                            <span className={`text-[8px] font-black px-2 py-0.5 rounded-full uppercase tracking-tighter ${report.status === OrderStatus.COMPLETED ? 'bg-green-100 text-green-600' : 'bg-orange-100 text-orange-600'}`}>{report.status === OrderStatus.COMPLETED ? 'Served' : report.status}</span>
                           </td>
-                          <td className="px-8 py-5 text-right font-black dark:text-white">RM{report.total.toFixed(2)}</td>
+                          <td className="px-8 py-2.5 text-right font-black dark:text-white text-xs">RM{report.total.toFixed(2)}</td>
                         </tr>
                       );
                     })}
                   </tbody>
                 </table>
+                
+                {/* Pagination Controls */}
+                <div className="flex items-center justify-between px-8 py-4 bg-gray-50 dark:bg-gray-700/50 border-t dark:border-gray-700">
+                  <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">
+                    Showing {Math.min(filteredReports.length, (currentPage - 1) * entriesPerPage + 1)}-{Math.min(filteredReports.length, currentPage * entriesPerPage)} of {filteredReports.length}
+                  </p>
+                  <div className="flex items-center gap-4">
+                    <button 
+                      onClick={() => setCurrentPage(p => Math.max(1, p - 1))} 
+                      disabled={currentPage === 1} 
+                      className="p-1.5 rounded-lg hover:bg-white dark:hover:bg-gray-600 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                    >
+                      <ChevronLeft size={16} />
+                    </button>
+                    <span className="text-[10px] font-black uppercase text-gray-500">Page {currentPage} of {Math.max(1, totalPages)}</span>
+                    <button 
+                      onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} 
+                      disabled={currentPage === totalPages || totalPages === 0} 
+                      className="p-1.5 rounded-lg hover:bg-white dark:hover:bg-gray-600 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                    >
+                      <ChevronRight size={16} />
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -651,6 +698,7 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
 
               <div className="flex gap-4 pt-4">
                 <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 py-3 bg-gray-100 dark:bg-gray-700 rounded-xl font-black uppercase text-[10px] tracking-widest text-gray-500">Cancel</button>
+                {/* Fixed invalid 'submit' attribute by changing it to 'type="submit"' */}
                 <button type="submit" className="flex-1 py-3 bg-orange-500 text-white rounded-xl font-black uppercase text-[10px] tracking-widest shadow-xl">Confirm</button>
               </div>
             </form>
