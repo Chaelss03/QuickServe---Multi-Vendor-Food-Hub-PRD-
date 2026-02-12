@@ -7,29 +7,38 @@ import AdminView from './pages/AdminView';
 import LandingPage from './pages/LandingPage';
 import LoginPage from './pages/LoginPage';
 import { supabase } from './lib/supabase';
-import { LogOut, Sun, Moon, MapPin, LogIn } from 'lucide-react';
+import { LogOut, Sun, Moon, MapPin, LogIn, Loader2 } from 'lucide-react';
 
 const App: React.FC = () => {
   const [allUsers, setAllUsers] = useState<User[]>([]);
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [locations, setLocations] = useState<Area[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   
-  // Persistent State Initialization
+  // Persistent State Initialization with Error Safety
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
-    const saved = localStorage.getItem('qs_user');
-    return saved ? JSON.parse(saved) : null;
+    try {
+      const saved = localStorage.getItem('qs_user');
+      return saved ? JSON.parse(saved) : null;
+    } catch (e) {
+      console.error("Failed to parse user session", e);
+      return null;
+    }
   });
+  
   const [currentRole, setCurrentRole] = useState<Role | null>(() => {
     return localStorage.getItem('qs_role') as Role | null;
   });
+  
   const [view, setView] = useState<'LANDING' | 'LOGIN' | 'APP'>(() => {
-    return localStorage.getItem('qs_view') as any || 'LANDING';
+    return (localStorage.getItem('qs_view') as any) || 'LANDING';
   });
   
   const [sessionLocation, setSessionLocation] = useState<string | null>(() => {
     return localStorage.getItem('qs_session_location');
   });
+  
   const [sessionTable, setSessionTable] = useState<string | null>(() => {
     return localStorage.getItem('qs_session_table');
   });
@@ -116,12 +125,19 @@ const App: React.FC = () => {
 
   useEffect(() => {
     const initApp = async () => {
-      await Promise.all([
-        fetchUsers(),
-        fetchLocations(),
-        fetchRestaurants(),
-        fetchOrders()
-      ]);
+      setIsLoading(true);
+      try {
+        await Promise.all([
+          fetchUsers(),
+          fetchLocations(),
+          fetchRestaurants(),
+          fetchOrders()
+        ]);
+      } catch (err) {
+        console.error("Initialization Error", err);
+      } finally {
+        setIsLoading(false);
+      }
     };
     initApp();
 
@@ -183,9 +199,7 @@ const App: React.FC = () => {
   };
 
   const updateOrderStatus = async (orderId: string, status: OrderStatus, rejectionReason?: string, rejectionNote?: string) => {
-    // Optimistic Update to prevent "stuck" feeling
     setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status, rejectionReason, rejectionNote } : o));
-
     const { error } = await supabase
       .from('orders')
       .update({ 
@@ -197,9 +211,9 @@ const App: React.FC = () => {
 
     if (error) {
       alert("Error updating order: " + error.message);
-      fetchOrders(); // Rollback on error
+      fetchOrders();
     } else {
-      fetchOrders(); // Final confirmation from source
+      fetchOrders();
     }
   };
 
@@ -313,6 +327,15 @@ const App: React.FC = () => {
     localStorage.setItem('qs_role', 'VENDOR');
   };
 
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 dark:bg-gray-900">
+        <Loader2 className="w-12 h-12 text-orange-500 animate-spin mb-4" />
+        <p className="text-gray-500 font-bold uppercase tracking-widest text-[10px]">Syncing Engine...</p>
+      </div>
+    );
+  }
+
   if (view === 'LANDING') {
     return (
       <LandingPage 
@@ -328,6 +351,10 @@ const App: React.FC = () => {
   if (view === 'LOGIN') {
     return <LoginPage allUsers={allUsers} onLogin={handleLogin} onBack={() => { setView('LANDING'); localStorage.setItem('qs_view', 'LANDING'); }} />;
   }
+
+  const activeVendorRestaurant = currentUser && currentUser.role === 'VENDOR' 
+    ? restaurants.find(r => r.id === currentUser.restaurantId) 
+    : null;
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-50 dark:bg-gray-900 transition-colors duration-300">
@@ -380,9 +407,9 @@ const App: React.FC = () => {
             locationName={sessionLocation || undefined} tableNo={sessionTable || undefined}
           />
         )}
-        {currentRole === 'VENDOR' && currentUser && (
+        {currentRole === 'VENDOR' && currentUser && activeVendorRestaurant && (
           <VendorView 
-            restaurant={restaurants.find(r => r.id === currentUser.restaurantId)!} 
+            restaurant={activeVendorRestaurant} 
             orders={orders.filter(o => o.restaurantId === currentUser.restaurantId)}
             onUpdateOrder={updateOrderStatus} onUpdateMenu={updateMenuItem} onAddMenuItem={handleAddMenuItem} onPermanentDeleteMenuItem={handlePermanentDeleteMenuItem}
           />
