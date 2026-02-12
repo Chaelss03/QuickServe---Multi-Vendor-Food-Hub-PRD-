@@ -86,6 +86,7 @@ const App: React.FC = () => {
         logo: res.logo,
         vendorId: res.vendor_id,
         location: res.location_name,
+        created_at: res.created_at,
         menu: menuData
           .filter(m => m.restaurant_id === res.id)
           .map(m => ({
@@ -239,7 +240,6 @@ const App: React.FC = () => {
   };
 
   const handleAddVendor = async (newUser: User, newRestaurant: Restaurant) => {
-    // 1. Create User
     const { data: userData, error: userError } = await supabase.from('users').insert([{
       username: newUser.username,
       password: newUser.password,
@@ -256,8 +256,6 @@ const App: React.FC = () => {
 
     if (userData && userData[0]) {
       const createdUserId = userData[0].id;
-
-      // 2. Create Restaurant Profile
       const { data: resData, error: resError } = await supabase.from('restaurants').insert([{
         name: newRestaurant.name, 
         logo: newRestaurant.logo, 
@@ -269,20 +267,43 @@ const App: React.FC = () => {
         alert("Store Error: " + resError.message);
         await supabase.from('users').delete().eq('id', createdUserId);
       } else {
-        // 3. Link back
         if (resData && resData[0]) {
            await supabase.from('users').update({ restaurant_id: resData[0].id }).eq('id', createdUserId);
         }
         await Promise.all([fetchUsers(), fetchRestaurants()]);
-        alert("Vendor profile fully initialized!");
+        alert("Vendor profile created!");
       }
     }
   };
 
   const handleUpdateVendor = async (u: User, r: Restaurant) => {
-    await supabase.from('users').update({ username: u.username, email: u.email, phone: u.phone, is_active: u.isActive }).eq('id', u.id);
-    await supabase.from('restaurants').update({ name: r.name, logo: r.logo, location_name: r.location }).eq('id', r.id);
-    await Promise.all([fetchUsers(), fetchRestaurants()]);
+    try {
+      const { error: userError } = await supabase.from('users').update({ 
+        username: u.username, 
+        email: u.email, 
+        phone: u.phone, 
+        is_active: u.isActive,
+        password: u.password // Allow updating password too
+      }).eq('id', u.id);
+      
+      const { error: resError } = await supabase.from('restaurants').update({ 
+        name: r.name, 
+        logo: r.logo, 
+        location_name: r.location 
+      }).eq('id', r.id);
+
+      if (userError || resError) throw new Error("Partial update failure");
+      await Promise.all([fetchUsers(), fetchRestaurants()]);
+      alert("Vendor updated successfully!");
+    } catch (e: any) {
+      alert("Update Error: " + e.message);
+    }
+  };
+
+  const handleRemoveVendorFromHub = async (restaurantId: string) => {
+    const { error } = await supabase.from('restaurants').update({ location_name: null }).eq('id', restaurantId);
+    if (error) alert("Error removing vendor: " + error.message);
+    else await fetchRestaurants();
   };
 
   const handleAddLocation = async (a: Area) => {
@@ -300,37 +321,30 @@ const App: React.FC = () => {
 
     try {
       if (nameChanged) {
-        // Step 1: Query DB directly for current restaurants to ensure we have IDs
-        const { data: resToUpdate } = await supabase
-          .from('restaurants')
-          .select('id')
-          .eq('location_name', oldArea.name);
-
-        const relinkIds = resToUpdate?.map(r => r.id) || [];
+        const { data: dependents } = await supabase.from('restaurants').select('id').eq('location_name', oldArea.name);
+        const relinkIds = dependents?.map(d => d.id) || [];
 
         if (relinkIds.length > 0) {
-          // Step 2: Detach (NULL out FK)
-          const { error: detachErr } = await supabase.from('restaurants').update({ location_name: null }).in('id', relinkIds);
-          if (detachErr) throw detachErr;
-
-          // Step 3: Update Area
-          const { error: areaErr } = await supabase.from('areas').update({ name: a.name, city: a.city, state: a.state, code: a.code, is_active: a.isActive }).eq('id', a.id);
+          await supabase.from('restaurants').update({ location_name: null }).in('id', relinkIds);
+          const { error: areaErr } = await supabase.from('areas').update({ 
+            name: a.name, city: a.city, state: a.state, code: a.code, is_active: a.isActive 
+          }).eq('id', a.id);
           if (areaErr) throw areaErr;
-
-          // Step 4: Re-attach
-          const { error: attachErr } = await supabase.from('restaurants').update({ location_name: a.name }).in('id', relinkIds);
-          if (attachErr) throw attachErr;
+          await supabase.from('restaurants').update({ location_name: a.name }).in('id', relinkIds);
         } else {
-          // No dependents, simple update
-          const { error: areaErr } = await supabase.from('areas').update({ name: a.name, city: a.city, state: a.state, code: a.code, is_active: a.isActive }).eq('id', a.id);
+          const { error: areaErr } = await supabase.from('areas').update({ 
+            name: a.name, city: a.city, state: a.state, code: a.code, is_active: a.isActive 
+          }).eq('id', a.id);
           if (areaErr) throw areaErr;
         }
       } else {
-        // No name change
-        const { error: areaErr } = await supabase.from('areas').update({ city: a.city, state: a.state, code: a.code, is_active: a.isActive }).eq('id', a.id);
+        const { error: areaErr } = await supabase.from('areas').update({ 
+          city: a.city, state: a.state, code: a.code, is_active: a.isActive 
+        }).eq('id', a.id);
         if (areaErr) throw areaErr;
       }
       await Promise.all([fetchLocations(), fetchRestaurants()]);
+      alert("Location synced!");
     } catch (err: any) {
       alert("Sync Error: " + err.message);
       await Promise.all([fetchLocations(), fetchRestaurants()]);
@@ -422,6 +436,7 @@ const App: React.FC = () => {
             vendors={allUsers.filter(u => u.role === 'VENDOR')} restaurants={restaurants} orders={orders} locations={locations}
             onAddVendor={handleAddVendor} onUpdateVendor={handleUpdateVendor} onImpersonateVendor={handleLogin}
             onAddLocation={handleAddLocation} onUpdateLocation={handleUpdateLocation} onDeleteLocation={handleDeleteLocation}
+            onRemoveVendorFromHub={handleRemoveVendorFromHub}
           />
         )}
       </main>

@@ -1,3 +1,4 @@
+
 export type Role = 'CUSTOMER' | 'VENDOR' | 'ADMIN';
 
 export enum OrderStatus {
@@ -44,6 +45,7 @@ export interface Restaurant {
   menu: MenuItem[];
   vendorId: string;
   location: string; // This refers to the Area name
+  created_at?: string;
 }
 
 export interface CartItem extends MenuItem {
