@@ -39,7 +39,7 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
   // Hub Modal State
   const [isAreaModalOpen, setIsAreaModalOpen] = useState(false);
   const [editingArea, setEditingArea] = useState<Area | null>(null);
-  const [newArea, setNewArea] = useState({ name: '', city: '', state: '', code: '' });
+  const [formArea, setFormArea] = useState({ name: '', city: '', state: '', code: '' });
   
   const [viewingHubVendors, setViewingHubVendors] = useState<Area | null>(null);
 
@@ -64,20 +64,6 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
   const [entriesPerPage, setEntriesPerPage] = useState<number>(30);
   const [currentPage, setCurrentPage] = useState<number>(1);
 
-  // Synchronize Hub form when editing
-  useEffect(() => {
-    if (editingArea) {
-      setNewArea({
-        name: editingArea.name,
-        city: editingArea.city,
-        state: editingArea.state,
-        code: editingArea.code
-      });
-    } else {
-      setNewArea({ name: '', city: '', state: '', code: '' });
-    }
-  }, [editingArea]);
-
   const filteredVendors = useMemo(() => {
     return vendors.filter(vendor => {
       const res = restaurants.find(r => r.id === vendor.restaurantId);
@@ -100,7 +86,7 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
       let orderDate = '';
       try {
         const d = new Date(o.timestamp);
-        if (isNaN(d.getTime())) return false;
+        if (isNaN(d.getTime())) return false; 
         orderDate = d.toISOString().split('T')[0];
       } catch { return false; }
       const matchesDate = orderDate >= reportStart && orderDate <= reportEnd;
@@ -182,20 +168,31 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
     setIsModalOpen(false);
   };
 
-  const toggleVendorStatus = (user: User) => {
-    const res = restaurants.find(r => r.id === user.restaurantId);
-    if (res) onUpdateVendor({ ...user, isActive: !user.isActive }, res);
+  const handleOpenHubEdit = (loc: Area) => {
+    setEditingArea(loc);
+    setFormArea({ name: loc.name, city: loc.city, state: loc.state, code: loc.code });
+    setIsAreaModalOpen(true);
+  };
+
+  const handleOpenHubAdd = () => {
+    setEditingArea(null);
+    setFormArea({ name: '', city: '', state: '', code: '' });
+    setIsAreaModalOpen(true);
   };
 
   const handleHubSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (editingArea) {
-      onUpdateLocation({ ...editingArea, ...newArea });
+      onUpdateLocation({ ...editingArea, ...formArea });
     } else {
-      onAddLocation({ ...newArea, id: '', isActive: true });
+      onAddLocation({ ...formArea, id: '', isActive: true });
     }
     setIsAreaModalOpen(false);
-    setEditingArea(null);
+  };
+
+  const toggleVendorStatus = (user: User) => {
+    const res = restaurants.find(r => r.id === user.restaurantId);
+    if (res) onUpdateVendor({ ...user, isActive: !user.isActive }, res);
   };
 
   const toggleHubStatus = (loc: Area) => {
@@ -221,7 +218,7 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
           {[
             { id: 'VENDORS', label: 'Vendors', icon: Store },
             { id: 'LOCATIONS', label: 'Hubs', icon: MapPin },
-            { id: 'REPORTS', label: 'Stats', icon: TrendingUp },
+            { id: 'REPORTS', label: 'Report', icon: TrendingUp },
             { id: 'SYSTEM', label: 'System', icon: Database }
           ].map(tab => (
             <button key={tab.id} onClick={() => setActiveTab(tab.id as any)} className={`flex items-center gap-2 px-6 py-3 rounded-xl font-bold transition-all text-xs uppercase tracking-widest ${activeTab === tab.id ? 'bg-orange-500 text-white shadow-xl' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'}`}>
@@ -308,7 +305,7 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
                 <button onClick={() => setIsHubSelectionModalOpen(true)} className="px-6 py-2.5 bg-white dark:bg-gray-700 text-orange-500 border-2 border-orange-500 rounded-xl font-black uppercase tracking-widest text-[10px] shadow-sm flex items-center gap-2 hover:bg-orange-500 hover:text-white transition-all">
                   <QrCode size={16} /> Generate QR
                 </button>
-                <button onClick={() => { setEditingArea(null); setIsAreaModalOpen(true); }} className="px-6 py-2.5 bg-orange-500 text-white rounded-xl font-black uppercase tracking-widest text-[10px] shadow-lg">+ Add Hub</button>
+                <button onClick={handleOpenHubAdd} className="px-6 py-2.5 bg-orange-500 text-white rounded-xl font-black uppercase tracking-widest text-[10px] shadow-lg">+ Add Hub</button>
               </div>
             </div>
             <div className="overflow-x-auto">
@@ -348,7 +345,7 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
                       <td className="px-8 py-5 text-right">
                         <div className="flex justify-end gap-2">
                           <button onClick={() => setGeneratingQrHub(loc)} className="p-2 text-gray-400 hover:text-orange-500" title="QR Codes"><QrCode size={18} /></button>
-                          <button onClick={() => { setEditingArea(loc); setIsAreaModalOpen(true); }} className="p-2 text-gray-400 hover:text-blue-500" title="Edit Hub"><Edit3 size={18} /></button>
+                          <button onClick={() => handleOpenHubEdit(loc)} className="p-2 text-gray-400 hover:text-blue-500" title="Edit Hub"><Edit3 size={18} /></button>
                           <button onClick={() => onDeleteLocation(loc.id)} className="p-2 text-gray-400 hover:text-red-500" title="Delete Hub"><Trash2 size={18} /></button>
                         </div>
                       </td>
@@ -361,21 +358,92 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
         )}
 
         {activeTab === 'REPORTS' && (
-          <div className="max-w-6xl mx-auto animate-in fade-in duration-500">
-             {/* Report view simplified to match requested context */}
-             <div className="bg-white dark:bg-gray-800 p-6 rounded-xl border dark:border-gray-700 shadow-sm flex flex-col md:flex-row items-center gap-6 mb-8">
-              <div className="flex-1 flex flex-col md:flex-row gap-4 w-full">
-                <div className="flex-1">
-                  <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Period Selection</label>
-                  <div className="flex items-center gap-2">
-                    <Calendar size={14} className="text-orange-500" />
-                    <input type="date" value={reportStart} onChange={(e) => setReportStart(e.target.value)} className="flex-1 bg-gray-50 dark:bg-gray-700 border-none rounded-lg text-xs font-bold dark:text-white p-2" />
-                    <span className="text-gray-400 font-bold">to</span>
-                    <input type="date" value={reportEnd} onChange={(e) => setReportEnd(e.target.value)} className="flex-1 bg-gray-50 dark:bg-gray-700 border-none rounded-lg text-xs font-bold dark:text-white p-2" />
+          <div className="bg-white dark:bg-gray-800 rounded-3xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden animate-in fade-in duration-500">
+            <div className="px-8 py-6 border-b dark:border-gray-700 bg-gray-50/50 dark:bg-gray-700/50">
+              <h3 className="font-black dark:text-white uppercase tracking-tighter text-lg">Platform Sales Report</h3>
+              <p className="text-xs text-gray-500 dark:text-gray-400 font-medium italic">Unified transactional data from all active hubs.</p>
+            </div>
+            
+            <div className="p-8">
+              <div className="bg-gray-50 dark:bg-gray-700/30 p-6 rounded-2xl border dark:border-gray-700 flex flex-col md:flex-row items-center gap-6 mb-8">
+                <div className="flex-1 flex flex-col md:flex-row gap-4 w-full">
+                  <div className="flex-1">
+                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Period Selection</label>
+                    <div className="flex items-center gap-2">
+                      <Calendar size={14} className="text-orange-500" />
+                      <input type="date" value={reportStart} onChange={(e) => setReportStart(e.target.value)} className="flex-1 bg-white dark:bg-gray-700 border dark:border-gray-600 rounded-lg text-xs font-bold dark:text-white p-2" />
+                      <span className="text-gray-400 font-bold">to</span>
+                      <input type="date" value={reportEnd} onChange={(e) => setReportEnd(e.target.value)} className="flex-1 bg-white dark:bg-gray-700 border dark:border-gray-600 rounded-lg text-xs font-bold dark:text-white p-2" />
+                    </div>
+                  </div>
+                  <div className="w-48">
+                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Order Status</label>
+                    <select value={reportStatus} onChange={(e) => setReportStatus(e.target.value as any)} className="w-full p-2 bg-white dark:bg-gray-700 border dark:border-gray-600 rounded-lg text-xs font-bold dark:text-white appearance-none cursor-pointer">
+                      <option value="ALL">All Outcomes</option>
+                      <option value={OrderStatus.COMPLETED}>Served</option>
+                      <option value={OrderStatus.CANCELLED}>Rejected</option>
+                    </select>
                   </div>
                 </div>
+                <button onClick={handleDownloadReport} disabled={filteredReports.length === 0} className="w-full md:w-auto px-6 py-3 bg-gray-900 text-white dark:bg-white dark:text-gray-900 rounded-xl font-black text-xs uppercase tracking-widest flex items-center gap-2 hover:bg-orange-500 transition-all shadow-lg"><Download size={18} /> Global Export</button>
               </div>
-              <button onClick={handleDownloadReport} disabled={filteredReports.length === 0} className="px-6 py-3 bg-gray-900 text-white dark:bg-white dark:text-gray-900 rounded-xl font-black text-xs uppercase tracking-widest flex items-center gap-2 hover:bg-orange-500 transition-all"><Download size={18} /> Global Export</button>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                <div className="bg-white dark:bg-gray-800 p-8 rounded-[2rem] shadow-sm border border-gray-100 dark:border-gray-700">
+                  <p className="text-gray-400 dark:text-gray-500 text-[10px] font-black mb-1 uppercase tracking-widest">Platform Revenue</p>
+                  <p className="text-4xl font-black text-gray-900 dark:text-white tracking-tighter leading-none">
+                    RM{filteredReports.filter(o => o.status === OrderStatus.COMPLETED).reduce((acc, o) => acc + o.total, 0).toFixed(2)}
+                  </p>
+                </div>
+                <div className="bg-white dark:bg-gray-800 p-8 rounded-[2rem] shadow-sm border border-gray-100 dark:border-gray-700">
+                  <p className="text-gray-400 dark:text-gray-500 text-[10px] font-black mb-1 uppercase tracking-widest">Global Volume</p>
+                  <p className="text-4xl font-black text-gray-900 dark:text-white tracking-tighter leading-none">{filteredReports.length}</p>
+                </div>
+                <div className="bg-white dark:bg-gray-800 p-8 rounded-[2rem] shadow-sm border border-gray-100 dark:border-gray-700">
+                  <p className="text-gray-400 dark:text-gray-500 text-[10px] font-black mb-1 uppercase tracking-widest">Served Efficiency</p>
+                  <p className="text-4xl font-black text-green-500 tracking-tighter leading-none">
+                    {filteredReports.length > 0 ? Math.round((filteredReports.filter(r => r.status === OrderStatus.COMPLETED).length / filteredReports.length) * 100) : 0}%
+                  </p>
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-gray-100 dark:border-gray-700 overflow-hidden shadow-sm">
+                <table className="w-full">
+                  <thead className="bg-gray-50 dark:bg-gray-700/50 text-gray-400 text-[10px] font-black uppercase tracking-widest">
+                    <tr>
+                      <th className="px-8 py-4 text-left">Order ID</th>
+                      <th className="px-8 py-4 text-left">Kitchen</th>
+                      <th className="px-8 py-4 text-left">Time</th>
+                      <th className="px-8 py-4 text-left">Status</th>
+                      <th className="px-8 py-4 text-right">Total Bill</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y dark:divide-gray-700">
+                    {paginatedReports.map(report => {
+                      const res = restaurants.find(r => r.id === report.restaurantId);
+                      return (
+                        <tr key={report.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors">
+                          <td className="px-8 py-5 text-xs font-black dark:text-white uppercase tracking-widest">{report.id}</td>
+                          <td className="px-8 py-5">
+                             <div className="flex items-center gap-2">
+                               <img src={res?.logo} className="w-5 h-5 rounded object-cover" />
+                               <span className="text-[10px] font-black dark:text-white uppercase tracking-tight">{res?.name}</span>
+                             </div>
+                          </td>
+                          <td className="px-8 py-5">
+                            <p className="text-xs font-bold text-gray-700 dark:text-gray-300">{new Date(report.timestamp).toLocaleDateString()}</p>
+                            <p className="text-[10px] text-gray-400 font-bold uppercase">{new Date(report.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+                          </td>
+                          <td className="px-8 py-5">
+                            <span className={`text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-tighter ${report.status === OrderStatus.COMPLETED ? 'bg-green-100 text-green-600' : 'bg-orange-100 text-orange-600'}`}>{report.status === OrderStatus.COMPLETED ? 'Served' : report.status}</span>
+                          </td>
+                          <td className="px-8 py-5 text-right font-black dark:text-white">RM{report.total.toFixed(2)}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         )}
@@ -384,7 +452,7 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
       {/* Vendor Modal - Compact Layout */}
       {isModalOpen && (
         <div className="fixed inset-0 z-[100] bg-black/70 backdrop-blur-md flex items-center justify-center p-4 no-print">
-          <div className="bg-white dark:bg-gray-800 rounded-[2rem] max-w-lg w-full p-8 shadow-2xl relative animate-in zoom-in duration-300">
+          <div className="bg-white dark:bg-gray-800 rounded-[2.5rem] max-w-lg w-full p-8 shadow-2xl relative animate-in zoom-in duration-300">
             <button onClick={() => setIsModalOpen(false)} className="absolute top-6 right-6 p-2 text-gray-400 hover:text-red-500 transition-colors"><X size={20} /></button>
             <h2 className="text-2xl font-black mb-6 dark:text-white uppercase tracking-tighter">{editingVendor ? 'Edit Vendor' : 'Register Vendor'}</h2>
             <form onSubmit={handleSubmitVendor} className="space-y-4">
@@ -446,27 +514,27 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
       {/* Hub Modal - Compact Layout */}
       {isAreaModalOpen && (
         <div className="fixed inset-0 z-[100] bg-black/70 backdrop-blur-md flex items-center justify-center p-4 no-print">
-          <div className="bg-white dark:bg-gray-800 rounded-[2rem] max-w-sm w-full p-8 shadow-2xl relative animate-in zoom-in duration-300">
+          <div className="bg-white dark:bg-gray-800 rounded-[2.5rem] max-w-sm w-full p-8 shadow-2xl relative animate-in zoom-in duration-300">
             <button onClick={() => { setIsAreaModalOpen(false); setEditingArea(null); }} className="absolute top-6 right-6 p-2 text-gray-400 hover:text-red-500 transition-colors"><X size={20} /></button>
             <h2 className="text-2xl font-black mb-6 dark:text-white uppercase tracking-tighter">{editingArea ? 'Modify Hub' : 'Register Hub'}</h2>
             <form onSubmit={handleHubSubmit} className="space-y-4">
               <div className="space-y-1">
                 <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Hub Name</label>
-                <input required placeholder="e.g. Floor 1 Zone A" className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none text-sm font-bold dark:text-white" value={newArea.name} onChange={e => setNewArea({...newArea, name: e.target.value})} />
+                <input required placeholder="e.g. Floor 1 Zone A" className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none text-sm font-bold dark:text-white" value={formArea.name} onChange={e => setFormArea({...formArea, name: e.target.value})} />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1">
                   <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">City</label>
-                  <input required placeholder="Kuala Lumpur" className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none text-sm font-bold dark:text-white" value={newArea.city} onChange={e => setNewArea({...newArea, city: e.target.value})} />
+                  <input required placeholder="Kuala Lumpur" className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none text-sm font-bold dark:text-white" value={formArea.city} onChange={e => setFormArea({...formArea, city: e.target.value})} />
                 </div>
                 <div className="space-y-1">
                   <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Code</label>
-                  <input required placeholder="KL" className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none text-sm font-bold dark:text-white uppercase" value={newArea.code} onChange={e => setNewArea({...newArea, code: e.target.value.toUpperCase()})} />
+                  <input required placeholder="KL" className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none text-sm font-bold dark:text-white uppercase" value={formArea.code} onChange={e => setFormArea({...formArea, code: e.target.value.toUpperCase()})} />
                 </div>
               </div>
               <div className="space-y-1">
                 <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">State / Territory</label>
-                <input required placeholder="Selangor" className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none text-sm font-bold dark:text-white" value={newArea.state} onChange={e => setNewArea({...newArea, state: e.target.value})} />
+                <input required placeholder="Selangor" className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none text-sm font-bold dark:text-white" value={formArea.state} onChange={e => setFormArea({...formArea, state: e.target.value})} />
               </div>
               <div className="flex gap-4 pt-4">
                 <button type="button" onClick={() => { setIsAreaModalOpen(false); setEditingArea(null); }} className="flex-1 py-3 bg-gray-100 dark:bg-gray-700 rounded-xl font-black uppercase text-[10px] tracking-widest text-gray-500">Cancel</button>
