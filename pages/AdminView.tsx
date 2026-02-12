@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { User, Restaurant, Order, Area, OrderStatus } from '../types';
-import { Users, Store, TrendingUp, Settings, ShieldCheck, Mail, Search, Filter, X, Plus, MapPin, Power, CheckCircle2, AlertCircle, LogIn, Trash2, LayoutGrid, List, ChevronRight, Eye, Globe, Phone, ShoppingBag, Edit3, Hash, Download, Calendar, ChevronLeft } from 'lucide-react';
+import { Users, Store, TrendingUp, Settings, ShieldCheck, Mail, Search, Filter, X, Plus, MapPin, Power, CheckCircle2, AlertCircle, LogIn, Trash2, LayoutGrid, List, ChevronRight, Eye, Globe, Phone, ShoppingBag, Edit3, Hash, Download, Calendar, ChevronLeft, Database, Image as ImageIcon, Key } from 'lucide-react';
 
 interface Props {
   vendors: User[];
@@ -17,7 +17,7 @@ interface Props {
 }
 
 const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, onAddVendor, onUpdateVendor, onImpersonateVendor, onAddLocation, onUpdateLocation, onDeleteLocation }) => {
-  const [activeTab, setActiveTab] = useState<'VENDORS' | 'LOCATIONS' | 'REPORTS'>('VENDORS');
+  const [activeTab, setActiveTab] = useState<'VENDORS' | 'LOCATIONS' | 'REPORTS' | 'SYSTEM'>('VENDORS');
   const [searchQuery, setSearchQuery] = useState('');
   const [areaSearchQuery, setAreaSearchQuery] = useState('');
   const [locationFilter, setLocationFilter] = useState('All Locations');
@@ -59,6 +59,7 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
     location: '',
     email: '',
     phone: '',
+    logo: ''
   });
   const [vendorLocationSearch, setVendorLocationSearch] = useState('');
   const [showLocationDropdown, setShowLocationDropdown] = useState(false);
@@ -183,32 +184,29 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
       alert('Please select a location');
       return;
     }
-    const vendorId = `vendor_${Date.now()}`;
-    const restaurantId = `res_${Date.now()}`;
     
     const newUser: User = {
-      id: vendorId,
+      id: '', // Supabase will generate UUID
       username: newVendor.username,
       password: newVendor.password,
       role: 'VENDOR',
-      restaurantId: restaurantId,
       isActive: true,
       email: newVendor.email,
       phone: newVendor.phone,
     };
 
     const newRestaurant: Restaurant = {
-      id: restaurantId,
+      id: '', // Supabase will generate UUID
       name: newVendor.restaurantName,
-      vendorId: vendorId,
+      vendorId: '', // To be linked in App.tsx
       location: newVendor.location,
-      logo: `https://picsum.photos/seed/${newVendor.restaurantName}/200/200`,
+      logo: newVendor.logo || `https://picsum.photos/seed/${newVendor.restaurantName}/200/200`,
       menu: []
     };
 
     onAddVendor(newUser, newRestaurant);
     setIsModalOpen(false);
-    setNewVendor({ username: '', password: '', restaurantName: '', location: '', email: '', phone: '' });
+    setNewVendor({ username: '', password: '', restaurantName: '', location: '', email: '', phone: '', logo: '' });
     setVendorLocationSearch('');
   };
 
@@ -247,7 +245,7 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
     e.preventDefault();
     if (newArea.name.trim() && newArea.city.trim() && newArea.code.trim()) {
       onAddLocation({
-        id: `area_${Date.now()}`,
+        id: '', // Supabase generate
         name: newArea.name.trim(),
         city: newArea.city.trim(),
         state: newArea.state.trim(),
@@ -299,7 +297,14 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
             className={`flex items-center gap-2 px-6 py-3 rounded-xl font-bold transition-all whitespace-nowrap ${activeTab === 'REPORTS' ? 'bg-orange-500 text-white' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
           >
             <TrendingUp size={18} />
-            All Report
+            Global Stats
+          </button>
+          <button 
+            onClick={() => setActiveTab('SYSTEM')}
+            className={`flex items-center gap-2 px-6 py-3 rounded-xl font-bold transition-all whitespace-nowrap ${activeTab === 'SYSTEM' ? 'bg-orange-500 text-white' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
+          >
+            <Database size={18} />
+            DB Manager
           </button>
         </div>
       </div>
@@ -662,7 +667,6 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
 
       {activeTab === 'REPORTS' && (
         <div className="max-w-7xl mx-auto space-y-8">
-          {/* Sharper report header container - rounded-lg */}
           <div className="flex flex-col md:flex-row items-center justify-between gap-6 bg-white dark:bg-gray-800 p-8 rounded-lg border dark:border-gray-700 shadow-xl">
              <div className="flex-1 flex flex-col md:flex-row gap-6 w-full">
                 <div className="flex-1">
@@ -719,7 +723,6 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
              </button>
           </div>
 
-          {/* Show entries - No container wrapping */}
           <div className="flex items-center gap-4 text-sm font-bold text-gray-500 dark:text-gray-400">
             <span>Show</span>
             <select 
@@ -734,7 +737,6 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
             <span>entries</span>
           </div>
 
-          {/* Main reports table - Sharper radius rounded-lg */}
           <div className="bg-white dark:bg-gray-800 rounded-lg border dark:border-gray-700 shadow-xl overflow-hidden">
              <div className="px-8 py-6 bg-gray-50/50 dark:bg-gray-700/50 border-b dark:border-gray-700 flex items-center justify-between">
                 <h3 className="font-black text-lg dark:text-white uppercase tracking-tighter">System-Wide Transactions</h3>
@@ -820,7 +822,6 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
              </div>
           </div>
 
-          {/* Page numbers - No container wrapping */}
           {totalPages > 1 && (
             <div className="mt-8 flex justify-center items-center gap-2">
               <button 
@@ -854,6 +855,50 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
               </button>
             </div>
           )}
+        </div>
+      )}
+
+      {activeTab === 'SYSTEM' && (
+        <div className="max-w-7xl mx-auto space-y-8 animate-in fade-in duration-500">
+           <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+              {[
+                { label: 'Total Users', count: vendors.length + 1, icon: Users, color: 'text-blue-500' },
+                { label: 'Online Stores', count: restaurants.length, icon: Store, color: 'text-orange-500' },
+                { label: 'Mapped Areas', count: locations.length, icon: MapPin, color: 'text-green-500' },
+                { label: 'Total Sales', count: orders.length, icon: TrendingUp, color: 'text-purple-500' }
+              ].map((stat, i) => (
+                <div key={i} className="bg-white dark:bg-gray-800 p-8 rounded-3xl border dark:border-gray-700 shadow-sm">
+                   <stat.icon className={`${stat.color} mb-4`} size={28} />
+                   <p className="text-xs font-black text-gray-400 uppercase tracking-widest">{stat.label}</p>
+                   <p className="text-4xl font-black dark:text-white mt-2">{stat.count}</p>
+                </div>
+              ))}
+           </div>
+
+           <div className="bg-white dark:bg-gray-800 p-8 rounded-3xl border dark:border-gray-700 shadow-sm overflow-hidden">
+              <h3 className="font-black text-xl mb-6 dark:text-white uppercase tracking-tighter">Raw Table Statistics</h3>
+              <div className="space-y-4">
+                 {['users', 'restaurants', 'areas', 'menu_items', 'orders'].map(table => (
+                   <div key={table} className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700/50 rounded-2xl border dark:border-gray-600">
+                      <div className="flex items-center gap-3">
+                         <div className="w-8 h-8 bg-white dark:bg-gray-800 rounded-lg flex items-center justify-center border dark:border-gray-600 shadow-sm">
+                            <Database size={16} className="text-gray-400" />
+                         </div>
+                         <span className="font-black text-sm uppercase tracking-widest text-gray-700 dark:text-gray-300">{table}</span>
+                      </div>
+                      <span className="font-black text-gray-500">Live Connection</span>
+                   </div>
+                 ))}
+              </div>
+              <div className="mt-10 p-6 bg-red-50 dark:bg-red-900/10 border border-red-100 dark:border-red-900/20 rounded-2xl">
+                 <div className="flex items-center gap-3 mb-4">
+                    <AlertCircle className="text-red-500" size={20} />
+                    <h4 className="font-black text-red-700 dark:text-red-400 uppercase tracking-widest text-sm">Danger Zone</h4>
+                 </div>
+                 <p className="text-xs text-red-600 dark:text-red-500 font-medium mb-4 italic">Direct data manipulation is performed via the dedicated Supabase Dashboard. This section provides an overview only to prevent accidental platform-wide state corruption.</p>
+                 <button className="px-6 py-3 bg-red-600 text-white rounded-xl font-bold text-xs uppercase hover:bg-red-700 transition-all">Clear System Cache</button>
+              </div>
+           </div>
         </div>
       )}
 
@@ -926,48 +971,78 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
         </div>
       )}
 
-      {/* Existing Modals ... */}
-      {/* Register Area Modal */}
-      {isAreaModalOpen && (
-        <div className="fixed inset-0 z-[80] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-3xl max-w-md w-full p-8 shadow-2xl relative animate-in fade-in zoom-in duration-300">
-            <button 
-              onClick={() => setIsAreaModalOpen(false)} 
-              className="absolute top-6 right-6 p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400"
-            >
-              <X size={20} />
-            </button>
-            <div className="mb-8">
-              <div className="w-14 h-14 bg-black dark:bg-gray-700 text-white rounded-2xl flex items-center justify-center mb-4">
-                <MapPin size={28} />
-              </div>
-              <h2 className="text-2xl font-black dark:text-white">Register New Area</h2>
-              <p className="text-gray-500 dark:text-gray-400 text-sm">Create a new hub for restaurants and customers.</p>
-            </div>
-            <form onSubmit={handleAddArea} className="space-y-5">
-              <div className="grid grid-cols-3 gap-4">
-                <div className="col-span-2">
-                  <label className="block text-xs font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-1.5 ml-1">Area Name</label>
-                  <input required type="text" placeholder="Downtown Mall" className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border-none rounded-2xl focus:ring-2 focus:ring-orange-500 dark:text-white font-medium outline-none" value={newArea.name} onChange={(e) => setNewArea({...newArea, name: e.target.value})} />
-                </div>
-                <div>
-                  <label className="block text-xs font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-1.5 ml-1">Code</label>
-                  <input required type="text" maxLength={3} placeholder="SF1" className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border-none rounded-2xl focus:ring-2 focus:ring-orange-500 dark:text-white font-black uppercase outline-none" value={newArea.code} onChange={(e) => setNewArea({...newArea, code: e.target.value.toUpperCase()})} />
+      {/* Register Vendor Modal */}
+      {isModalOpen && (
+        <div className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-3xl max-w-xl w-full p-8 shadow-2xl relative animate-in fade-in zoom-in duration-300 overflow-y-auto max-h-[90vh] custom-scrollbar">
+            <button onClick={() => setIsModalOpen(false)} className="absolute top-6 right-6 p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400"><X size={20} /></button>
+            <h2 className="text-2xl font-black mb-2 dark:text-white uppercase tracking-tighter">Register New Vendor</h2>
+            <p className="text-gray-500 dark:text-gray-400 text-sm mb-8">Set up both the account credentials and the store profile.</p>
+            <form onSubmit={handleRegister} className="space-y-5">
+              <div className="p-5 bg-gray-50 dark:bg-gray-700/50 rounded-2xl border dark:border-gray-700 space-y-4">
+                <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 flex items-center gap-2">
+                  <Key size={14} className="text-orange-500" /> Account Security
+                </h4>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Username (Login)</label>
+                    <input required type="text" placeholder="burgers_king" className="w-full px-4 py-3 bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-2xl focus:ring-2 focus:ring-orange-500 dark:text-white font-medium outline-none text-sm" value={newVendor.username} onChange={(e) => setNewVendor({...newVendor, username: e.target.value})} />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Password</label>
+                    <input required type="password" placeholder="••••••••" className="w-full px-4 py-3 bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-2xl focus:ring-2 focus:ring-orange-500 dark:text-white font-medium outline-none text-sm" value={newVendor.password} onChange={(e) => setNewVendor({...newVendor, password: e.target.value})} />
+                  </div>
                 </div>
               </div>
+
+              <div className="p-5 bg-white dark:bg-gray-800/50 rounded-2xl border dark:border-gray-700 space-y-4">
+                <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 flex items-center gap-2">
+                  <Store size={14} className="text-orange-500" /> Store Branding
+                </h4>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="col-span-2 md:col-span-1">
+                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Store Name</label>
+                    <input required type="text" placeholder="e.g. Pasta Hub" className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border-none rounded-2xl focus:ring-2 focus:ring-orange-500 dark:text-white font-medium outline-none" value={newVendor.restaurantName} onChange={(e) => setNewVendor({...newVendor, restaurantName: e.target.value})} />
+                  </div>
+                  <div className="col-span-2 md:col-span-1" ref={dropdownRef}>
+                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Hub Location</label>
+                    <div className="relative">
+                      <div className="relative">
+                        <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
+                        <input type="text" placeholder={newVendor.location || "Search area..."} className={`w-full pl-11 pr-4 py-3 bg-gray-50 dark:bg-gray-700 border-2 rounded-2xl focus:ring-2 focus:ring-orange-500 dark:text-white font-medium outline-none text-sm transition-all ${newVendor.location ? 'border-orange-500' : 'border-transparent'}`} value={vendorLocationSearch} onFocus={() => setShowLocationDropdown(true)} onChange={(e) => { setVendorLocationSearch(e.target.value); setShowLocationDropdown(true); }} />
+                      </div>
+                      {showLocationDropdown && (
+                        <div className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-2xl shadow-2xl z-[100] max-h-48 overflow-y-auto overflow-x-hidden animate-in fade-in slide-in-from-top-2 duration-200 custom-scrollbar">
+                          {filteredVendorLocations.length > 0 ? filteredVendorLocations.map(loc => (
+                            <button key={loc.id} type="button" onClick={() => { setNewVendor({...newVendor, location: loc.name}); setVendorLocationSearch(loc.name); setShowLocationDropdown(false); }} className="w-full text-left px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-3 transition-colors border-b dark:border-gray-700 last:border-none">
+                              <MapPin size={16} className="text-orange-500 shrink-0" />
+                              <div className="min-w-0"><p className="font-bold text-sm text-gray-900 dark:text-white truncate">{loc.name}</p><p className="text-[10px] text-gray-500 dark:text-gray-400 font-bold uppercase">{loc.city}, {loc.state}</p></div>
+                            </button>
+                          )) : (
+                            <div className="px-4 py-8 text-center"><MapPin size={24} className="mx-auto text-gray-300 mb-2" /><p className="text-xs text-gray-500">No areas matching "{vendorLocationSearch}"</p></div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <div className="col-span-2">
+                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Store Logo URL</label>
+                    <div className="relative">
+                       <ImageIcon size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
+                       <input type="text" placeholder="https://picsum.photos/..." className="w-full pl-11 pr-4 py-3 bg-gray-50 dark:bg-gray-700 border-none rounded-2xl focus:ring-2 focus:ring-orange-500 dark:text-white font-medium outline-none text-sm" value={newVendor.logo} onChange={(e) => setNewVendor({...newVendor, logo: e.target.value})} />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
               <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-1.5 ml-1">City</label>
-                  <input required type="text" placeholder="San Francisco" className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border-none rounded-2xl focus:ring-2 focus:ring-orange-500 dark:text-white font-medium outline-none" value={newArea.city} onChange={(e) => setNewArea({...newArea, city: e.target.value})} />
-                </div>
-                <div>
-                  <label className="block text-xs font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-1.5 ml-1">State</label>
-                  <input required type="text" placeholder="CA" className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border-none rounded-2xl focus:ring-2 focus:ring-orange-500 dark:text-white font-medium outline-none" value={newArea.state} onChange={(e) => setNewArea({...newArea, state: e.target.value})} />
-                </div>
+                <div><label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Support Email</label><input type="email" placeholder="chef@store.com" className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border-none rounded-2xl focus:ring-2 focus:ring-orange-500 dark:text-white font-medium outline-none text-sm" value={newVendor.email} onChange={(e) => setNewVendor({...newVendor, email: e.target.value})} /></div>
+                <div><label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Support Phone</label><input type="tel" placeholder="+60..." className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border-none rounded-2xl focus:ring-2 focus:ring-orange-500 dark:text-white font-medium outline-none text-sm" value={newVendor.phone} onChange={(e) => setNewVendor({...newVendor, phone: e.target.value})} /></div>
               </div>
+              
               <div className="flex gap-4 mt-8">
-                <button type="button" onClick={() => setIsAreaModalOpen(false)} className="flex-1 py-4 bg-gray-100 dark:bg-gray-700 rounded-2xl font-bold text-gray-600 dark:text-gray-300">Cancel</button>
-                <button type="submit" className="flex-1 py-4 bg-black dark:bg-white text-white dark:text-gray-900 rounded-2xl font-black">Register Area</button>
+                <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 py-4 bg-gray-100 dark:bg-gray-700 rounded-2xl font-bold text-gray-600 dark:text-gray-300">Cancel</button>
+                <button type="submit" className="flex-1 py-4 bg-orange-500 text-white rounded-2xl font-black shadow-xl shadow-orange-100 dark:shadow-none hover:bg-orange-600 transition-all active:scale-95 uppercase tracking-widest text-xs">Create Full Profile</button>
               </div>
             </form>
           </div>
@@ -1008,106 +1083,6 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
               <div className="flex gap-4 mt-8">
                 <button type="button" onClick={() => setIsEditAreaModalOpen(false)} className="flex-1 py-4 bg-gray-100 dark:bg-gray-700 rounded-2xl font-bold text-gray-600 dark:text-gray-300 hover:bg-gray-200 transition-all">Cancel</button>
                 <button type="submit" className="flex-1 py-4 bg-blue-500 text-white rounded-2xl font-black">Save Changes</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Register Vendor Modal */}
-      {isModalOpen && (
-        <div className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-3xl max-w-lg w-full p-8 shadow-2xl relative animate-in fade-in zoom-in duration-300">
-            <button onClick={() => setIsModalOpen(false)} className="absolute top-6 right-6 p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400"><X size={20} /></button>
-            <h2 className="text-2xl font-black mb-2 dark:text-white">Register New Vendor</h2>
-            <p className="text-gray-500 dark:text-gray-400 text-sm mb-8">Set up account and store details for a new platform vendor.</p>
-            <form onSubmit={handleRegister} className="space-y-5">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="col-span-2 md:col-span-1">
-                  <label className="block text-xs font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-1.5 ml-1">Store Name</label>
-                  <input required type="text" placeholder="e.g. Pasta Hub" className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border-none rounded-2xl focus:ring-2 focus:ring-orange-500 dark:text-white font-medium outline-none" value={newVendor.restaurantName} onChange={(e) => setNewVendor({...newVendor, restaurantName: e.target.value})} />
-                </div>
-                <div className="col-span-2 md:col-span-1" ref={dropdownRef}>
-                  <label className="block text-xs font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-1.5 ml-1">Location Selection</label>
-                  <div className="relative">
-                    <div className="relative">
-                      <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
-                      <input type="text" placeholder={newVendor.location || "Search area..."} className={`w-full pl-11 pr-4 py-3 bg-gray-50 dark:bg-gray-700 border-2 rounded-2xl focus:ring-2 focus:ring-orange-500 dark:text-white font-medium outline-none text-sm transition-all ${newVendor.location ? 'border-orange-500' : 'border-transparent'}`} value={vendorLocationSearch} onFocus={() => setShowLocationDropdown(true)} onChange={(e) => { setVendorLocationSearch(e.target.value); setShowLocationDropdown(true); }} />
-                    </div>
-                    {showLocationDropdown && (
-                      <div className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-2xl shadow-2xl z-[100] max-h-48 overflow-y-auto overflow-x-hidden animate-in fade-in slide-in-from-top-2 duration-200 custom-scrollbar">
-                        {filteredVendorLocations.length > 0 ? filteredVendorLocations.map(loc => (
-                          <button key={loc.id} type="button" onClick={() => { setNewVendor({...newVendor, location: loc.name}); setVendorLocationSearch(loc.name); setShowLocationDropdown(false); }} className="w-full text-left px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-3 transition-colors border-b dark:border-gray-700 last:border-none">
-                            <MapPin size={16} className="text-orange-500 shrink-0" />
-                            <div className="min-w-0"><p className="font-bold text-sm text-gray-900 dark:text-white truncate">{loc.name}</p><p className="text-[10px] text-gray-500 dark:text-gray-400 font-bold uppercase">{loc.city}, {loc.state}</p></div>
-                          </button>
-                        )) : (
-                          <div className="px-4 py-8 text-center"><MapPin size={24} className="mx-auto text-gray-300 mb-2" /><p className="text-xs text-gray-500">No areas matching "{vendorLocationSearch}"</p></div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div><label className="block text-xs font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-1.5 ml-1">Email Address</label><input type="email" placeholder="e.g. chef@store.com" className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border-none rounded-2xl focus:ring-2 focus:ring-orange-500 dark:text-white font-medium outline-none text-sm" value={newVendor.email} onChange={(e) => setNewVendor({...newVendor, email: e.target.value})} /></div>
-                <div><label className="block text-xs font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-1.5 ml-1">Phone Number</label><input type="tel" placeholder="e.g. +1 234 567" className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border-none rounded-2xl focus:ring-2 focus:ring-orange-500 dark:text-white font-medium outline-none text-sm" value={newVendor.phone} onChange={(e) => setNewVendor({...newVendor, phone: e.target.value})} /></div>
-              </div>
-              <div className="flex gap-4 mt-8">
-                <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 py-4 bg-gray-100 dark:bg-gray-700 rounded-2xl font-bold text-gray-600 dark:text-gray-300">Cancel</button>
-                <button type="submit" className="flex-1 py-4 bg-orange-500 text-white rounded-2xl font-black">Register</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Edit Vendor Modal */}
-      {isEditModalOpen && editVendor && (
-        <div className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-3xl max-w-lg w-full p-8 shadow-2xl relative animate-in fade-in zoom-in duration-300">
-            <button onClick={() => setIsEditModalOpen(false)} className="absolute top-6 right-6 p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400"><X size={20} /></button>
-            <div className="flex items-center justify-between mb-2"><h2 className="text-2xl font-black dark:text-white">Edit Vendor</h2></div>
-            <p className="text-gray-500 dark:text-gray-400 text-sm mb-8">Modify store settings or reassigned physical location.</p>
-            <form onSubmit={handleUpdate} className="space-y-5">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="col-span-2"><label className="block text-xs font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-1.5 ml-1">Restaurant Name</label><input required type="text" className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border-none rounded-2xl focus:ring-2 focus:ring-orange-500 dark:text-white font-medium outline-none" value={editVendor.restaurant.name} onChange={(e) => setEditVendor({...editVendor, restaurant: {...editVendor.restaurant, name: e.target.value}})} /></div>
-                
-                <div className="col-span-2" ref={editDropdownRef}>
-                  <label className="block text-xs font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-1.5 ml-1">Location Assignment</label>
-                  <div className="relative">
-                    <div className="relative">
-                      <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
-                      <input 
-                        type="text" 
-                        placeholder="Search area..." 
-                        className={`w-full pl-11 pr-4 py-3 bg-gray-50 dark:bg-gray-700 border-2 rounded-2xl focus:ring-2 focus:ring-orange-500 dark:text-white font-medium outline-none text-sm transition-all ${editVendor.restaurant.location ? 'border-blue-500' : 'border-transparent'}`} 
-                        value={editLocationSearch} 
-                        onFocus={() => setShowEditLocationDropdown(true)} 
-                        onChange={(e) => { setEditLocationSearch(e.target.value); setShowEditLocationDropdown(true); }} 
-                      />
-                    </div>
-                    {showEditLocationDropdown && (
-                      <div className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-2xl shadow-2xl z-[100] max-h-48 overflow-y-auto overflow-x-hidden animate-in fade-in slide-in-from-top-2 duration-200 custom-scrollbar">
-                        {filteredEditLocations.length > 0 ? filteredEditLocations.map(loc => (
-                          <button key={loc.id} type="button" onClick={() => { setEditVendor({...editVendor, restaurant: {...editVendor.restaurant, location: loc.name}}); setEditLocationSearch(loc.name); setShowEditLocationDropdown(false); }} className="w-full text-left px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-3 transition-colors border-b dark:border-gray-700 last:border-none">
-                            <MapPin size={16} className="text-orange-500 shrink-0" />
-                            <div className="min-w-0"><p className="font-bold text-sm text-gray-900 dark:text-white truncate">{loc.name}</p><p className="text-[10px] text-gray-500 dark:text-gray-400 font-bold uppercase">{loc.city}, {loc.state}</p></div>
-                          </button>
-                        )) : (
-                          <div className="px-4 py-8 text-center"><MapPin size={24} className="mx-auto text-gray-300 mb-2" /><p className="text-xs text-gray-500">No areas matching "{editLocationSearch}"</p></div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                <div className="col-span-2 md:col-span-1"><label className="block text-xs font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-1.5 ml-1">Email Address</label><input type="email" className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border-none rounded-2xl focus:ring-2 focus:ring-orange-500 dark:text-white font-medium outline-none text-sm" value={editVendor.user.email || ''} onChange={(e) => setEditVendor({...editVendor, user: {...editVendor.user, email: e.target.value}})} /></div>
-                <div className="col-span-2 md:col-span-1"><label className="block text-xs font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-1.5 ml-1">Phone Number</label><input type="tel" className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border-none rounded-2xl focus:ring-2 focus:ring-orange-500 dark:text-white font-medium outline-none text-sm" value={editVendor.user.phone || ''} onChange={(e) => setEditVendor({...editVendor, user: {...editVendor.user, phone: e.target.value}})} /></div>
-              </div>
-              <div className="flex gap-4 mt-8">
-                <button type="button" onClick={() => setIsEditModalOpen(false)} className="flex-1 py-4 bg-gray-100 dark:bg-gray-700 rounded-2xl font-bold text-gray-600 dark:text-gray-300 hover:bg-gray-200 transition-all">Cancel</button>
-                <button type="submit" className="flex-1 py-4 bg-orange-500 text-white rounded-2xl font-black text-lg shadow-xl hover:bg-orange-600 transition-all active:scale-[0.98]">Save Changes</button>
               </div>
             </form>
           </div>

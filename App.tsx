@@ -65,7 +65,7 @@ const App: React.FC = () => {
   }, []);
 
   const fetchLocations = useCallback(async () => {
-    const { data } = await supabase.from('areas').select('*');
+    const { data } = await supabase.from('areas').select('*').order('name');
     if (data) {
       // Mapping snake_case from DB to camelCase for the app
       setLocations(data.map(l => ({
@@ -297,26 +297,55 @@ const App: React.FC = () => {
   };
 
   const handleAddVendor = async (newUser: User, newRestaurant: Restaurant) => {
+    // Step 1: Create the User Profile
     const { data: userData, error: userError } = await supabase.from('users').insert([{
-      username: newUser.username, password: newUser.password, role: 'VENDOR', email: newUser.email, phone: newUser.phone, is_active: true
+      username: newUser.username, 
+      password: newUser.password, 
+      role: 'VENDOR', 
+      email: newUser.email, 
+      phone: newUser.phone, 
+      is_active: true
     }]).select();
-    if (userData && !userError) {
-      const { error: resError } = await supabase.from('restaurants').insert([{
-        name: newRestaurant.name, logo: newRestaurant.logo, vendor_id: userData[0].id, location_name: newRestaurant.location
-      }]);
-      if (!resError) await Promise.all([fetchUsers(), fetchRestaurants()]);
+
+    if (userError) {
+      alert("Error creating vendor user: " + userError.message);
+      return;
+    }
+
+    if (userData && userData[0]) {
+      const createdUserId = userData[0].id;
+
+      // Step 2: Create the Restaurant Profile
+      const { data: resData, error: resError } = await supabase.from('restaurants').insert([{
+        name: newRestaurant.name, 
+        logo: newRestaurant.logo, 
+        vendor_id: createdUserId, 
+        location_name: newRestaurant.location
+      }]).select();
+
+      if (resError) {
+        alert("Error creating restaurant: " + resError.message);
+        // Clean up user if restaurant creation fails
+        await supabase.from('users').delete().eq('id', createdUserId);
+      } else {
+        // Step 3: Link User to Restaurant (Circular ref)
+        if (resData && resData[0]) {
+           await supabase.from('users').update({ restaurant_id: resData[0].id }).eq('id', createdUserId);
+        }
+        await Promise.all([fetchUsers(), fetchRestaurants()]);
+        alert("Vendor and Restaurant registered successfully!");
+      }
     }
   };
 
   const handleUpdateVendor = async (u: User, r: Restaurant) => {
     await supabase.from('users').update({ username: u.username, email: u.email, phone: u.phone, is_active: u.isActive }).eq('id', u.id);
-    await supabase.from('restaurants').update({ name: r.name, location_name: r.location }).eq('id', r.id);
+    await supabase.from('restaurants').update({ name: r.name, logo: r.logo, location_name: r.location }).eq('id', r.id);
     await Promise.all([fetchUsers(), fetchRestaurants()]);
   };
 
   const handleAddLocation = async (a: Area) => {
     const { error } = await supabase.from('areas').insert([{
-      id: a.id,
       name: a.name,
       city: a.city,
       state: a.state,
@@ -331,25 +360,96 @@ const App: React.FC = () => {
   };
 
   const handleUpdateLocation = async (a: Area) => {
-    const { error } = await supabase
-      .from('areas')
-      .update({
-        name: a.name,
-        city: a.city,
-        state: a.state,
-        code: a.code,
-        is_active: a.isActive
-      })
-      .eq('id', a.id);
+    const oldArea = locations.find(loc => loc.id === a.id);
+    if (!oldArea) return;
 
-    if (error) {
-      alert("Error updating location: " + error.message);
-    } else {
-      fetchLocations();
+    const nameChanged = oldArea.name !== a.name;
+
+    try {
+      if (nameChanged) {
+        // Step 1: Identify all restaurants that use the old location name
+        const restaurantsToRelink = restaurants
+          .filter(r => r.location === oldArea.name)
+          .map(r => r.id);
+
+        if (restaurantsToRelink.length > 0) {
+          // Step 2: Set their location to NULL to break the FK dependency temporarily
+          const { error: detachError } = await supabase
+            .from('restaurants')
+            .update({ location_name: null })
+            .in('id', restaurantsToRelink);
+
+          if (detachError) throw new Error("Failed to detach restaurants: " + detachError.message);
+
+          // Step 3: Update the area itself
+          const { error: areaError } = await supabase
+            .from('areas')
+            .update({
+              name: a.name,
+              city: a.city,
+              state: a.state,
+              code: a.code,
+              is_active: a.isActive
+            })
+            .eq('id', a.id);
+
+          if (areaError) throw new Error("Failed to update area: " + areaError.message);
+
+          // Step 4: Re-attach restaurants with the NEW name
+          const { error: attachError } = await supabase
+            .from('restaurants')
+            .update({ location_name: a.name })
+            .in('id', restaurantsToRelink);
+
+          if (attachError) throw new Error("Failed to re-attach restaurants: " + attachError.message);
+        } else {
+          // No restaurants to relink, just update the area
+          const { error: areaError } = await supabase
+            .from('areas')
+            .update({
+              name: a.name,
+              city: a.city,
+              state: a.state,
+              code: a.code,
+              is_active: a.isActive
+            })
+            .eq('id', a.id);
+          if (areaError) throw areaError;
+        }
+      } else {
+        // No name change, simple update for city/state/code/active
+        const { error: areaError } = await supabase
+          .from('areas')
+          .update({
+            city: a.city,
+            state: a.state,
+            code: a.code,
+            is_active: a.isActive
+          })
+          .eq('id', a.id);
+        if (areaError) throw areaError;
+      }
+
+      await Promise.all([fetchLocations(), fetchRestaurants()]);
+      alert("Location updated successfully!");
+    } catch (err: any) {
+      alert("Location Update Error: " + err.message);
+      // Refresh state to ensure UI matches DB even if update partially failed
+      await Promise.all([fetchLocations(), fetchRestaurants()]);
     }
   };
 
   const handleDeleteLocation = async (id: string) => {
+    // Check if location is in use
+    const locToDelete = locations.find(l => l.id === id);
+    if (locToDelete) {
+       const inUse = restaurants.some(r => r.location === locToDelete.name);
+       if (inUse) {
+         alert("Cannot delete location: One or more restaurants are still assigned to this area.");
+         return;
+       }
+    }
+
     const { error } = await supabase.from('areas').delete().eq('id', id);
     if (error) {
       alert("Error deleting location: " + error.message);
