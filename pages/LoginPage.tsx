@@ -100,6 +100,22 @@ const LoginPage: React.FC<Props> = ({ allUsers, onLogin, onBack }) => {
               Sign In
             </button>
           </form>
+
+          <div className="mt-8 pt-6 border-t border-gray-100 dark:border-gray-700">
+            <p className="text-xs text-center text-gray-400 dark:text-gray-500 font-medium uppercase tracking-widest">Demo Credentials</p>
+            <div className="mt-4 grid grid-cols-2 gap-4 text-[10px] text-gray-500 dark:text-gray-400">
+              <div className="bg-gray-50 dark:bg-gray-700/50 p-2 rounded-lg">
+                <p className="font-bold text-gray-700 dark:text-gray-200">Admin</p>
+                <p>U: admin</p>
+                <p>P: 123456</p>
+              </div>
+              <div className="bg-gray-50 dark:bg-gray-700/50 p-2 rounded-lg">
+                <p className="font-bold text-gray-700 dark:text-gray-200">Vendor</p>
+                <p>U: burger_king</p>
+                <p>P: password123</p>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
