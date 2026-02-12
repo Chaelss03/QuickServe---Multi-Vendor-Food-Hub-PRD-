@@ -331,6 +331,24 @@ const App: React.FC = () => {
   };
 
   const handleUpdateLocation = async (a: Area) => {
+    // Find the old area to check if name changed
+    const oldArea = locations.find(loc => loc.id === a.id);
+    const nameChanged = oldArea && oldArea.name !== a.name;
+
+    if (nameChanged) {
+      // Step 1: Update all restaurants that use the old name
+      const { error: resError } = await supabase
+        .from('restaurants')
+        .update({ location_name: a.name })
+        .eq('location_name', oldArea.name);
+
+      if (resError) {
+        alert("Error updating dependent restaurants: " + resError.message);
+        return;
+      }
+    }
+
+    // Step 2: Update the area itself
     const { error } = await supabase
       .from('areas')
       .update({
@@ -345,7 +363,7 @@ const App: React.FC = () => {
     if (error) {
       alert("Error updating location: " + error.message);
     } else {
-      fetchLocations();
+      await Promise.all([fetchLocations(), fetchRestaurants()]);
     }
   };
 
