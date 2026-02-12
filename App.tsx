@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { User, Role, Restaurant, Order, OrderStatus, CartItem, MenuItem, Area } from './types';
 import CustomerView from './pages/CustomerView';
@@ -125,6 +126,8 @@ const App: React.FC = () => {
       const formatted: Restaurant[] = resData.map(res => ({
         id: res.id, name: res.name, logo: res.logo, vendorId: res.vendor_id,
         location: res.location_name, created_at: res.created_at,
+        isOffline: res.is_offline,
+        categories: res.categories || [],
         menu: menuData.filter(m => m.restaurant_id === res.id).map(m => ({
           id: m.id, name: m.name, description: m.description, price: Number(m.price),
           image: m.image, category: m.category, isArchived: m.is_archived,
@@ -165,14 +168,12 @@ const App: React.FC = () => {
     };
     initApp();
 
-    // Optimize Real-time: Listen for all events and trigger immediate fetch
     const channel = supabase.channel('order-updates')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => {
-        fetchOrders(); // Immediate sync on change
+        fetchOrders();
       })
       .subscribe();
 
-    // Reduced fallback interval to 5 seconds for snappier experience if realtime fails
     const interval = setInterval(fetchOrders, 5000); 
 
     return () => { 
@@ -204,7 +205,6 @@ const App: React.FC = () => {
     const area = locations.find(l => l.name === sessionLocation);
     const code = area?.code || 'QS';
     
-    // NEW Order ID Logic: Find max and increment (xxx0000001 format)
     let nextNum = 1;
     const { data: lastOrder } = await supabase
       .from('orders')
@@ -241,7 +241,6 @@ const App: React.FC = () => {
       alert("Placement Error: " + error.message);
     } else {
       setCart([]);
-      // Optimistic local update
       setOrders(prev => [{
         id: newOrder.id, items: newOrder.items, total: Number(newOrder.total),
         status: newOrder.status as OrderStatus, timestamp: numericTimestamp,
@@ -249,14 +248,11 @@ const App: React.FC = () => {
         tableNumber: newOrder.table_number, locationName: newOrder.location_name,
         remark: newOrder.remark
       }, ...prev]);
-      fetchOrders(); // Rapidly sync
+      fetchOrders();
       alert(`Order ${orderId} submitted!`);
     }
   };
 
-  // Rest of the existing methods (handleLogin, handleLogout, updateOrderStatus, etc.) remain the same
-  // (Adding them back for file completeness)
-  
   const handleLogin = (user: User) => {
     setCurrentUser(user);
     setCurrentRole(user.role);
@@ -311,6 +307,16 @@ const App: React.FC = () => {
     await supabase.from('users').update({ username: u.username, email: u.email, phone: u.phone, is_active: u.isActive, password: u.password }).eq('id', u.id);
     await supabase.from('restaurants').update({ name: r.name, logo: r.logo, location_name: r.location }).eq('id', r.id);
     await Promise.all([fetchUsers(), fetchRestaurants()]);
+  };
+
+  const handleUpdateRestaurantStatus = async (rid: string, isOffline: boolean) => {
+    await supabase.from('restaurants').update({ is_offline: isOffline }).eq('id', rid);
+    fetchRestaurants();
+  };
+
+  const handleUpdateRestaurantCategories = async (rid: string, categories: string[]) => {
+    await supabase.from('restaurants').update({ categories }).eq('id', rid);
+    fetchRestaurants();
   };
 
   const handleAddLocation = async (a: Area) => {
@@ -385,8 +391,8 @@ const App: React.FC = () => {
         </div>
       </header>
       <main className="flex-1">
-        {currentRole === 'CUSTOMER' && <CustomerView restaurants={restaurants.filter(r => r.location === sessionLocation)} cart={cart} orders={orders} onAddToCart={addToCart} onRemoveFromCart={removeFromCart} onPlaceOrder={placeOrder} locationName={sessionLocation || undefined} tableNo={sessionTable || undefined} />}
-        {currentRole === 'VENDOR' && activeVendorRes && <VendorView restaurant={activeVendorRes} orders={orders.filter(o => o.restaurantId === currentUser?.restaurantId)} onUpdateOrder={updateOrderStatus} onUpdateMenu={handleUpdateMenuItem} onAddMenuItem={handleAddMenuItem} onPermanentDeleteMenuItem={handleDeleteMenuItem} lastSyncTime={lastSyncTime} />}
+        {currentRole === 'CUSTOMER' && <CustomerView restaurants={restaurants.filter(r => r.location === sessionLocation && !r.isOffline)} cart={cart} orders={orders} onAddToCart={addToCart} onRemoveFromCart={removeFromCart} onPlaceOrder={placeOrder} locationName={sessionLocation || undefined} tableNo={sessionTable || undefined} />}
+        {currentRole === 'VENDOR' && activeVendorRes && <VendorView restaurant={activeVendorRes} orders={orders.filter(o => o.restaurantId === currentUser?.restaurantId)} onUpdateOrder={updateOrderStatus} onUpdateMenu={handleUpdateMenuItem} onAddMenuItem={handleAddMenuItem} onPermanentDeleteMenuItem={handleDeleteMenuItem} onUpdateStatus={handleUpdateRestaurantStatus} onUpdateCategories={handleUpdateRestaurantCategories} lastSyncTime={lastSyncTime} />}
         {currentRole === 'ADMIN' && <AdminView vendors={allUsers.filter(u => u.role === 'VENDOR')} restaurants={restaurants} orders={orders} locations={locations} onAddVendor={handleAddVendor} onUpdateVendor={handleUpdateVendor} onImpersonateVendor={handleLogin} onAddLocation={handleAddLocation} onUpdateLocation={handleUpdateLocation} onDeleteLocation={handleDeleteLocation} onRemoveVendorFromHub={(rid) => supabase.from('restaurants').update({ location_name: null }).eq('id', rid).then(() => fetchRestaurants())} />}
       </main>
     </div>
