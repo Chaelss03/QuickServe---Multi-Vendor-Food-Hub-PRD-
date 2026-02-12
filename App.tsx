@@ -309,16 +309,6 @@ const App: React.FC = () => {
     await Promise.all([fetchUsers(), fetchRestaurants()]);
   };
 
-  const handleUpdateRestaurantStatus = async (rid: string, isOffline: boolean) => {
-    await supabase.from('restaurants').update({ is_offline: isOffline }).eq('id', rid);
-    fetchRestaurants();
-  };
-
-  const handleUpdateRestaurantCategories = async (rid: string, categories: string[]) => {
-    await supabase.from('restaurants').update({ categories }).eq('id', rid);
-    fetchRestaurants();
-  };
-
   const handleAddLocation = async (a: Area) => {
     await supabase.from('areas').insert([{ name: a.name, city: a.city, state: a.state, code: a.code, is_active: a.isActive }]);
     fetchLocations();
@@ -346,6 +336,16 @@ const App: React.FC = () => {
 
   const handleDeleteMenuItem = async (rid: string, mid: string) => {
     await supabase.from('menu_items').delete().eq('id', mid);
+    fetchRestaurants();
+  };
+
+  const handleUpdateStatus = async (rid: string, isOffline: boolean) => {
+    await supabase.from('restaurants').update({ is_offline: isOffline }).eq('id', rid);
+    fetchRestaurants();
+  };
+
+  const handleUpdateCategories = async (rid: string, categories: string[]) => {
+    await supabase.from('restaurants').update({ categories }).eq('id', rid);
     fetchRestaurants();
   };
 
@@ -392,7 +392,7 @@ const App: React.FC = () => {
       </header>
       <main className="flex-1">
         {currentRole === 'CUSTOMER' && <CustomerView restaurants={restaurants.filter(r => r.location === sessionLocation && !r.isOffline)} cart={cart} orders={orders} onAddToCart={addToCart} onRemoveFromCart={removeFromCart} onPlaceOrder={placeOrder} locationName={sessionLocation || undefined} tableNo={sessionTable || undefined} />}
-        {currentRole === 'VENDOR' && activeVendorRes && <VendorView restaurant={activeVendorRes} orders={orders.filter(o => o.restaurantId === currentUser?.restaurantId)} onUpdateOrder={updateOrderStatus} onUpdateMenu={handleUpdateMenuItem} onAddMenuItem={handleAddMenuItem} onPermanentDeleteMenuItem={handleDeleteMenuItem} onUpdateStatus={handleUpdateRestaurantStatus} onUpdateCategories={handleUpdateRestaurantCategories} lastSyncTime={lastSyncTime} />}
+        {currentRole === 'VENDOR' && activeVendorRes && <VendorView restaurant={activeVendorRes} orders={orders.filter(o => o.restaurantId === currentUser?.restaurantId)} onUpdateOrder={updateOrderStatus} onUpdateMenu={handleUpdateMenuItem} onAddMenuItem={handleAddMenuItem} onPermanentDeleteMenuItem={handleDeleteMenuItem} onUpdateStatus={handleUpdateStatus} onUpdateCategories={handleUpdateCategories} lastSyncTime={lastSyncTime} />}
         {currentRole === 'ADMIN' && <AdminView vendors={allUsers.filter(u => u.role === 'VENDOR')} restaurants={restaurants} orders={orders} locations={locations} onAddVendor={handleAddVendor} onUpdateVendor={handleUpdateVendor} onImpersonateVendor={handleLogin} onAddLocation={handleAddLocation} onUpdateLocation={handleUpdateLocation} onDeleteLocation={handleDeleteLocation} onRemoveVendorFromHub={(rid) => supabase.from('restaurants').update({ location_name: null }).eq('id', rid).then(() => fetchRestaurants())} />}
       </main>
     </div>
