@@ -318,21 +318,23 @@ const App: React.FC = () => {
   const placeOrder = async (remark: string) => {
     if (cart.length === 0) return;
     
-    // Improved Global Uniqueness for Order IDs
+    // Improved Global Uniqueness for Order IDs (FORMAT UNCHANGED as requested)
     const area = locations.find(l => l.name === sessionLocation);
     const code = area?.code || 'QS';
-    const timestampSegment = Date.now().toString(36).toUpperCase().slice(-5);
-    const randomSegment = Math.random().toString(36).substring(2, 5).toUpperCase();
+    // Use full base36 timestamp and longer random segment to prevent collisions
+    const timestampSegment = Date.now().toString(36).toUpperCase();
+    const randomSegment = Math.random().toString(36).substring(2, 7).toUpperCase();
     const orderId = `${code}-${timestampSegment}-${randomSegment}`;
 
-    const now = Date.now(); // Numeric Unix Milliseconds
+    // Fix: Using numeric timestamp (bigint) instead of ISO string
+    const numericTimestamp = Date.now();
 
     const newOrder = {
       id: orderId,
       items: cart,
       total: cart.reduce((acc, item) => acc + item.price * item.quantity, 0),
       status: OrderStatus.PENDING,
-      timestamp: now, // FIX: Use number instead of ISO string for BigInt column
+      timestamp: numericTimestamp, 
       customer_id: 'guest_user',
       restaurant_id: cart[0].restaurantId,
       table_number: sessionTable || 'N/A',
@@ -346,12 +348,13 @@ const App: React.FC = () => {
       alert("Placement Error: " + error.message);
     } else {
       setCart([]);
+      // Optimistically add to local state mapping snake_case to camelCase
       setOrders(prev => [{
         id: newOrder.id,
         items: newOrder.items,
         total: Number(newOrder.total),
-        status: newOrder.status,
-        timestamp: now,
+        status: newOrder.status as OrderStatus,
+        timestamp: newOrder.timestamp,
         customerId: newOrder.customer_id,
         restaurantId: newOrder.restaurant_id,
         tableNumber: newOrder.table_number,
