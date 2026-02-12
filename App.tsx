@@ -22,7 +22,6 @@ const App: React.FC = () => {
       const saved = localStorage.getItem('qs_user');
       return saved ? JSON.parse(saved) : null;
     } catch (e) {
-      console.error("Failed to parse user session", e);
       return null;
     }
   });

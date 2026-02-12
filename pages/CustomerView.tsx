@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Restaurant, CartItem, Order, OrderStatus, MenuItem } from '../types';
-import { ShoppingCart, Plus, Minus, X, CheckCircle, ChevronRight, Info, ThermometerSun, Maximize2, MapPin, Hash, LayoutGrid, Grid3X3, MessageSquare, AlertTriangle, UtensilsCrossed } from 'lucide-react';
+import { ShoppingCart, Plus, Minus, X, CheckCircle, ChevronRight, Info, ThermometerSun, Maximize2, MapPin, Hash, LayoutGrid, Grid3X3, MessageSquare, AlertTriangle, UtensilsCrossed, LogIn } from 'lucide-react';
 
 interface Props {
   restaurants: Restaurant[];
@@ -12,9 +12,10 @@ interface Props {
   onPlaceOrder: (remark: string) => void;
   locationName?: string;
   tableNo?: string;
+  onLoginClick?: () => void;
 }
 
-const CustomerView: React.FC<Props> = ({ restaurants, cart, orders, onAddToCart, onRemoveFromCart, onPlaceOrder, locationName, tableNo }) => {
+const CustomerView: React.FC<Props> = ({ restaurants, cart, orders, onAddToCart, onRemoveFromCart, onPlaceOrder, locationName, tableNo, onLoginClick }) => {
   const [activeRestaurant, setActiveRestaurant] = useState(restaurants[0]?.id || '');
   const [showCart, setShowCart] = useState(false);
   const [selectedItemForVariants, setSelectedItemForVariants] = useState<{item: MenuItem, resId: string} | null>(null);
@@ -207,7 +208,6 @@ const CustomerView: React.FC<Props> = ({ restaurants, cart, orders, onAddToCart,
                   </div>
                   <h2 className="text-sm font-black text-gray-900 dark:text-white leading-tight tracking-tight uppercase">{res.name}</h2>
                 </div>
-                <span className="text-[10px] font-black text-orange-500 uppercase tracking-widest">Digital Menu</span>
               </div>
 
               <div className={`grid gap-3 md:gap-6 ${gridColumns === 3 ? 'grid-cols-3' : 'grid-cols-2'}`}>
@@ -246,6 +246,17 @@ const CustomerView: React.FC<Props> = ({ restaurants, cart, orders, onAddToCart,
             <p className="text-gray-400 text-xs mt-2">Check back later or try another location.</p>
           </div>
         )}
+
+        <div className="mt-16 text-center pb-8 border-t dark:border-gray-800 pt-8 flex flex-col items-center gap-4">
+          <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">© QuickServe Platform</p>
+          <button 
+            onClick={onLoginClick}
+            className="flex items-center gap-2 px-6 py-3 bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:text-orange-500 transition-all border border-transparent hover:border-orange-200 active:scale-95"
+          >
+            <LogIn size={14} />
+            Vendor & Admin Login
+          </button>
+        </div>
       </div>
 
       {/* Variant Selection Modal */}
@@ -350,7 +361,7 @@ const CustomerView: React.FC<Props> = ({ restaurants, cart, orders, onAddToCart,
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 w-full max-w-[340px] px-4 z-50">
           <button 
             onClick={() => setShowCart(true)}
-            className="w-full bg-black dark:bg-gray-100 text-white dark:text-gray-900 p-4 rounded-[2rem] shadow-[0_20px_50px_rgba(0,0,0,0.3)] flex items-center justify-between hover:scale-[1.02] active:scale-95 transition-all border-4 border-white dark:border-gray-800"
+            className="w-full bg-black dark:bg-gray-100 text-white dark:text-gray-900 p-4 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.3)] flex items-center justify-between hover:scale-[1.02] active:scale-95 transition-all border-4 border-white dark:border-gray-800"
           >
             <div className="flex items-center gap-3">
               <div className="w-8 h-8 bg-orange-500 rounded-xl flex items-center justify-center font-black text-xs text-white">
@@ -421,31 +432,7 @@ const CustomerView: React.FC<Props> = ({ restaurants, cart, orders, onAddToCart,
               )}
             </div>
 
-            <div className="p-8 border-t dark:border-gray-800 bg-gray-50 dark:bg-gray-800/80 backdrop-blur-xl">
-              <div className="space-y-3 mb-8">
-                <div className="flex justify-between text-[10px] font-black text-gray-400 uppercase tracking-widest">
-                  <span>Subtotal</span>
-                  <span className="text-gray-900 dark:text-white font-black">${cartTotal.toFixed(2)}</span>
-                </div>
-                {tableNo && (
-                  <div className="flex justify-between text-[10px] font-black text-gray-400 uppercase tracking-widest">
-                    <span>Table Service</span>
-                    <span className="text-orange-500 font-black">Zone {tableNo}</span>
-                  </div>
-                )}
-                <div className="flex justify-between text-2xl font-black text-gray-900 dark:text-white border-t dark:border-gray-700 pt-6 mt-6 uppercase tracking-tighter">
-                  <span>Grand Total</span>
-                  <span className="text-orange-500">${cartTotal.toFixed(2)}</span>
-                </div>
-              </div>
-              <button 
-                disabled={cart.length === 0}
-                onClick={() => { onPlaceOrder(orderRemark); setShowCart(false); setOrderRemark(''); }}
-                className="w-full py-5 bg-orange-500 text-white rounded-[2rem] font-black text-sm uppercase tracking-[0.3em] shadow-2xl shadow-orange-100 dark:shadow-none hover:bg-orange-600 transition-all active:scale-[0.98] disabled:opacity-50"
-              >
-                Send Order to Kitchen
-              </button>
-            </div>
+            <div className="p-8 border-t dark:border-gray-800 bg-gray-50 dark:bg-gray-800/80 backdrop-blur-xl"><div className="space-y-3 mb-8"><div className="flex justify-between text-[10px] font-black text-gray-400 uppercase tracking-widest"><span>Subtotal</span><span className="text-gray-900 dark:text-white font-black">${cartTotal.toFixed(2)}</span></div><div className="flex justify-between text-2xl font-black text-gray-900 dark:text-white border-t pt-6 mt-6 uppercase tracking-tighter"><span>Grand Total</span><span className="text-orange-500">${cartTotal.toFixed(2)}</span></div></div><button disabled={cart.length === 0} onClick={() => { onPlaceOrder(orderRemark); setShowCart(false); setOrderRemark(''); }} className="w-full py-5 bg-orange-500 text-white rounded-[2rem] font-black text-sm uppercase tracking-[0.3em] shadow-2xl hover:bg-orange-600 transition-all active:scale-[0.98] disabled:opacity-50">Send Order to Kitchen</button></div>
           </div>
         </div>
       )}
