@@ -40,7 +40,6 @@ const App: React.FC = () => {
   });
 
   const [isLoading, setIsLoading] = useState(() => {
-    // Only show loader if we have NO cached structural data at all
     try {
       const hasRes = localStorage.getItem('qs_cache_restaurants');
       const hasLoc = localStorage.getItem('qs_cache_locations');
@@ -79,7 +78,6 @@ const App: React.FC = () => {
       (!localStorage.getItem('theme') && window.matchMedia('(prefers-color-scheme: dark)').matches);
   });
 
-  // --- PERSISTENCE HELPERS ---
   const persistCache = (key: string, data: any) => {
     try {
       localStorage.setItem(key, JSON.stringify(data));
@@ -88,7 +86,14 @@ const App: React.FC = () => {
     }
   };
 
-  // --- FETCHING ENGINE (Resilient) ---
+  // Improved timestamp parser to handle string dates or numbers correctly
+  const parseTimestamp = (ts: any): number => {
+    if (!ts) return Date.now();
+    const date = new Date(ts);
+    const time = date.getTime();
+    return isNaN(time) ? (typeof ts === 'number' ? ts : Date.now()) : time;
+  };
+
   const fetchUsers = useCallback(async () => {
     try {
       const { data, error } = await supabase.from('users').select('*');
@@ -171,10 +176,10 @@ const App: React.FC = () => {
       if (data) {
         const mapped = data.map(o => ({
           id: o.id,
-          items: o.items,
-          total: Number(o.total),
+          items: o.items || [],
+          total: Number(o.total || 0),
           status: o.status as OrderStatus,
-          timestamp: Number(o.timestamp),
+          timestamp: parseTimestamp(o.timestamp),
           customerId: o.customer_id,
           restaurantId: o.restaurant_id,
           tableNumber: o.table_number,
@@ -190,14 +195,12 @@ const App: React.FC = () => {
     } catch (e) { console.error("Fetch Orders Failed", e); }
   }, []);
 
-  // Initialization: Background sync with a hard timeout fail-safe
   useEffect(() => {
     const bootTimeout = setTimeout(() => {
       setIsLoading(false);
-    }, 4000); // HARD FAILSAFE: Max 4 seconds of loading screen ever.
+    }, 4500);
 
     const initApp = async () => {
-      // Parallel non-blocking sync
       Promise.allSettled([fetchUsers(), fetchLocations(), fetchRestaurants(), fetchOrders()])
         .finally(() => {
           clearTimeout(bootTimeout);
@@ -206,30 +209,35 @@ const App: React.FC = () => {
     };
     initApp();
 
-    const orderSubscription = supabase
-      .channel('public:orders_live')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => fetchOrders())
+    const channel = supabase
+      .channel('schema-db-changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'orders' },
+        (payload) => {
+          console.debug('Realtime Update Received:', payload);
+          fetchOrders();
+        }
+      )
       .subscribe();
 
     const interval = setInterval(() => {
       fetchOrders();
-    }, 5000);
+    }, 10000); // Check every 10s as a hard fallback
 
     return () => { 
-      supabase.removeChannel(orderSubscription); 
+      supabase.removeChannel(channel); 
       clearInterval(interval);
       clearTimeout(bootTimeout);
     };
   }, [fetchUsers, fetchLocations, fetchRestaurants, fetchOrders]);
 
-  // Handle dark mode
   useEffect(() => {
     if (isDarkMode) document.documentElement.classList.add('dark');
     else document.documentElement.classList.remove('dark');
     localStorage.setItem('theme', isDarkMode ? 'dark' : 'light');
   }, [isDarkMode]);
 
-  // Deep Linking
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const loc = params.get('loc');
@@ -270,7 +278,6 @@ const App: React.FC = () => {
   };
 
   const updateOrderStatus = async (orderId: string, status: OrderStatus, reason?: string, note?: string) => {
-    // 1. OPTIMISTIC UPDATE: Instant UI response
     setOrders(prev => {
       const updated = prev.map(o => 
         o.id === orderId ? { ...o, status, rejectionReason: reason, rejectionNote: note } : o
@@ -279,14 +286,13 @@ const App: React.FC = () => {
       return updated;
     });
 
-    // 2. BACKGROUND SYNC: Direct fire-and-forget
     supabase.from('orders')
       .update({ status, rejection_reason: reason, rejection_note: note })
       .eq('id', orderId)
       .then(({ error }) => {
         if (error) {
           console.error("Order Sync Failure", error);
-          fetchOrders(); // Correct local state to match server truth
+          fetchOrders();
         }
       });
   };
@@ -324,7 +330,7 @@ const App: React.FC = () => {
       items: cart,
       total: cart.reduce((acc, item) => acc + item.price * item.quantity, 0),
       status: OrderStatus.PENDING,
-      timestamp: Date.now(),
+      timestamp: new Date().toISOString(), // Use ISO string for Supabase standard compatibility
       customer_id: 'guest_user',
       restaurant_id: cart[0].restaurantId,
       table_number: sessionTable || 'N/A',

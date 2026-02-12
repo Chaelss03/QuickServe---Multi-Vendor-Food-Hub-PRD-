@@ -80,10 +80,17 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
     );
   }, [locations, hubSearchQuery]);
 
-  // Platform Wide Reports Memo
+  // Platform Wide Reports Memo with robust date handling
   const filteredReports = useMemo(() => {
     return orders.filter(o => {
-      const orderDate = new Date(o.timestamp).toISOString().split('T')[0];
+      let orderDate = '';
+      try {
+        const d = new Date(o.timestamp);
+        if (isNaN(d.getTime())) return false; // Skip if invalid date
+        orderDate = d.toISOString().split('T')[0];
+      } catch {
+        return false;
+      }
       const matchesDate = orderDate >= reportStart && orderDate <= reportEnd;
       const matchesStatus = reportStatus === 'ALL' || o.status === reportStatus;
       return matchesDate && matchesStatus;
@@ -459,7 +466,6 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
         )}
       </div>
 
-      {/* Hub Selection Modal omitted for brevity, remains as requested */}
       {isHubSelectionModalOpen && (
         <div className="fixed inset-0 z-[110] bg-black/70 backdrop-blur-md flex items-center justify-center p-4 no-print">
           <div className="bg-white dark:bg-gray-800 rounded-[3rem] max-w-md w-full p-10 shadow-2xl relative animate-in zoom-in duration-300">
@@ -485,7 +491,6 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
         </div>
       )}
 
-      {/* QR Code Generator Modal omitted for brevity, remains as requested */}
       {generatingQrHub && (
         <div className="fixed inset-0 z-[120] bg-black/80 backdrop-blur-xl flex items-center justify-center p-4 no-print">
           <div className="bg-white dark:bg-gray-800 rounded-[3rem] max-w-lg w-full p-10 shadow-2xl relative animate-in zoom-in duration-300 overflow-hidden">
@@ -538,7 +543,6 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
         </div>
       )}
 
-      {/* Initialize Vendor Modal / Add Hub Modal omitted, remains as requested */}
       {isModalOpen && (
         <div className="fixed inset-0 z-[100] bg-black/70 backdrop-blur-md flex items-center justify-center p-4">
           <div className="bg-white dark:bg-gray-800 rounded-[3rem] max-w-2xl w-full p-10 shadow-2xl relative animate-in zoom-in fade-in duration-300 overflow-y-auto max-h-[90vh] custom-scrollbar">
