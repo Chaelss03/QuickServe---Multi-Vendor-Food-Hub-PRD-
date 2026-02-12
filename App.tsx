@@ -86,7 +86,6 @@ const App: React.FC = () => {
         logo: res.logo,
         vendorId: res.vendor_id,
         location: res.location_name,
-        created_at: res.created_at,
         menu: menuData
           .filter(m => m.restaurant_id === res.id)
           .map(m => ({
@@ -270,7 +269,7 @@ const App: React.FC = () => {
         alert("Store Error: " + resError.message);
         await supabase.from('users').delete().eq('id', createdUserId);
       } else {
-        // 3. Link User back to the Restaurant ID
+        // 3. Link back
         if (resData && resData[0]) {
            await supabase.from('users').update({ restaurant_id: resData[0].id }).eq('id', createdUserId);
         }
@@ -301,42 +300,39 @@ const App: React.FC = () => {
 
     try {
       if (nameChanged) {
-        // Step 1: Identify dependent restaurants
-        const { data: dependents } = await supabase.from('restaurants').select('id').eq('location_name', oldArea.name);
-        const relinkIds = dependents?.map(d => d.id) || [];
+        // Step 1: Query DB directly for current restaurants to ensure we have IDs
+        const { data: resToUpdate } = await supabase
+          .from('restaurants')
+          .select('id')
+          .eq('location_name', oldArea.name);
+
+        const relinkIds = resToUpdate?.map(r => r.id) || [];
 
         if (relinkIds.length > 0) {
-          // Step 2: Break the FK by setting to NULL
+          // Step 2: Detach (NULL out FK)
           const { error: detachErr } = await supabase.from('restaurants').update({ location_name: null }).in('id', relinkIds);
           if (detachErr) throw detachErr;
 
-          // Step 3: Update the area name (now safe from FK violation)
-          const { error: areaErr } = await supabase.from('areas').update({ 
-            name: a.name, city: a.city, state: a.state, code: a.code, is_active: a.isActive 
-          }).eq('id', a.id);
+          // Step 3: Update Area
+          const { error: areaErr } = await supabase.from('areas').update({ name: a.name, city: a.city, state: a.state, code: a.code, is_active: a.isActive }).eq('id', a.id);
           if (areaErr) throw areaErr;
 
-          // Step 4: Re-attach restaurants to the new name
+          // Step 4: Re-attach
           const { error: attachErr } = await supabase.from('restaurants').update({ location_name: a.name }).in('id', relinkIds);
           if (attachErr) throw attachErr;
         } else {
-          // Standard update if no restaurants are linked
-          const { error: areaErr } = await supabase.from('areas').update({ 
-            name: a.name, city: a.city, state: a.state, code: a.code, is_active: a.isActive 
-          }).eq('id', a.id);
+          // No dependents, simple update
+          const { error: areaErr } = await supabase.from('areas').update({ name: a.name, city: a.city, state: a.state, code: a.code, is_active: a.isActive }).eq('id', a.id);
           if (areaErr) throw areaErr;
         }
       } else {
-        // Simple update if name is unchanged
-        const { error: areaErr } = await supabase.from('areas').update({ 
-          city: a.city, state: a.state, code: a.code, is_active: a.isActive 
-        }).eq('id', a.id);
+        // No name change
+        const { error: areaErr } = await supabase.from('areas').update({ city: a.city, state: a.state, code: a.code, is_active: a.isActive }).eq('id', a.id);
         if (areaErr) throw areaErr;
       }
       await Promise.all([fetchLocations(), fetchRestaurants()]);
-      alert("Location synced successfully!");
     } catch (err: any) {
-      alert("Constraint Error: " + err.message);
+      alert("Sync Error: " + err.message);
       await Promise.all([fetchLocations(), fetchRestaurants()]);
     }
   };
@@ -369,7 +365,7 @@ const App: React.FC = () => {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 dark:bg-gray-900">
         <Loader2 className="w-12 h-12 text-orange-500 animate-spin mb-4" />
-        <p className="text-gray-500 font-black uppercase tracking-[0.2em] text-[10px]">Booting Core...</p>
+        <p className="text-gray-500 font-black uppercase tracking-[0.2em] text-[10px]">Syncing Engine...</p>
       </div>
     );
   }
@@ -386,19 +382,19 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-50 dark:bg-gray-900">
-      <header className="sticky top-0 z-50 bg-white dark:bg-gray-800 border-b dark:border-gray-700 h-16 flex items-center justify-between px-8 shadow-sm transition-colors">
+      <header className="sticky top-0 z-50 bg-white dark:bg-gray-800 border-b dark:border-gray-700 h-16 flex items-center justify-between px-8 shadow-sm">
         <div className="flex items-center gap-2 cursor-pointer" onClick={() => setView('LANDING')}>
-          <div className="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center text-white font-black shadow-lg">Q</div>
+          <div className="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center text-white font-black">Q</div>
           <h1 className="text-xl font-black dark:text-white">QuickServe</h1>
         </div>
         <div className="flex items-center gap-4">
-          <button onClick={() => setIsDarkMode(!isDarkMode)} className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 dark:text-white transition-all">
+          <button onClick={() => setIsDarkMode(!isDarkMode)} className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 dark:text-white">
             {isDarkMode ? <Sun size={20} /> : <Moon size={20} />}
           </button>
           {currentUser && (
             <div className="flex items-center gap-3">
               <div className="text-right hidden sm:block">
-                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">{currentUser.role}</p>
+                <p className="text-[10px] text-gray-400 font-bold uppercase">{currentUser.role}</p>
                 <p className="text-xs font-black dark:text-white">{currentUser.username}</p>
               </div>
               <button onClick={handleLogout} className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 dark:text-white"><LogOut size={20} /></button>
