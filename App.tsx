@@ -66,7 +66,17 @@ const App: React.FC = () => {
 
   const fetchLocations = useCallback(async () => {
     const { data } = await supabase.from('areas').select('*');
-    if (data) setLocations(data);
+    if (data) {
+      // Mapping snake_case from DB to camelCase for the app
+      setLocations(data.map(l => ({
+        id: l.id,
+        name: l.name,
+        city: l.city,
+        state: l.state,
+        code: l.code,
+        isActive: l.is_active ?? true
+      })));
+    }
   }, []);
 
   const fetchRestaurants = useCallback(async () => {
@@ -305,18 +315,47 @@ const App: React.FC = () => {
   };
 
   const handleAddLocation = async (a: Area) => {
-    const { error } = await supabase.from('areas').insert([a]);
-    if (!error) fetchLocations();
+    const { error } = await supabase.from('areas').insert([{
+      id: a.id,
+      name: a.name,
+      city: a.city,
+      state: a.state,
+      code: a.code,
+      is_active: a.isActive
+    }]);
+    if (error) {
+      alert("Error adding location: " + error.message);
+    } else {
+      fetchLocations();
+    }
   };
 
   const handleUpdateLocation = async (a: Area) => {
-    const { error } = await supabase.from('areas').update(a).eq('id', a.id);
-    if (!error) fetchLocations();
+    const { error } = await supabase
+      .from('areas')
+      .update({
+        name: a.name,
+        city: a.city,
+        state: a.state,
+        code: a.code,
+        is_active: a.isActive
+      })
+      .eq('id', a.id);
+
+    if (error) {
+      alert("Error updating location: " + error.message);
+    } else {
+      fetchLocations();
+    }
   };
 
   const handleDeleteLocation = async (id: string) => {
     const { error } = await supabase.from('areas').delete().eq('id', id);
-    if (!error) fetchLocations();
+    if (error) {
+      alert("Error deleting location: " + error.message);
+    } else {
+      fetchLocations();
+    }
   };
 
   const handleImpersonateVendor = (user: User) => {
