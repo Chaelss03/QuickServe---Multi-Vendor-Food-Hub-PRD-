@@ -48,6 +48,9 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
   const [qrTableNo, setQrTableNo] = useState<string>('1');
   const [qrStartRange, setQrStartRange] = useState<string>('1');
   const [qrEndRange, setQrEndRange] = useState<string>('10');
+  
+  // Global QR Selection State
+  const [isHubSelectionModalOpen, setIsHubSelectionModalOpen] = useState(false);
 
   // Reports State (Platform Wide)
   const [reportStatus, setReportStatus] = useState<'ALL' | OrderStatus>('ALL');
@@ -196,7 +199,6 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
     onUpdateLocation({ ...loc, isActive: !loc.isActive });
   };
 
-  // Helper to construct QR URL
   const getQrUrl = (hubName: string, table: string) => {
     const baseUrl = window.location.origin + window.location.pathname;
     const encodedLoc = encodeURIComponent(hubName);
@@ -210,7 +212,7 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
   const batchTables = useMemo(() => {
     const start = parseInt(qrStartRange) || 1;
     const end = parseInt(qrEndRange) || 1;
-    const count = Math.min(Math.max(end - start + 1, 1), 100); // Limit to 100 per batch for safety
+    const count = Math.min(Math.max(end - start + 1, 1), 100);
     return Array.from({ length: count }, (_, i) => (start + i).toString());
   }, [qrStartRange, qrEndRange]);
 
@@ -302,44 +304,66 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
         )}
 
         {activeTab === 'LOCATIONS' && (
-          <div className="space-y-6">
-             <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
-                <h2 className="font-black text-2xl dark:text-white uppercase tracking-tighter">Hub Registry</h2>
-                <div className="flex gap-4 w-full md:w-auto">
-                   <div className="relative flex-1">
-                      <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
-                      <input type="text" placeholder="Search hubs..." className="w-full pl-11 pr-4 py-3 bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-xl text-sm" value={hubSearchQuery} onChange={e => setHubSearchQuery(e.target.value)} />
-                   </div>
-                   <button onClick={() => setIsAreaModalOpen(true)} className="px-6 py-3 bg-black dark:bg-white text-white dark:text-black rounded-xl font-black uppercase tracking-widest text-[10px] shadow-xl">+ Add Hub</button>
+          <div className="bg-white dark:bg-gray-800 rounded-3xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
+            <div className="px-8 py-6 border-b dark:border-gray-700 flex flex-col lg:flex-row lg:items-center justify-between gap-6 bg-gray-50/50 dark:bg-gray-700/50">
+              <h3 className="font-black dark:text-white uppercase tracking-tighter text-lg">Hub Registry</h3>
+              <div className="flex flex-wrap gap-4">
+                <div className="relative">
+                  <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <input type="text" placeholder="Search hubs..." className="pl-11 pr-4 py-2.5 bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-xl text-sm" value={hubSearchQuery} onChange={e => setHubSearchQuery(e.target.value)} />
                 </div>
-             </div>
-             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                {filteredHubs.map(loc => (
-                  <div key={loc.id} className="bg-white dark:bg-gray-800 p-6 rounded-[2rem] border border-gray-100 dark:border-gray-700 shadow-sm group hover:border-orange-200 transition-all">
-                     <div className="flex justify-between items-start mb-6">
-                        <div className="w-14 h-14 bg-orange-100 dark:bg-orange-900/30 text-orange-500 rounded-2xl flex items-center justify-center shadow-inner"><MapPin size={28} /></div>
-                        <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-all">
-                          <button onClick={() => setGeneratingQrHub(loc)} className="p-2.5 bg-gray-50 dark:bg-gray-700 text-gray-400 hover:text-orange-500 rounded-xl" title="Generate QR Code">
-                            <QrCode size={18} />
-                          </button>
-                          <button onClick={() => toggleHubStatus(loc)} className={`p-2.5 rounded-xl transition-all ${loc.isActive !== false ? 'text-green-500 bg-green-50' : 'text-gray-400 bg-gray-50'}`} title="Master Toggle">
-                            <Power size={18} />
-                          </button>
-                          <button onClick={() => { setEditingArea(loc); setIsAreaModalOpen(true); }} className="p-2.5 bg-gray-50 dark:bg-gray-700 text-gray-400 hover:text-blue-500 rounded-xl"><Edit3 size={18} /></button>
-                          <button onClick={() => onDeleteLocation(loc.id)} className="p-2.5 bg-gray-50 dark:bg-gray-700 text-gray-400 hover:text-red-500 rounded-xl"><Trash2 size={18} /></button>
+                <button onClick={() => setIsHubSelectionModalOpen(true)} className="px-6 py-2.5 bg-white dark:bg-gray-700 text-orange-500 border-2 border-orange-500 rounded-xl font-black uppercase tracking-widest text-[10px] shadow-sm flex items-center gap-2 hover:bg-orange-500 hover:text-white transition-all">
+                  <QrCode size={16} /> Generate QR
+                </button>
+                <button onClick={() => setIsAreaModalOpen(true)} className="px-6 py-2.5 bg-orange-500 text-white rounded-xl font-black uppercase tracking-widest text-[10px] shadow-lg">+ Add Hub</button>
+              </div>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50 dark:bg-gray-700/50 text-gray-400 text-[10px] font-black uppercase tracking-widest">
+                  <tr>
+                    <th className="px-8 py-4 text-left">Hub Identity</th>
+                    <th className="px-8 py-4 text-left">City / State</th>
+                    <th className="px-8 py-4 text-center">Partners</th>
+                    <th className="px-8 py-4 text-center">Status</th>
+                    <th className="px-8 py-4 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y dark:divide-gray-700">
+                  {filteredHubs.map(loc => (
+                    <tr key={loc.id} className="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors group">
+                      <td className="px-8 py-5">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 bg-orange-50 dark:bg-orange-900/30 text-orange-500 rounded-xl flex items-center justify-center shadow-inner group-hover:bg-orange-500 group-hover:text-white transition-all"><MapPin size={20} /></div>
+                          <div>
+                            <span className="font-black dark:text-white text-sm block uppercase tracking-tight">{loc.name}</span>
+                            <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{loc.code}</span>
+                          </div>
                         </div>
-                     </div>
-                     <h4 className="font-black text-xl dark:text-white mb-1 uppercase tracking-tighter leading-none">{loc.name}</h4>
-                     <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{loc.code} • {loc.city}</p>
-                     <div className="mt-4 pt-4 border-t dark:border-gray-700 flex justify-between items-center">
-                        <button onClick={() => setViewingHubVendors(loc)} className="text-[9px] font-black text-orange-500 uppercase hover:underline">
-                          {restaurants.filter(r => r.location === loc.name).length} Partners
+                      </td>
+                      <td className="px-8 py-5 text-sm font-bold text-gray-500 uppercase">{loc.city}</td>
+                      <td className="px-8 py-5 text-center">
+                        <button onClick={() => setViewingHubVendors(loc)} className="px-4 py-1.5 bg-gray-100 dark:bg-gray-700 text-orange-500 rounded-full font-black text-[10px] uppercase hover:bg-orange-500 hover:text-white transition-all">
+                          {restaurants.filter(r => r.location === loc.name).length} Kitchens
                         </button>
-                        <div className={`w-2 h-2 rounded-full ${loc.isActive !== false ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></div>
-                     </div>
-                  </div>
-                ))}
-             </div>
+                      </td>
+                      <td className="px-8 py-5 text-center">
+                        <button onClick={() => toggleHubStatus(loc)} className={`p-2 rounded-xl transition-all ${loc.isActive !== false ? 'text-green-500 bg-green-50 dark:bg-green-900/20' : 'text-gray-400 bg-gray-50 dark:bg-gray-700'}`}>
+                           {loc.isActive !== false ? <Power size={20} /> : <Power size={20} className="opacity-40" />}
+                        </button>
+                      </td>
+                      <td className="px-8 py-5 text-right">
+                        <div className="flex justify-end gap-2">
+                          <button onClick={() => setGeneratingQrHub(loc)} className="p-2 text-gray-400 hover:text-orange-500" title="QR Codes"><QrCode size={18} /></button>
+                          <button onClick={() => { setEditingArea(loc); setIsAreaModalOpen(true); }} className="p-2 text-gray-400 hover:text-blue-500" title="Edit Hub"><Edit3 size={18} /></button>
+                          <button onClick={() => onDeleteLocation(loc.id)} className="p-2 text-gray-400 hover:text-red-500" title="Delete Hub"><Trash2 size={18} /></button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
 
@@ -444,6 +468,32 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
           </div>
         )}
       </div>
+
+      {/* Hub Selection for Global QR Generation */}
+      {isHubSelectionModalOpen && (
+        <div className="fixed inset-0 z-[110] bg-black/70 backdrop-blur-md flex items-center justify-center p-4 no-print">
+          <div className="bg-white dark:bg-gray-800 rounded-[3rem] max-w-md w-full p-10 shadow-2xl relative animate-in zoom-in duration-300">
+             <button onClick={() => setIsHubSelectionModalOpen(false)} className="absolute top-8 right-8 p-2 text-gray-400"><X size={24} /></button>
+             <h2 className="text-2xl font-black mb-1 dark:text-white uppercase tracking-tighter">Select Hub Node</h2>
+             <p className="text-gray-500 text-[10px] font-black uppercase tracking-widest mb-8">Provision QR access for a specific zone.</p>
+             <div className="space-y-3 max-h-[50vh] overflow-y-auto pr-2 custom-scrollbar">
+                {locations.map(loc => (
+                  <button 
+                    key={loc.id} 
+                    onClick={() => { setGeneratingQrHub(loc); setIsHubSelectionModalOpen(false); }}
+                    className="w-full flex items-center justify-between p-5 bg-gray-50 dark:bg-gray-700 hover:bg-orange-500 hover:text-white transition-all rounded-2xl group"
+                  >
+                     <div className="flex items-center gap-3">
+                        <MapPin size={18} className="text-orange-500 group-hover:text-white" />
+                        <span className="font-black uppercase tracking-tight text-sm">{loc.name}</span>
+                     </div>
+                     <ChevronRight size={18} className="text-gray-300 group-hover:text-white" />
+                  </button>
+                ))}
+             </div>
+          </div>
+        </div>
+      )}
 
       {/* QR Code Generator Modal */}
       {generatingQrHub && (
@@ -643,7 +693,7 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
       {/* Add Hub Modal */}
       {isAreaModalOpen && (
         <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
-           <div className="bg-white dark:bg-gray-800 rounded-[3rem] max-md w-full p-10 shadow-2xl relative animate-in fade-in zoom-in duration-300">
+           <div className="bg-white dark:bg-gray-800 rounded-[3rem] max-w-md w-full p-10 shadow-2xl relative animate-in fade-in zoom-in duration-300">
              <button onClick={() => { setIsAreaModalOpen(false); setEditingArea(null); }} className="absolute top-8 right-8 p-2 text-gray-400"><X size={24} /></button>
              <h2 className="text-2xl font-black mb-8 dark:text-white uppercase tracking-tighter">{editingArea ? 'Modify Hub Node' : 'Register New Hub'}</h2>
              <form onSubmit={(e) => {
