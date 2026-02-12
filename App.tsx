@@ -48,6 +48,7 @@ const App: React.FC = () => {
   });
 
   const [lastSyncTime, setLastSyncTime] = useState<Date>(new Date());
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
   
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
     try {
@@ -120,6 +121,9 @@ const App: React.FC = () => {
   }, []);
 
   const fetchRestaurants = useCallback(async () => {
+    // Prevent background fetches from overwriting local state while we are toggling online/offline
+    if (isUpdatingStatus) return;
+
     const { data: resData, error: resError } = await supabase.from('restaurants').select('*');
     const { data: menuData, error: menuError } = await supabase.from('menu_items').select('*');
     if (!resError && !menuError && resData && menuData) {
@@ -130,13 +134,13 @@ const App: React.FC = () => {
         menu: menuData.filter(m => m.restaurant_id === res.id).map(m => ({
           id: m.id, name: m.name, description: m.description, price: Number(m.price),
           image: m.image, category: m.category, isArchived: m.is_archived,
-          sizes: m.sizes, temp_options: m.temp_options
+          sizes: m.sizes, tempOptions: m.temp_options
         }))
       }));
       setRestaurants(formatted);
       persistCache('qs_cache_restaurants', formatted);
     }
-  }, []);
+  }, [isUpdatingStatus]);
 
   const fetchOrders = useCallback(async () => {
     if (isFetchingRef.current) return;
@@ -176,13 +180,26 @@ const App: React.FC = () => {
       })
       .subscribe();
 
-    const interval = setInterval(fetchOrders, 5000); 
-
     return () => { 
       supabase.removeChannel(channel); 
-      clearInterval(interval);
     };
   }, [fetchUsers, fetchLocations, fetchRestaurants, fetchOrders]);
+
+  // Handle Polling Interval (Scheduler)
+  useEffect(() => {
+    // Logic to determine if we should stop the scheduler:
+    // If the current user is a vendor and their restaurant is currently offline, stop polling.
+    const activeVendorRes = currentUser?.role === 'VENDOR' ? restaurants.find(r => r.id === currentUser.restaurantId) : null;
+    const isOffline = activeVendorRes && activeVendorRes.isOnline === false;
+
+    if (isOffline) {
+      console.log("Vendor is offline. Scheduler paused.");
+      return; 
+    }
+
+    const interval = setInterval(fetchOrders, 5000);
+    return () => clearInterval(interval);
+  }, [fetchOrders, restaurants, currentUser]);
 
   useEffect(() => {
     if (isDarkMode) document.documentElement.classList.add('dark');
@@ -277,11 +294,23 @@ const App: React.FC = () => {
 
   const toggleVendorOnline = async (restaurantId: string, currentStatus: boolean) => {
     const newStatus = !currentStatus;
+    
+    // Set lock to prevent background fetch from overwriting our optimistic state
+    setIsUpdatingStatus(true);
+    
+    // Optimistic Update
     setRestaurants(prev => prev.map(r => r.id === restaurantId ? { ...r, isOnline: newStatus } : r));
-    const { error } = await supabase.from('restaurants').update({ is_online: newStatus }).eq('id', restaurantId);
-    if (error) {
-       console.error("Failed to update status", error);
-       fetchRestaurants(); // Rollback on error
+    
+    try {
+      const { error } = await supabase.from('restaurants').update({ is_online: newStatus }).eq('id', restaurantId);
+      if (error) {
+         console.error("Failed to update status", error);
+         // Reset state if DB fails
+         await fetchRestaurants();
+      }
+    } finally {
+      // Small delay to ensure DB triggers have finished propagation before allowing refetches
+      setTimeout(() => setIsUpdatingStatus(false), 1000);
     }
   };
 
