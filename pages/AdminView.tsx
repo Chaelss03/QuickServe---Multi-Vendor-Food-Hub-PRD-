@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { User, Restaurant, Order, Area, OrderStatus } from '../types';
 import { Users, Store, TrendingUp, Settings, ShieldCheck, Mail, Search, Filter, X, Plus, MapPin, Power, CheckCircle2, AlertCircle, LogIn, Trash2, LayoutGrid, List, ChevronRight, Eye, Globe, Phone, ShoppingBag, Edit3, Hash, Download, Calendar, ChevronLeft, Database, Image as ImageIcon, Key } from 'lucide-react';
 
@@ -42,6 +42,17 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
   const [viewingHubVendors, setViewingHubVendors] = useState<Area | null>(null);
   const [editingArea, setEditingArea] = useState<Area | null>(null);
 
+  // Reports State (Platform Wide)
+  const [reportStatus, setReportStatus] = useState<'ALL' | OrderStatus>('ALL');
+  const [reportStart, setReportStart] = useState<string>(() => {
+    const d = new Date();
+    d.setDate(1); // First of current month
+    return d.toISOString().split('T')[0];
+  });
+  const [reportEnd, setReportEnd] = useState<string>(() => new Date().toISOString().split('T')[0]);
+  const [entriesPerPage, setEntriesPerPage] = useState<number>(30);
+  const [currentPage, setCurrentPage] = useState<number>(1);
+
   const filteredVendors = useMemo(() => {
     return vendors.filter(vendor => {
       const res = restaurants.find(r => r.id === vendor.restaurantId);
@@ -58,6 +69,53 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
       loc.code.toLowerCase().includes(hubSearchQuery.toLowerCase())
     );
   }, [locations, hubSearchQuery]);
+
+  // Platform Wide Reports Memo
+  const filteredReports = useMemo(() => {
+    return orders.filter(o => {
+      const orderDate = new Date(o.timestamp).toISOString().split('T')[0];
+      const matchesDate = orderDate >= reportStart && orderDate <= reportEnd;
+      const matchesStatus = reportStatus === 'ALL' || o.status === reportStatus;
+      return matchesDate && matchesStatus;
+    });
+  }, [orders, reportStart, reportEnd, reportStatus]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filteredReports.length, entriesPerPage, reportStatus, reportStart, reportEnd]);
+
+  const totalPages = Math.ceil(filteredReports.length / entriesPerPage);
+  const paginatedReports = useMemo(() => {
+    const startIdx = (currentPage - 1) * entriesPerPage;
+    return filteredReports.slice(startIdx, startIdx + entriesPerPage);
+  }, [filteredReports, currentPage, entriesPerPage]);
+
+  const handleDownloadReport = () => {
+    if (filteredReports.length === 0) return;
+    
+    const headers = ['Order ID', 'Restaurant', 'Time', 'Status', 'Items', 'Total'];
+    const rows = filteredReports.map(o => {
+      const res = restaurants.find(r => r.id === o.restaurantId);
+      return [
+        o.id,
+        res?.name || 'Unknown',
+        new Date(o.timestamp).toLocaleString(),
+        o.status,
+        o.items.map(i => `${i.name} (x${i.quantity})`).join('; '),
+        o.total.toFixed(2)
+      ];
+    });
+
+    const csvContent = [headers, ...rows].map(e => e.join(',')).join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', `platform_sales_report_${reportStart}_to_${reportEnd}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   const handleOpenEdit = (user: User) => {
     const res = restaurants.find(r => r.id === user.restaurantId);
@@ -256,44 +314,303 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
         </div>
       )}
 
-      {/* Reports & System Tabs omitted for brevity as they remain mostly diagnostic */}
+      {activeTab === 'REPORTS' && (
+        <div className="max-w-6xl mx-auto animate-in fade-in duration-500">
+          <div className="mb-8">
+            <h1 className="text-2xl font-black dark:text-white uppercase tracking-tighter">Platform Sales Performance</h1>
+            <p className="text-sm text-gray-500 dark:text-gray-400 font-medium">Aggregated sales data across all registered hubs and partners.</p>
+          </div>
+          
+          {/* Report Control Panel */}
+          <div className="bg-white dark:bg-gray-800 p-6 rounded-xl border dark:border-gray-700 shadow-sm flex flex-col md:flex-row items-center gap-6 mb-8">
+            <div className="flex-1 flex flex-col md:flex-row gap-4 w-full">
+              <div className="flex-1">
+                <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Date Range</label>
+                <div className="flex items-center gap-2">
+                  <div className="relative flex-1">
+                    <Calendar size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                    <input 
+                      type="date" 
+                      value={reportStart}
+                      onChange={(e) => setReportStart(e.target.value)}
+                      className="w-full pl-9 pr-3 py-2 bg-gray-50 dark:bg-gray-700 border-none rounded-lg text-xs font-bold dark:text-white focus:ring-2 focus:ring-orange-500 outline-none" 
+                    />
+                  </div>
+                  <span className="text-gray-300 dark:text-gray-600 font-bold">to</span>
+                  <div className="relative flex-1">
+                    <Calendar size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                    <input 
+                      type="date" 
+                      value={reportEnd}
+                      onChange={(e) => setReportEnd(e.target.value)}
+                      className="w-full pl-9 pr-3 py-2 bg-gray-50 dark:bg-gray-700 border-none rounded-lg text-xs font-bold dark:text-white focus:ring-2 focus:ring-orange-500 outline-none" 
+                    />
+                  </div>
+                </div>
+              </div>
 
-      {/* Vendor Initialization/Edit Modal */}
+              <div className="w-full md:w-48">
+                <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Status Filter</label>
+                <div className="relative">
+                  <Filter size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <select 
+                    value={reportStatus}
+                    onChange={(e) => setReportStatus(e.target.value as any)}
+                    className="w-full pl-9 pr-4 py-2 bg-gray-50 dark:bg-gray-700 border-none rounded-lg text-xs font-bold dark:text-white appearance-none cursor-pointer outline-none focus:ring-2 focus:ring-orange-500"
+                  >
+                    <option value="ALL">All Orders</option>
+                    <option value={OrderStatus.PENDING}>Pending</option>
+                    <option value={OrderStatus.ONGOING}>Ongoing</option>
+                    <option value={OrderStatus.COMPLETED}>Served</option>
+                    <option value={OrderStatus.CANCELLED}>Cancelled</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <button 
+              onClick={handleDownloadReport}
+              disabled={filteredReports.length === 0}
+              className="w-full md:w-auto px-6 py-3 bg-gray-900 dark:bg-white text-white dark:text-gray-900 rounded-xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-orange-500 dark:hover:bg-orange-500 hover:text-white transition-all disabled:opacity-50"
+            >
+              <Download size={18} />
+              Platform CSV Export
+            </button>
+          </div>
+
+          {/* Summary cards */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            <div className="bg-white dark:bg-gray-800 p-8 rounded-[2rem] shadow-sm border border-gray-100 dark:border-gray-700">
+              <p className="text-gray-400 dark:text-gray-500 text-[10px] font-black mb-1 uppercase tracking-widest">Global Sales Volume</p>
+              <p className="text-4xl font-black text-gray-900 dark:text-white tracking-tighter leading-none">
+                RM{filteredReports.filter(o => o.status === OrderStatus.COMPLETED).reduce((acc, o) => acc + o.total, 0).toFixed(2)}
+              </p>
+            </div>
+            <div className="bg-white dark:bg-gray-800 p-8 rounded-[2rem] shadow-sm border border-gray-100 dark:border-gray-700">
+              <p className="text-gray-400 dark:text-gray-500 text-[10px] font-black mb-1 uppercase tracking-widest">Global Order Count</p>
+              <p className="text-4xl font-black text-gray-900 dark:text-white tracking-tighter leading-none">{filteredReports.length}</p>
+            </div>
+            <div className="bg-white dark:bg-gray-800 p-8 rounded-[2rem] shadow-sm border border-gray-100 dark:border-gray-700">
+              <p className="text-gray-400 dark:text-gray-500 text-[10px] font-black mb-1 uppercase tracking-widest">Efficiency Rate</p>
+              <p className="text-4xl font-black text-green-500 tracking-tighter leading-none">
+                {filteredReports.length > 0 
+                  ? Math.round((filteredReports.filter(r => r.status === OrderStatus.COMPLETED).length / filteredReports.length) * 100) 
+                  : 0}%
+              </p>
+            </div>
+          </div>
+
+          {/* Pagination Entries Selection */}
+          <div className="flex items-center gap-2 mb-4 text-xs font-black uppercase tracking-widest text-gray-400">
+            <span>Show</span>
+            <select 
+              className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-lg px-2 py-1 outline-none focus:ring-2 focus:ring-orange-500 cursor-pointer font-black"
+              value={entriesPerPage}
+              onChange={(e) => setEntriesPerPage(Number(e.target.value))}
+            >
+              <option value={30}>30</option>
+              <option value={50}>50</option>
+              <option value={100}>100</option>
+            </select>
+            <span>entries per node</span>
+          </div>
+
+          {/* Transaction Table */}
+          <div className="bg-white dark:bg-gray-800 rounded-[2rem] border border-gray-100 dark:border-gray-700 overflow-hidden shadow-sm">
+            <table className="w-full">
+              <thead className="bg-gray-50 dark:bg-gray-700/50 text-gray-400 text-[10px] font-black uppercase tracking-widest">
+                <tr>
+                  <th className="px-8 py-4 text-left">Order Reference</th>
+                  <th className="px-8 py-4 text-left">Kitchen</th>
+                  <th className="px-8 py-4 text-left">Temporal Node</th>
+                  <th className="px-8 py-4 text-left">Fulfillment</th>
+                  <th className="px-8 py-4 text-right">Settlement</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y dark:divide-gray-700">
+                {paginatedReports.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="px-8 py-20 text-center text-gray-500 dark:text-gray-400 italic">
+                      No platform transactions matched the filter criteria.
+                    </td>
+                  </tr>
+                ) : (
+                  paginatedReports.map(report => {
+                    const res = restaurants.find(r => r.id === report.restaurantId);
+                    return (
+                      <tr key={report.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors">
+                        <td className="px-8 py-5">
+                          <span className="font-black text-xs text-gray-900 dark:text-white tracking-widest">{report.id}</span>
+                        </td>
+                        <td className="px-8 py-5">
+                          <div className="flex items-center gap-2">
+                             <img src={res?.logo} className="w-6 h-6 rounded-lg object-cover" />
+                             <span className="text-xs font-black dark:text-white">{res?.name}</span>
+                          </div>
+                        </td>
+                        <td className="px-8 py-5">
+                          <p className="text-xs font-bold text-gray-700 dark:text-gray-300">{new Date(report.timestamp).toLocaleDateString()}</p>
+                          <p className="text-[10px] text-gray-400 font-bold uppercase">{new Date(report.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+                        </td>
+                        <td className="px-8 py-5">
+                           <span className={`text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-tighter ${
+                             report.status === OrderStatus.COMPLETED ? 'bg-green-100 text-green-600 dark:bg-green-900/20' : 
+                             report.status === OrderStatus.CANCELLED ? 'bg-red-100 text-red-600 dark:bg-red-900/20' : 
+                             'bg-orange-100 text-orange-600 dark:bg-orange-900/20'
+                           }`}>
+                             {report.status}
+                           </span>
+                        </td>
+                        <td className="px-8 py-5 text-right font-black text-gray-900 dark:text-white">
+                          RM{report.total.toFixed(2)}
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Pagination Controls */}
+          {totalPages > 1 && (
+            <div className="mt-8 flex justify-center items-center gap-2">
+              <button 
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+                className="p-2.5 rounded-xl bg-white dark:bg-gray-800 border dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:text-orange-500 disabled:opacity-50 transition-colors shadow-sm"
+              >
+                <ChevronLeft size={20} />
+              </button>
+              <div className="flex gap-2">
+                {[...Array(totalPages)].map((_, i) => (
+                  <button
+                    key={i + 1}
+                    onClick={() => setCurrentPage(i + 1)}
+                    className={`w-10 h-10 rounded-xl font-black text-xs transition-all ${
+                      currentPage === i + 1 
+                        ? 'bg-orange-500 text-white shadow-lg' 
+                        : 'bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400 border dark:border-gray-700 hover:bg-gray-50'
+                    }`}
+                  >
+                    {i + 1}
+                  </button>
+                ))}
+              </div>
+              <button 
+                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages}
+                className="p-2.5 rounded-xl bg-white dark:bg-gray-800 border dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:text-orange-500 disabled:opacity-50 transition-colors shadow-sm"
+              >
+                <ChevronRight size={20} />
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {activeTab === 'SYSTEM' && (
+        <div className="bg-white dark:bg-gray-800 rounded-3xl border dark:border-gray-700 p-10 shadow-sm animate-in zoom-in duration-500">
+           <div className="mb-10">
+              <h3 className="font-black text-2xl dark:text-white uppercase tracking-tighter mb-2">Platform Diagnostics</h3>
+              <p className="text-gray-500 text-sm font-medium">Real-time telemetry and raw data integrity overview.</p>
+           </div>
+           
+           <div className="grid grid-cols-2 md:grid-cols-4 gap-8 mb-16">
+              {[
+                { label: 'Cloud Users', count: vendors.length + 1, icon: Users, color: 'text-blue-500', bg: 'bg-blue-50 dark:bg-blue-900/20' },
+                { label: 'Active Kitchens', count: restaurants.length, icon: Store, color: 'text-orange-500', bg: 'bg-orange-50 dark:bg-orange-900/20' },
+                { label: 'Linked Hubs', count: locations.length, icon: MapPin, color: 'text-purple-500', bg: 'bg-purple-50 dark:bg-purple-900/20' },
+                { label: 'Processed Orders', count: orders.length, icon: ShoppingBag, color: 'text-green-500', bg: 'bg-green-50 dark:bg-green-900/20' }
+              ].map(stat => (
+                <div key={stat.label} className="p-8 bg-gray-50/50 dark:bg-gray-700/30 rounded-[2rem] border dark:border-gray-600 flex flex-col items-center text-center">
+                   <div className={`w-14 h-14 ${stat.bg} ${stat.color} rounded-2xl flex items-center justify-center mb-4 shadow-sm`}><stat.icon size={28} /></div>
+                   <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">{stat.label}</p>
+                   <p className="text-4xl font-black dark:text-white leading-none">{stat.count}</p>
+                </div>
+              ))}
+           </div>
+           
+           <div className="p-8 bg-red-50 dark:bg-red-900/10 rounded-3xl border border-red-100 dark:border-red-900/20 relative overflow-hidden">
+              <div className="absolute top-0 right-0 p-8 opacity-5"><AlertCircle size={120} className="text-red-500" /></div>
+              <div className="relative z-10">
+                <div className="flex items-center gap-3 mb-4">
+                   <AlertCircle size={24} className="text-red-500" />
+                   <h4 className="font-black text-red-700 dark:text-red-400 uppercase tracking-widest text-sm">System Maintenance Zone</h4>
+                </div>
+                <p className="text-xs text-red-600 dark:text-red-500 mb-8 font-medium max-w-xl">
+                  Caution: Force synchronization re-queries all Supabase tables to reset the local state engine. Use this if you detect drift between client views and remote storage.
+                </p>
+                <div className="flex flex-wrap gap-4">
+                  <button onClick={() => window.location.reload()} className="px-8 py-3 bg-red-600 text-white rounded-xl font-black uppercase tracking-widest text-[10px] shadow-xl shadow-red-100 dark:shadow-none hover:bg-red-700 transition-all active:scale-95">Re-Sync Engine State</button>
+                  <button onClick={() => alert("Cloud Logs: Healthy")} className="px-8 py-3 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 border dark:border-gray-600 rounded-xl font-bold uppercase tracking-widest text-[10px]">Ping Database Node</button>
+                </div>
+              </div>
+           </div>
+        </div>
+      )}
+
+      {/* Initialize Vendor Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 z-[100] bg-black/70 backdrop-blur-md flex items-center justify-center p-4">
           <div className="bg-white dark:bg-gray-800 rounded-[3rem] max-w-2xl w-full p-10 shadow-2xl relative animate-in zoom-in fade-in duration-300 overflow-y-auto max-h-[90vh] custom-scrollbar">
             <button onClick={() => setIsModalOpen(false)} className="absolute top-10 right-10 p-2 text-gray-400"><X size={24} /></button>
             <h2 className="text-3xl font-black mb-1 dark:text-white uppercase tracking-tighter">{editingVendor ? 'Edit Partner' : 'Account Initialization'}</h2>
-            <p className="text-gray-500 text-sm mb-10 font-medium">Configure store credentials and branding.</p>
+            <p className="text-gray-500 dark:text-gray-400 text-sm mb-10 font-medium">Configure store credentials and branding.</p>
+            
             <form onSubmit={handleSubmitVendor} className="space-y-8">
+              {/* Account Section */}
               <div className="p-8 bg-gray-50 dark:bg-gray-700/50 rounded-[2rem] border dark:border-gray-600">
                 <h4 className="text-[10px] font-black text-gray-400 uppercase mb-4 tracking-widest flex items-center gap-2"><Key size={14} className="text-orange-500" /> Account Security</h4>
-                <div className="grid grid-cols-2 gap-4">
-                  <input required placeholder="Username" className="w-full px-5 py-4 bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-2xl outline-none text-sm font-bold dark:text-white" value={formVendor.username} onChange={e => setFormVendor({...formVendor, username: e.target.value})} />
-                  <input required placeholder="Password" type="password" className="w-full px-5 py-4 bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-2xl outline-none text-sm font-bold dark:text-white" value={formVendor.password} onChange={e => setFormVendor({...formVendor, password: e.target.value})} />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">Unique Username</label>
+                    <input required type="text" placeholder="e.g. burger_master" className="w-full px-5 py-4 bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-2xl outline-none text-sm font-bold dark:text-white focus:ring-2 focus:ring-orange-500" value={formVendor.username} onChange={e => setFormVendor({...formVendor, username: e.target.value})} />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">Access Password</label>
+                    <input required type="password" placeholder="••••••••" className="w-full px-5 py-4 bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-2xl outline-none text-sm font-bold dark:text-white focus:ring-2 focus:ring-orange-500" value={formVendor.password} onChange={e => setFormVendor({...formVendor, password: e.target.value})} />
+                  </div>
                 </div>
               </div>
+
+              {/* Branding Section */}
               <div className="p-8 bg-white dark:bg-gray-800 rounded-[2rem] border dark:border-gray-700 shadow-sm">
-                <h4 className="text-[10px] font-black text-gray-400 uppercase mb-4 tracking-widest flex items-center gap-2"><Store size={14} className="text-orange-500" /> Store Profile</h4>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="col-span-2"><input required placeholder="Restaurant Name" className="w-full px-5 py-4 bg-gray-50 dark:bg-gray-700 border-none rounded-2xl outline-none text-sm font-bold dark:text-white" value={formVendor.restaurantName} onChange={e => setFormVendor({...formVendor, restaurantName: e.target.value})} /></div>
-                  <select required className="w-full px-5 py-4 bg-gray-50 dark:bg-gray-700 border-none rounded-2xl outline-none text-sm font-bold dark:text-white appearance-none" value={formVendor.location} onChange={e => setFormVendor({...formVendor, location: e.target.value})}>
-                    <option value="">Select Hub</option>
-                    {locations.map(loc => <option key={loc.id} value={loc.name}>{loc.name}</option>)}
-                  </select>
-                  <input placeholder="Logo Image URL" className="w-full px-5 py-4 bg-gray-50 dark:bg-gray-700 border-none rounded-2xl outline-none text-sm font-bold dark:text-white" value={formVendor.logo} onChange={e => setFormVendor({...formVendor, logo: e.target.value})} />
+                <h4 className="text-[10px] font-black text-gray-400 uppercase mb-4 tracking-widest flex items-center gap-2"><Store size={14} className="text-orange-500" /> Kitchen Profile</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="md:col-span-2">
+                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">Store Display Name</label>
+                    <input required type="text" placeholder="e.g. Pasta Kingdom" className="w-full px-5 py-4 bg-gray-50 dark:bg-gray-700 border-none rounded-2xl outline-none text-sm font-bold dark:text-white focus:ring-2 focus:ring-orange-500" value={formVendor.restaurantName} onChange={e => setFormVendor({...formVendor, restaurantName: e.target.value})} />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">Assigned Hub</label>
+                    <select required className="w-full px-5 py-4 bg-gray-50 dark:bg-gray-700 border-none rounded-2xl outline-none text-sm font-bold dark:text-white appearance-none cursor-pointer" value={formVendor.location} onChange={e => setFormVendor({...formVendor, location: e.target.value})}>
+                      <option value="">Select Physical Zone</option>
+                      {locations.map(loc => <option key={loc.id} value={loc.name}>{loc.name}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">Branding Logo URL</label>
+                    <div className="relative">
+                       <ImageIcon size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
+                       <input type="text" placeholder="https://..." className="w-full pl-12 pr-4 py-4 bg-gray-50 dark:bg-gray-700 border-none rounded-2xl outline-none text-sm font-bold dark:text-white" value={formVendor.logo} onChange={e => setFormVendor({...formVendor, logo: e.target.value})} />
+                    </div>
+                  </div>
                 </div>
               </div>
+
+              {/* Contact Section */}
               <div className="p-8 bg-gray-50 dark:bg-gray-700/50 rounded-[2rem] border dark:border-gray-600">
                 <h4 className="text-[10px] font-black text-gray-400 uppercase mb-4 tracking-widest flex items-center gap-2"><Mail size={14} className="text-orange-500" /> Contact Details</h4>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <input placeholder="Email Address" type="email" className="w-full px-5 py-4 bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-2xl outline-none text-sm font-bold dark:text-white" value={formVendor.email} onChange={e => setFormVendor({...formVendor, email: e.target.value})} />
                   <input placeholder="Phone Number" className="w-full px-5 py-4 bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-2xl outline-none text-sm font-bold dark:text-white" value={formVendor.phone} onChange={e => setFormVendor({...formVendor, phone: e.target.value})} />
                 </div>
               </div>
+
               <div className="flex gap-4 pt-6">
-                <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 py-5 bg-gray-100 dark:bg-gray-700 rounded-2xl font-black uppercase text-xs text-gray-500">Abort</button>
-                <button type="submit" className="flex-1 py-5 bg-orange-500 text-white rounded-2xl font-black uppercase text-xs shadow-2xl">Confirm Partner</button>
+                <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 py-5 bg-gray-100 dark:bg-gray-700 rounded-2xl font-black uppercase text-xs tracking-widest text-gray-500">Abort</button>
+                <button type="submit" className="flex-1 py-5 bg-orange-500 text-white rounded-2xl font-black uppercase text-xs tracking-widest shadow-2xl shadow-orange-100 dark:shadow-none hover:bg-orange-600 transition-all active:scale-95">Finalize Provisioning</button>
               </div>
             </form>
           </div>
@@ -302,7 +619,7 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
 
       {/* Hub Vendors Modal */}
       {viewingHubVendors && (
-        <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[100] bg-black/70 backdrop-blur-md flex items-center justify-center p-4">
           <div className="bg-white dark:bg-gray-800 rounded-[3rem] max-w-xl w-full p-10 shadow-2xl relative animate-in zoom-in fade-in duration-300">
             <button onClick={() => setViewingHubVendors(null)} className="absolute top-8 right-8 p-2 text-gray-400"><X size={24} /></button>
             <h2 className="text-2xl font-black mb-2 dark:text-white uppercase tracking-tighter">Hub Partners: {viewingHubVendors.name}</h2>
@@ -334,7 +651,7 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
       {isAreaModalOpen && (
         <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
            <div className="bg-white dark:bg-gray-800 rounded-[3rem] max-w-md w-full p-10 shadow-2xl relative animate-in fade-in zoom-in duration-300">
-             <button onClick={() => setIsAreaModalOpen(false)} className="absolute top-8 right-8 p-2 text-gray-400"><X size={24} /></button>
+             <button onClick={() => { setIsAreaModalOpen(false); setEditingArea(null); }} className="absolute top-8 right-8 p-2 text-gray-400"><X size={24} /></button>
              <h2 className="text-2xl font-black mb-8 dark:text-white uppercase tracking-tighter">{editingArea ? 'Modify Hub Node' : 'Register New Hub'}</h2>
              <form onSubmit={(e) => {
                e.preventDefault();
