@@ -45,6 +45,19 @@ const App: React.FC = () => {
       (!localStorage.getItem('theme') && window.matchMedia('(prefers-color-scheme: dark)').matches);
   });
 
+  // Deep Linking: Detect QR parameters on mount
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const loc = params.get('loc');
+    const table = params.get('table');
+    
+    if (loc && table) {
+      handleScanSimulation(loc, table);
+      // Clean up URL without refreshing to keep a clean experience
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  }, []);
+
   const fetchUsers = useCallback(async () => {
     const { data } = await supabase.from('users').select('*');
     if (data) {
