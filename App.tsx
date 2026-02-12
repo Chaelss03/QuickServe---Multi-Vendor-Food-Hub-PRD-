@@ -132,7 +132,7 @@ const App: React.FC = () => {
       const formatted: Restaurant[] = resData.map(res => ({
         id: res.id, name: res.name, logo: res.logo, vendorId: res.vendor_id,
         location: res.location_name, created_at: res.created_at,
-        isOnline: res.is_online !== false, 
+        isOnline: res.is_online === true || res.is_online === null, // Treat null as online default
         menu: menuData.filter(m => m.restaurant_id === res.id).map(m => ({
           id: m.id, name: m.name, description: m.description, price: Number(m.price),
           image: m.image, category: m.category, isArchived: m.is_archived,
@@ -238,6 +238,17 @@ const App: React.FC = () => {
 
   const placeOrder = async (remark: string) => {
     if (cart.length === 0) return;
+    
+    // Safety check: Ensure the restaurant is still online
+    const targetRestaurantId = cart[0].restaurantId;
+    const targetRes = restaurants.find(r => r.id === targetRestaurantId);
+    
+    if (!targetRes || targetRes.isOnline === false) {
+      alert("Error: This kitchen is currently offline and cannot accept orders. Your cart will be cleared.");
+      setCart([]);
+      return;
+    }
+
     const area = locations.find(l => l.name === sessionLocation);
     const code = area?.code || 'QS';
     let nextNum = 1;
@@ -253,7 +264,7 @@ const App: React.FC = () => {
     const newOrder = {
       id: orderId, items: cart, total: cart.reduce((acc, item) => acc + item.price * item.quantity, 0),
       status: OrderStatus.PENDING, timestamp: numericTimestamp, customer_id: 'guest_user',
-      restaurant_id: cart[0].restaurantId, table_number: sessionTable || 'N/A',
+      restaurant_id: targetRestaurantId, table_number: sessionTable || 'N/A',
       location_name: sessionLocation || 'Unspecified', remark: remark
     };
     const { error } = await supabase.from('orders').insert([newOrder]);
@@ -321,6 +332,13 @@ const App: React.FC = () => {
   };
 
   const addToCart = (item: CartItem) => {
+    // Safety check: Only add if restaurant is still online in the local state
+    const res = restaurants.find(r => r.id === item.restaurantId);
+    if (res && res.isOnline === false) {
+      alert("This kitchen is currently offline and cannot take new orders.");
+      return;
+    }
+
     setCart(prev => {
       const existing = prev.find(i => i.id === item.id && i.selectedSize === item.selectedSize && i.selectedTemp === item.selectedTemp);
       if (existing) return prev.map(i => (i.id === item.id && i.selectedSize === item.selectedSize && i.selectedTemp === item.selectedTemp) ? { ...i, quantity: i.quantity + 1 } : i);
@@ -429,7 +447,7 @@ const App: React.FC = () => {
         </div>
       </header>
       <main className="flex-1">
-        {currentRole === 'CUSTOMER' && <CustomerView restaurants={restaurants.filter(r => r.location === sessionLocation && r.isOnline !== false)} cart={cart} orders={orders} onAddToCart={addToCart} onRemoveFromCart={removeFromCart} onPlaceOrder={placeOrder} locationName={sessionLocation || undefined} tableNo={sessionTable || undefined} areaType={currentArea?.type || 'MULTI'} />}
+        {currentRole === 'CUSTOMER' && <CustomerView restaurants={restaurants.filter(r => r.location === sessionLocation && r.isOnline === true)} cart={cart} orders={orders} onAddToCart={addToCart} onRemoveFromCart={removeFromCart} onPlaceOrder={placeOrder} locationName={sessionLocation || undefined} tableNo={sessionTable || undefined} areaType={currentArea?.type || 'MULTI'} allRestaurants={restaurants} />}
         {currentRole === 'VENDOR' && activeVendorRes && <VendorView restaurant={activeVendorRes} orders={orders.filter(o => o.restaurantId === currentUser?.restaurantId)} onUpdateOrder={updateOrderStatus} onUpdateMenu={handleUpdateMenuItem} onAddMenuItem={handleAddMenuItem} onPermanentDeleteMenuItem={handleDeleteMenuItem} onToggleOnline={() => toggleVendorOnline(activeVendorRes.id, activeVendorRes.isOnline ?? true)} lastSyncTime={lastSyncTime} />}
         {currentRole === 'ADMIN' && <AdminView vendors={allUsers.filter(u => u.role === 'VENDOR')} restaurants={restaurants} orders={orders} locations={locations} onAddVendor={handleAddVendor} onUpdateVendor={handleUpdateVendor} onImpersonateVendor={handleLogin} onAddLocation={handleAddLocation} onUpdateLocation={handleUpdateLocation} onDeleteLocation={handleDeleteLocation} onRemoveVendorFromHub={(rid) => supabase.from('restaurants').update({ location_name: null }).eq('id', rid).then(() => fetchRestaurants())} />}
       </main>

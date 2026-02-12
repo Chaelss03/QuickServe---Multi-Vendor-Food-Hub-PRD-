@@ -1,7 +1,7 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Restaurant, CartItem, Order, OrderStatus, MenuItem } from '../types';
-import { ShoppingCart, Plus, Minus, X, CheckCircle, ChevronRight, Info, ThermometerSun, Maximize2, MapPin, Hash, LayoutGrid, Grid3X3, MessageSquare, AlertTriangle, UtensilsCrossed, LogIn } from 'lucide-react';
+import { ShoppingCart, Plus, Minus, X, CheckCircle, ChevronRight, Info, ThermometerSun, Maximize2, MapPin, Hash, LayoutGrid, Grid3X3, MessageSquare, AlertTriangle, UtensilsCrossed, LogIn, WifiOff } from 'lucide-react';
 
 interface Props {
   restaurants: Restaurant[];
@@ -14,10 +14,11 @@ interface Props {
   tableNo?: string;
   onLoginClick?: () => void;
   areaType?: 'MULTI' | 'SINGLE';
+  allRestaurants?: Restaurant[]; // For cart offline validation
 }
 
-const CustomerView: React.FC<Props> = ({ restaurants, cart, orders, onAddToCart, onRemoveFromCart, onPlaceOrder, locationName, tableNo, onLoginClick, areaType = 'MULTI' }) => {
-  const [activeRestaurant, setActiveRestaurant] = useState(restaurants[0]?.id || '');
+const CustomerView: React.FC<Props> = ({ restaurants, cart, orders, onAddToCart, onRemoveFromCart, onPlaceOrder, locationName, tableNo, onLoginClick, areaType = 'MULTI', allRestaurants = [] }) => {
+  const [activeRestaurant, setActiveRestaurant] = useState('');
   const [showCart, setShowCart] = useState(false);
   const [selectedItemForVariants, setSelectedItemForVariants] = useState<{item: MenuItem, resId: string} | null>(null);
   const [selectedSize, setSelectedSize] = useState<string>('');
@@ -47,6 +48,14 @@ const CustomerView: React.FC<Props> = ({ restaurants, cart, orders, onAddToCart,
 
   const cartTotal = cart.reduce((acc, item) => acc + item.price * item.quantity, 0);
 
+  // Check for any cart items from restaurants that are now offline
+  const offlineCartItems = useMemo(() => {
+    return cart.filter(item => {
+      const res = allRestaurants.find(r => r.id === item.restaurantId);
+      return res && res.isOnline === false;
+    });
+  }, [cart, allRestaurants]);
+
   useEffect(() => {
     if (areaType === 'SINGLE') return;
     const handleScroll = () => {
@@ -63,7 +72,7 @@ const CustomerView: React.FC<Props> = ({ restaurants, cart, orders, onAddToCart,
   }, [restaurants, areaType]);
 
   useEffect(() => {
-    if (restaurants.length > 0 && !activeRestaurant) {
+    if (restaurants.length > 0 && (!activeRestaurant || !restaurants.find(r => r.id === activeRestaurant))) {
       setActiveRestaurant(restaurants[0].id);
     }
   }, [restaurants, activeRestaurant]);
@@ -370,13 +379,19 @@ const CustomerView: React.FC<Props> = ({ restaurants, cart, orders, onAddToCart,
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 w-full max-w-[340px] px-4 z-50">
           <button 
             onClick={() => setShowCart(true)}
-            className="w-full bg-black dark:bg-gray-100 text-white dark:text-gray-900 py-2.5 px-4 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.3)] flex items-center justify-between hover:scale-[1.02] active:scale-95 transition-all border-4 border-white dark:border-gray-800"
+            className={`w-full py-2.5 px-4 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.3)] flex items-center justify-between hover:scale-[1.02] active:scale-95 transition-all border-4 ${
+              offlineCartItems.length > 0 
+                ? 'bg-red-600 text-white border-white dark:border-gray-800' 
+                : 'bg-black dark:bg-gray-100 text-white dark:text-gray-900 border-white dark:border-gray-800'
+            }`}
           >
             <div className="flex items-center gap-3">
-              <div className="w-7 h-7 bg-orange-500 rounded-lg flex items-center justify-center font-black text-[10px] text-white">
+              <div className={`w-7 h-7 rounded-lg flex items-center justify-center font-black text-[10px] ${offlineCartItems.length > 0 ? 'bg-white text-red-600' : 'bg-orange-500 text-white'}`}>
                 {cart.length}
               </div>
-              <span className="font-black text-[10px] uppercase tracking-[0.2em]">View Your Tray</span>
+              <span className="font-black text-[10px] uppercase tracking-[0.2em]">
+                {offlineCartItems.length > 0 ? 'Action Required' : 'View Your Tray'}
+              </span>
             </div>
             <span className="font-black text-lg tracking-tight">RM{cartTotal.toFixed(2)}</span>
           </button>
@@ -395,28 +410,45 @@ const CustomerView: React.FC<Props> = ({ restaurants, cart, orders, onAddToCart,
             </div>
             
             <div className="flex-1 overflow-y-auto p-6 space-y-6">
-              {cart.map((item, idx) => (
-                <div key={`${item.id}-${idx}`} className="flex gap-4 p-4 bg-gray-50 dark:bg-gray-800/50 rounded-2xl border dark:border-gray-700 shadow-sm">
-                  <img src={item.image} className="w-16 h-16 rounded-xl object-cover shadow-sm" />
-                  <div className="flex-1">
-                    <div className="flex justify-between font-bold dark:text-white mb-2">
-                      <p className="text-xs font-black uppercase tracking-tight">{item.name}</p>
-                      <p className="text-xs font-black text-orange-500">RM{(item.price * item.quantity).toFixed(2)}</p>
-                    </div>
-                    <div className="flex flex-wrap gap-1 mb-3">
-                      {item.selectedSize && <span className="text-[8px] font-black px-2 py-0.5 bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 rounded uppercase">{item.selectedSize}</span>}
-                      {item.selectedTemp && <span className={`text-[8px] font-black px-2 py-0.5 rounded uppercase ${item.selectedTemp === 'Hot' ? 'bg-orange-50 text-orange-600' : 'bg-blue-50 text-blue-600'}`}>{item.selectedTemp}</span>}
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center bg-white dark:bg-gray-700 rounded-xl border dark:border-gray-600 overflow-hidden shadow-inner">
-                        <button onClick={() => onRemoveFromCart(item.id)} className="p-2 hover:bg-red-50 dark:hover:bg-red-900/20 text-red-500 transition-colors"><Minus size={12} /></button>
-                        <span className="px-4 font-black text-xs dark:text-white">{item.quantity}</span>
-                        <button onClick={() => onAddToCart(item)} className="p-2 hover:bg-green-50 dark:hover:bg-green-900/20 text-green-600 transition-colors"><Plus size={12} /></button>
+              {offlineCartItems.length > 0 && (
+                <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-2xl flex items-start gap-3">
+                  <WifiOff size={20} className="text-red-500 shrink-0" />
+                  <div>
+                    <p className="text-[10px] font-black text-red-600 dark:text-red-400 uppercase tracking-widest">Kitchen Offline</p>
+                    <p className="text-[11px] font-bold text-gray-600 dark:text-gray-300">Some items in your tray are from a kitchen that just went offline. Please remove them to proceed.</p>
+                  </div>
+                </div>
+              )}
+
+              {cart.map((item, idx) => {
+                const res = allRestaurants.find(r => r.id === item.restaurantId);
+                const isOffline = res && res.isOnline === false;
+                return (
+                  <div key={`${item.id}-${idx}`} className={`flex gap-4 p-4 rounded-2xl border transition-all shadow-sm ${isOffline ? 'bg-red-50 dark:bg-red-900/10 border-red-200 dark:border-red-900/30 grayscale opacity-60' : 'bg-gray-50 dark:bg-gray-800/50 border-gray-100 dark:border-gray-700'}`}>
+                    <img src={item.image} className="w-16 h-16 rounded-xl object-cover shadow-sm" />
+                    <div className="flex-1">
+                      <div className="flex justify-between font-bold dark:text-white mb-2">
+                        <div className="flex flex-col">
+                          <p className="text-xs font-black uppercase tracking-tight">{item.name}</p>
+                          {isOffline && <span className="text-[8px] text-red-500 font-black uppercase">UNAVAILABLE</span>}
+                        </div>
+                        <p className="text-xs font-black text-orange-500">RM{(item.price * item.quantity).toFixed(2)}</p>
+                      </div>
+                      <div className="flex flex-wrap gap-1 mb-3">
+                        {item.selectedSize && <span className="text-[8px] font-black px-2 py-0.5 bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 rounded uppercase">{item.selectedSize}</span>}
+                        {item.selectedTemp && <span className={`text-[8px] font-black px-2 py-0.5 rounded uppercase ${item.selectedTemp === 'Hot' ? 'bg-orange-50 text-orange-600' : 'bg-blue-50 text-blue-600'}`}>{item.selectedTemp}</span>}
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center bg-white dark:bg-gray-700 rounded-xl border dark:border-gray-600 overflow-hidden shadow-inner">
+                          <button onClick={() => onRemoveFromCart(item.id)} className="p-2 hover:bg-red-50 dark:hover:bg-red-900/20 text-red-500 transition-colors"><Minus size={12} /></button>
+                          <span className="px-4 font-black text-xs dark:text-white">{item.quantity}</span>
+                          <button onClick={() => onAddToCart(item)} className="p-2 hover:bg-green-50 dark:hover:bg-green-900/20 text-green-600 transition-colors"><Plus size={12} /></button>
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
               {cart.length === 0 && (
                  <div className="text-center py-24">
                     <ShoppingCart size={48} className="mx-auto mb-4 text-gray-200" />
@@ -453,11 +485,11 @@ const CustomerView: React.FC<Props> = ({ restaurants, cart, orders, onAddToCart,
                 </div>
               </div>
               <button 
-                disabled={cart.length === 0} 
+                disabled={cart.length === 0 || offlineCartItems.length > 0} 
                 onClick={() => { onPlaceOrder(orderRemark); setShowCart(false); setOrderRemark(''); }} 
-                className="w-full py-5 bg-orange-500 text-white rounded-[2rem] font-black text-sm uppercase tracking-[0.3em] shadow-2xl hover:bg-orange-600 transition-all active:scale-[0.98] disabled:opacity-50"
+                className={`w-full py-5 text-white rounded-[2rem] font-black text-sm uppercase tracking-[0.3em] shadow-2xl transition-all active:scale-[0.98] disabled:opacity-50 ${offlineCartItems.length > 0 ? 'bg-gray-400' : 'bg-orange-500 hover:bg-orange-600'}`}
               >
-                Send Order to Kitchen
+                {offlineCartItems.length > 0 ? 'Remove Offline Items' : 'Send Order to Kitchen'}
               </button>
             </div>
           </div>
