@@ -319,20 +319,20 @@ const App: React.FC = () => {
     if (cart.length === 0) return;
     
     // Improved Global Uniqueness for Order IDs
-    // Format: CODE-TIMESTAMP_SEGMENT-RANDOM_HEX
-    // This eliminates "duplicate key value violates unique constraint" errors
     const area = locations.find(l => l.name === sessionLocation);
     const code = area?.code || 'QS';
     const timestampSegment = Date.now().toString(36).toUpperCase().slice(-5);
     const randomSegment = Math.random().toString(36).substring(2, 5).toUpperCase();
     const orderId = `${code}-${timestampSegment}-${randomSegment}`;
 
+    const now = Date.now(); // Numeric Unix Milliseconds
+
     const newOrder = {
       id: orderId,
       items: cart,
       total: cart.reduce((acc, item) => acc + item.price * item.quantity, 0),
       status: OrderStatus.PENDING,
-      timestamp: new Date().toISOString(), 
+      timestamp: now, // FIX: Use number instead of ISO string for BigInt column
       customer_id: 'guest_user',
       restaurant_id: cart[0].restaurantId,
       table_number: sessionTable || 'N/A',
@@ -346,14 +346,12 @@ const App: React.FC = () => {
       alert("Placement Error: " + error.message);
     } else {
       setCart([]);
-      // Optimistically add to local state to avoid race conditions with realtime sync
-      // Fix: Manually map snake_case Supabase fields to camelCase properties required by the Order interface.
       setOrders(prev => [{
         id: newOrder.id,
         items: newOrder.items,
         total: Number(newOrder.total),
         status: newOrder.status,
-        timestamp: Date.now(),
+        timestamp: now,
         customerId: newOrder.customer_id,
         restaurantId: newOrder.restaurant_id,
         tableNumber: newOrder.table_number,
@@ -361,7 +359,7 @@ const App: React.FC = () => {
         remark: newOrder.remark
       }, ...prev]);
       
-      fetchOrders(); // Full sync
+      fetchOrders();
       alert(`Order ${orderId} submitted!`);
     }
   };
