@@ -16,14 +16,11 @@ const App: React.FC = () => {
   const [locations, setLocations] = useState<Area[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   
-  // Persistent State Initialization with Error Safety
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
     try {
       const saved = localStorage.getItem('qs_user');
       return saved ? JSON.parse(saved) : null;
-    } catch (e) {
-      return null;
-    }
+    } catch (e) { return null; }
   });
   
   const [currentRole, setCurrentRole] = useState<Role | null>(() => {
@@ -67,7 +64,6 @@ const App: React.FC = () => {
   const fetchLocations = useCallback(async () => {
     const { data } = await supabase.from('areas').select('*').order('name');
     if (data) {
-      // Mapping snake_case from DB to camelCase for the app
       setLocations(data.map(l => ({
         id: l.id,
         name: l.name,
@@ -109,11 +105,7 @@ const App: React.FC = () => {
   }, []);
 
   const fetchOrders = useCallback(async () => {
-    const { data } = await supabase
-      .from('orders')
-      .select('*')
-      .order('timestamp', { ascending: false });
-    
+    const { data } = await supabase.from('orders').select('*').order('timestamp', { ascending: false });
     if (data) {
       setOrders(data.map(o => ({
         id: o.id,
@@ -136,14 +128,9 @@ const App: React.FC = () => {
     const initApp = async () => {
       setIsLoading(true);
       try {
-        await Promise.all([
-          fetchUsers(),
-          fetchLocations(),
-          fetchRestaurants(),
-          fetchOrders()
-        ]);
+        await Promise.all([fetchUsers(), fetchLocations(), fetchRestaurants(), fetchOrders()]);
       } catch (err) {
-        console.error("Initialization Error", err);
+        console.error("Init Error", err);
       } finally {
         setIsLoading(false);
       }
@@ -152,26 +139,16 @@ const App: React.FC = () => {
 
     const orderSubscription = supabase
       .channel('public:orders_live')
-      .on(
-        'postgres_changes', 
-        { event: '*', schema: 'public', table: 'orders' }, 
-        () => fetchOrders()
-      )
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => fetchOrders())
       .subscribe();
 
-    return () => {
-      supabase.removeChannel(orderSubscription);
-    };
+    return () => { supabase.removeChannel(orderSubscription); };
   }, [fetchUsers, fetchLocations, fetchRestaurants, fetchOrders]);
 
   useEffect(() => {
-    if (isDarkMode) {
-      document.documentElement.classList.add('dark');
-      localStorage.setItem('theme', 'dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-      localStorage.setItem('theme', 'light');
-    }
+    if (isDarkMode) document.documentElement.classList.add('dark');
+    else document.documentElement.classList.remove('dark');
+    localStorage.setItem('theme', isDarkMode ? 'dark' : 'light');
   }, [isDarkMode]);
 
   const handleLogin = (user: User) => {
@@ -189,11 +166,7 @@ const App: React.FC = () => {
     setSessionLocation(null);
     setSessionTable(null);
     setView('LANDING');
-    localStorage.removeItem('qs_user');
-    localStorage.removeItem('qs_role');
-    localStorage.removeItem('qs_view');
-    localStorage.removeItem('qs_session_location');
-    localStorage.removeItem('qs_session_table');
+    localStorage.clear();
   };
 
   const handleScanSimulation = (locationName: string, tableNo: string) => {
@@ -207,23 +180,12 @@ const App: React.FC = () => {
     localStorage.setItem('qs_session_table', tableNo);
   };
 
-  const updateOrderStatus = async (orderId: string, status: OrderStatus, rejectionReason?: string, rejectionNote?: string) => {
-    setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status, rejectionReason, rejectionNote } : o));
-    const { error } = await supabase
-      .from('orders')
-      .update({ 
-        status, 
-        rejection_reason: rejectionReason, 
-        rejection_note: rejectionNote 
-      })
-      .eq('id', orderId);
-
-    if (error) {
-      alert("Error updating order: " + error.message);
-      fetchOrders();
-    } else {
-      fetchOrders();
-    }
+  const updateOrderStatus = async (orderId: string, status: OrderStatus, reason?: string, note?: string) => {
+    const { error } = await supabase.from('orders').update({ 
+      status, rejection_reason: reason, rejection_note: note 
+    }).eq('id', orderId);
+    if (error) alert("Error: " + error.message);
+    fetchOrders();
   };
 
   const addToCart = (item: CartItem) => {
@@ -268,54 +230,34 @@ const App: React.FC = () => {
     };
     
     const { error } = await supabase.from('orders').insert([newOrder]);
-    if (error) {
-      alert("Error placing order: " + error.message);
-    } else {
+    if (error) alert("Error: " + error.message);
+    else {
       setCart([]);
       fetchOrders();
-      alert(`Order ${orderId} placed successfully!`);
+      alert(`Order ${orderId} placed!`);
     }
   };
 
-  const updateMenuItem = async (restaurantId: string, updatedItem: MenuItem) => {
-    const { error } = await supabase.from('menu_items').update({
-      name: updatedItem.name, description: updatedItem.description, price: updatedItem.price, image: updatedItem.image, category: updatedItem.category, is_archived: updatedItem.isArchived, sizes: updatedItem.sizes, temp_options: updatedItem.tempOptions
-    }).eq('id', updatedItem.id);
-    if (error) alert(error.message); else fetchRestaurants();
-  };
-
-  const handleAddMenuItem = async (restaurantId: string, newItem: MenuItem) => {
-    const { error } = await supabase.from('menu_items').insert([{
-      restaurant_id: restaurantId, name: newItem.name, description: newItem.description, price: newItem.price, image: newItem.image, category: newItem.category, sizes: newItem.sizes, temp_options: newItem.tempOptions
-    }]);
-    if (error) alert(error.message); else fetchRestaurants();
-  };
-
-  const handlePermanentDeleteMenuItem = async (restaurantId: string, itemId: string) => {
-    const { error } = await supabase.from('menu_items').delete().eq('id', itemId);
-    if (error) alert(error.message); else fetchRestaurants();
-  };
-
   const handleAddVendor = async (newUser: User, newRestaurant: Restaurant) => {
-    // Step 1: Create the User Profile
+    // 1. Create User
     const { data: userData, error: userError } = await supabase.from('users').insert([{
-      username: newUser.username, 
-      password: newUser.password, 
-      role: 'VENDOR', 
-      email: newUser.email, 
-      phone: newUser.phone, 
+      username: newUser.username,
+      password: newUser.password,
+      role: 'VENDOR',
+      email: newUser.email,
+      phone: newUser.phone,
       is_active: true
     }]).select();
 
     if (userError) {
-      alert("Error creating vendor user: " + userError.message);
+      alert("Account Error: " + userError.message);
       return;
     }
 
     if (userData && userData[0]) {
       const createdUserId = userData[0].id;
 
-      // Step 2: Create the Restaurant Profile
+      // 2. Create Restaurant Profile
       const { data: resData, error: resError } = await supabase.from('restaurants').insert([{
         name: newRestaurant.name, 
         logo: newRestaurant.logo, 
@@ -324,16 +266,15 @@ const App: React.FC = () => {
       }]).select();
 
       if (resError) {
-        alert("Error creating restaurant: " + resError.message);
-        // Clean up user if restaurant creation fails
+        alert("Store Error: " + resError.message);
         await supabase.from('users').delete().eq('id', createdUserId);
       } else {
-        // Step 3: Link User to Restaurant (Circular ref)
+        // 3. Link back
         if (resData && resData[0]) {
            await supabase.from('users').update({ restaurant_id: resData[0].id }).eq('id', createdUserId);
         }
         await Promise.all([fetchUsers(), fetchRestaurants()]);
-        alert("Vendor and Restaurant registered successfully!");
+        alert("Vendor profile fully initialized!");
       }
     }
   };
@@ -346,17 +287,9 @@ const App: React.FC = () => {
 
   const handleAddLocation = async (a: Area) => {
     const { error } = await supabase.from('areas').insert([{
-      name: a.name,
-      city: a.city,
-      state: a.state,
-      code: a.code,
-      is_active: a.isActive
+      name: a.name, city: a.city, state: a.state, code: a.code, is_active: a.isActive
     }]);
-    if (error) {
-      alert("Error adding location: " + error.message);
-    } else {
-      fetchLocations();
-    }
+    if (error) alert("Error: " + error.message); else fetchLocations();
   };
 
   const handleUpdateLocation = async (a: Area) => {
@@ -367,172 +300,105 @@ const App: React.FC = () => {
 
     try {
       if (nameChanged) {
-        // Step 1: Identify all restaurants that use the old location name
-        const restaurantsToRelink = restaurants
-          .filter(r => r.location === oldArea.name)
-          .map(r => r.id);
+        // Step 1: Query DB directly for current restaurants to ensure we have IDs
+        const { data: resToUpdate } = await supabase
+          .from('restaurants')
+          .select('id')
+          .eq('location_name', oldArea.name);
 
-        if (restaurantsToRelink.length > 0) {
-          // Step 2: Set their location to NULL to break the FK dependency temporarily
-          const { error: detachError } = await supabase
-            .from('restaurants')
-            .update({ location_name: null })
-            .in('id', restaurantsToRelink);
+        const relinkIds = resToUpdate?.map(r => r.id) || [];
 
-          if (detachError) throw new Error("Failed to detach restaurants: " + detachError.message);
+        if (relinkIds.length > 0) {
+          // Step 2: Detach (NULL out FK)
+          const { error: detachErr } = await supabase.from('restaurants').update({ location_name: null }).in('id', relinkIds);
+          if (detachErr) throw detachErr;
 
-          // Step 3: Update the area itself
-          const { error: areaError } = await supabase
-            .from('areas')
-            .update({
-              name: a.name,
-              city: a.city,
-              state: a.state,
-              code: a.code,
-              is_active: a.isActive
-            })
-            .eq('id', a.id);
+          // Step 3: Update Area
+          const { error: areaErr } = await supabase.from('areas').update({ name: a.name, city: a.city, state: a.state, code: a.code, is_active: a.isActive }).eq('id', a.id);
+          if (areaErr) throw areaErr;
 
-          if (areaError) throw new Error("Failed to update area: " + areaError.message);
-
-          // Step 4: Re-attach restaurants with the NEW name
-          const { error: attachError } = await supabase
-            .from('restaurants')
-            .update({ location_name: a.name })
-            .in('id', restaurantsToRelink);
-
-          if (attachError) throw new Error("Failed to re-attach restaurants: " + attachError.message);
+          // Step 4: Re-attach
+          const { error: attachErr } = await supabase.from('restaurants').update({ location_name: a.name }).in('id', relinkIds);
+          if (attachErr) throw attachErr;
         } else {
-          // No restaurants to relink, just update the area
-          const { error: areaError } = await supabase
-            .from('areas')
-            .update({
-              name: a.name,
-              city: a.city,
-              state: a.state,
-              code: a.code,
-              is_active: a.isActive
-            })
-            .eq('id', a.id);
-          if (areaError) throw areaError;
+          // No dependents, simple update
+          const { error: areaErr } = await supabase.from('areas').update({ name: a.name, city: a.city, state: a.state, code: a.code, is_active: a.isActive }).eq('id', a.id);
+          if (areaErr) throw areaErr;
         }
       } else {
-        // No name change, simple update for city/state/code/active
-        const { error: areaError } = await supabase
-          .from('areas')
-          .update({
-            city: a.city,
-            state: a.state,
-            code: a.code,
-            is_active: a.isActive
-          })
-          .eq('id', a.id);
-        if (areaError) throw areaError;
+        // No name change
+        const { error: areaErr } = await supabase.from('areas').update({ city: a.city, state: a.state, code: a.code, is_active: a.isActive }).eq('id', a.id);
+        if (areaErr) throw areaErr;
       }
-
       await Promise.all([fetchLocations(), fetchRestaurants()]);
-      alert("Location updated successfully!");
     } catch (err: any) {
-      alert("Location Update Error: " + err.message);
-      // Refresh state to ensure UI matches DB even if update partially failed
+      alert("Sync Error: " + err.message);
       await Promise.all([fetchLocations(), fetchRestaurants()]);
     }
   };
 
   const handleDeleteLocation = async (id: string) => {
-    // Check if location is in use
-    const locToDelete = locations.find(l => l.id === id);
-    if (locToDelete) {
-       const inUse = restaurants.some(r => r.location === locToDelete.name);
-       if (inUse) {
-         alert("Cannot delete location: One or more restaurants are still assigned to this area.");
-         return;
-       }
-    }
-
     const { error } = await supabase.from('areas').delete().eq('id', id);
-    if (error) {
-      alert("Error deleting location: " + error.message);
-    } else {
-      fetchLocations();
-    }
+    if (error) alert("Error: " + error.message); else fetchLocations();
   };
 
-  const handleImpersonateVendor = (user: User) => {
-    setCurrentUser(user);
-    setCurrentRole('VENDOR');
-    localStorage.setItem('qs_user', JSON.stringify(user));
-    localStorage.setItem('qs_role', 'VENDOR');
+  const handleUpdateMenuItem = async (restaurantId: string, item: MenuItem) => {
+    const { error } = await supabase.from('menu_items').update({
+      name: item.name, description: item.description, price: item.price, image: item.image, category: item.category, is_archived: item.isArchived, sizes: item.sizes, temp_options: item.tempOptions
+    }).eq('id', item.id);
+    if (error) alert(error.message); else fetchRestaurants();
+  };
+
+  const handleAddMenuItem = async (restaurantId: string, item: MenuItem) => {
+    const { error } = await supabase.from('menu_items').insert([{
+      restaurant_id: restaurantId, name: item.name, description: item.description, price: item.price, image: item.image, category: item.category, sizes: item.sizes, temp_options: item.tempOptions
+    }]);
+    if (error) alert(error.message); else fetchRestaurants();
+  };
+
+  const handleDeleteMenuItem = async (resId: string, itemId: string) => {
+    const { error } = await supabase.from('menu_items').delete().eq('id', itemId);
+    if (error) alert(error.message); else fetchRestaurants();
   };
 
   if (isLoading) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 dark:bg-gray-900">
         <Loader2 className="w-12 h-12 text-orange-500 animate-spin mb-4" />
-        <p className="text-gray-500 font-bold uppercase tracking-widest text-[10px]">Syncing Engine...</p>
+        <p className="text-gray-500 font-black uppercase tracking-[0.2em] text-[10px]">Syncing Engine...</p>
       </div>
     );
   }
 
   if (view === 'LANDING') {
-    return (
-      <LandingPage 
-        onScan={handleScanSimulation} 
-        onLoginClick={() => { setView('LOGIN'); localStorage.setItem('qs_view', 'LOGIN'); }} 
-        isDarkMode={isDarkMode} 
-        onToggleDarkMode={() => setIsDarkMode(!isDarkMode)} 
-        locations={locations.filter(l => l.isActive !== false)}
-      />
-    );
+    return <LandingPage onScan={handleScanSimulation} onLoginClick={() => setView('LOGIN')} isDarkMode={isDarkMode} onToggleDarkMode={() => setIsDarkMode(!isDarkMode)} locations={locations.filter(l => l.isActive !== false)} />;
   }
 
   if (view === 'LOGIN') {
-    return <LoginPage allUsers={allUsers} onLogin={handleLogin} onBack={() => { setView('LANDING'); localStorage.setItem('qs_view', 'LANDING'); }} />;
+    return <LoginPage allUsers={allUsers} onLogin={handleLogin} onBack={() => setView('LANDING')} />;
   }
 
-  const activeVendorRestaurant = currentUser && currentUser.role === 'VENDOR' 
-    ? restaurants.find(r => r.id === currentUser.restaurantId) 
-    : null;
+  const activeVendorRes = currentUser?.role === 'VENDOR' ? restaurants.find(r => r.id === currentUser.restaurantId) : null;
 
   return (
-    <div className="min-h-screen flex flex-col bg-gray-50 dark:bg-gray-900 transition-colors duration-300">
-      <header className="sticky top-0 z-50 bg-white dark:bg-gray-800 border-b dark:border-gray-700 shadow-sm h-16 flex items-center justify-between px-4 lg:px-8">
-        <div className="flex items-center gap-2 cursor-pointer" onClick={() => { setView('LANDING'); localStorage.setItem('qs_view', 'LANDING'); }}>
-          <div className="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center text-white font-bold">Q</div>
-          <h1 className="text-xl font-bold text-gray-800 dark:text-white tracking-tight">QuickServe</h1>
+    <div className="min-h-screen flex flex-col bg-gray-50 dark:bg-gray-900">
+      <header className="sticky top-0 z-50 bg-white dark:bg-gray-800 border-b dark:border-gray-700 h-16 flex items-center justify-between px-8 shadow-sm">
+        <div className="flex items-center gap-2 cursor-pointer" onClick={() => setView('LANDING')}>
+          <div className="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center text-white font-black">Q</div>
+          <h1 className="text-xl font-black dark:text-white">QuickServe</h1>
         </div>
-
-        {currentRole === 'CUSTOMER' && sessionLocation && (
-          <div className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-orange-50 dark:bg-orange-900/20 border border-orange-100 dark:border-orange-800/50 rounded-full">
-            <MapPin size={14} className="text-orange-500" />
-            <span className="text-xs font-bold text-orange-700 dark:text-orange-300">{sessionLocation} • Table {sessionTable}</span>
-          </div>
-        )}
-
         <div className="flex items-center gap-4">
-          <button 
-            onClick={() => setIsDarkMode(!isDarkMode)}
-            className="p-2 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
-          >
+          <button onClick={() => setIsDarkMode(!isDarkMode)} className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 dark:text-white">
             {isDarkMode ? <Sun size={20} /> : <Moon size={20} />}
           </button>
-
-          {currentUser ? (
+          {currentUser && (
             <div className="flex items-center gap-3">
               <div className="text-right hidden sm:block">
-                <p className="text-xs text-gray-400 capitalize">{currentUser.role}</p>
-                <p className="text-sm font-semibold dark:text-white">{currentUser.username}</p>
+                <p className="text-[10px] text-gray-400 font-bold uppercase">{currentUser.role}</p>
+                <p className="text-xs font-black dark:text-white">{currentUser.username}</p>
               </div>
-              <button onClick={handleLogout} className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"><LogOut size={20} /></button>
+              <button onClick={handleLogout} className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 dark:text-white"><LogOut size={20} /></button>
             </div>
-          ) : (
-            <button 
-              onClick={() => { setView('LOGIN'); localStorage.setItem('qs_view', 'LOGIN'); }} 
-              className="flex items-center gap-2 px-4 py-2 bg-orange-500 text-white rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-orange-600 transition-all shadow-lg active:scale-95"
-            >
-              <LogIn size={14} />
-              Login
-            </button>
           )}
         </div>
       </header>
@@ -545,17 +411,16 @@ const App: React.FC = () => {
             locationName={sessionLocation || undefined} tableNo={sessionTable || undefined}
           />
         )}
-        {currentRole === 'VENDOR' && currentUser && activeVendorRestaurant && (
+        {currentRole === 'VENDOR' && activeVendorRes && (
           <VendorView 
-            restaurant={activeVendorRestaurant} 
-            orders={orders.filter(o => o.restaurantId === currentUser.restaurantId)}
-            onUpdateOrder={updateOrderStatus} onUpdateMenu={updateMenuItem} onAddMenuItem={handleAddMenuItem} onPermanentDeleteMenuItem={handlePermanentDeleteMenuItem}
+            restaurant={activeVendorRes} orders={orders.filter(o => o.restaurantId === currentUser?.restaurantId)}
+            onUpdateOrder={updateOrderStatus} onUpdateMenu={handleUpdateMenuItem} onAddMenuItem={handleAddMenuItem} onPermanentDeleteMenuItem={handleDeleteMenuItem}
           />
         )}
         {currentRole === 'ADMIN' && (
           <AdminView 
             vendors={allUsers.filter(u => u.role === 'VENDOR')} restaurants={restaurants} orders={orders} locations={locations}
-            onAddVendor={handleAddVendor} onUpdateVendor={handleUpdateVendor} onImpersonateVendor={handleImpersonateVendor}
+            onAddVendor={handleAddVendor} onUpdateVendor={handleUpdateVendor} onImpersonateVendor={handleLogin}
             onAddLocation={handleAddLocation} onUpdateLocation={handleUpdateLocation} onDeleteLocation={handleDeleteLocation}
           />
         )}
