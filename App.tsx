@@ -48,7 +48,11 @@ const App: React.FC = () => {
   });
 
   const [lastSyncTime, setLastSyncTime] = useState<Date>(new Date());
-  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
+  
+  // --- TRANSACTION LOCKS (Prevent Polling Flickering) ---
+  const lockedOrderIds = useRef<Set<string>>(new Set());
+  const isStatusLocked = useRef<boolean>(false);
+  const isFetchingRef = useRef(false);
   
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
     try {
@@ -78,8 +82,6 @@ const App: React.FC = () => {
     return localStorage.getItem('theme') === 'dark' || 
       (!localStorage.getItem('theme') && window.matchMedia('(prefers-color-scheme: dark)').matches);
   });
-
-  const isFetchingRef = useRef(false);
 
   const persistCache = (key: string, data: any) => {
     try {
@@ -121,8 +123,8 @@ const App: React.FC = () => {
   }, []);
 
   const fetchRestaurants = useCallback(async () => {
-    // Prevent background fetches from overwriting local state while we are toggling online/offline
-    if (isUpdatingStatus) return;
+    // If we just manually toggled the status, don't let background fetches overwrite it for 3 seconds
+    if (isStatusLocked.current) return;
 
     const { data: resData, error: resError } = await supabase.from('restaurants').select('*');
     const { data: menuData, error: menuError } = await supabase.from('menu_items').select('*');
@@ -130,7 +132,7 @@ const App: React.FC = () => {
       const formatted: Restaurant[] = resData.map(res => ({
         id: res.id, name: res.name, logo: res.logo, vendorId: res.vendor_id,
         location: res.location_name, created_at: res.created_at,
-        isOnline: res.is_online !== false, // Default to online if not specified
+        isOnline: res.is_online !== false, 
         menu: menuData.filter(m => m.restaurant_id === res.id).map(m => ({
           id: m.id, name: m.name, description: m.description, price: Number(m.price),
           image: m.image, category: m.category, isArchived: m.is_archived,
@@ -140,7 +142,7 @@ const App: React.FC = () => {
       setRestaurants(formatted);
       persistCache('qs_cache_restaurants', formatted);
     }
-  }, [isUpdatingStatus]);
+  }, []);
 
   const fetchOrders = useCallback(async () => {
     if (isFetchingRef.current) return;
@@ -148,16 +150,29 @@ const App: React.FC = () => {
     try {
       const { data, error } = await supabase.from('orders').select('*').order('timestamp', { ascending: false }).limit(200);
       if (!error && data) {
-        const mapped = data.map(o => ({
-          id: o.id, items: o.items || [], total: Number(o.total || 0),
-          status: o.status as OrderStatus, timestamp: parseTimestamp(o.timestamp),
-          customerId: o.customer_id, restaurantId: o.restaurant_id,
-          tableNumber: o.table_number, locationName: o.location_name,
-          remark: o.remark, rejectionReason: o.rejection_reason, rejectionNote: o.rejection_note
-        }));
-        setOrders(mapped);
+        setOrders(prev => {
+          const mapped = data.map(o => {
+            const mappedOrder: Order = {
+              id: o.id, items: o.items || [], total: Number(o.total || 0),
+              status: o.status as OrderStatus, timestamp: parseTimestamp(o.timestamp),
+              customerId: o.customer_id, restaurantId: o.restaurant_id,
+              tableNumber: o.table_number, locationName: o.location_name,
+              remark: o.remark, rejectionReason: o.rejection_reason, rejectionNote: o.rejection_note
+            };
+
+            // IF ORDER IS LOCKED: Do not let the server overwrite the status we just set locally
+            if (lockedOrderIds.current.has(o.id)) {
+              const localOrder = prev.find(p => p.id === o.id);
+              if (localOrder) {
+                mappedOrder.status = localOrder.status;
+              }
+            }
+            return mappedOrder;
+          });
+          persistCache('qs_cache_orders', mapped);
+          return mapped;
+        });
         setLastSyncTime(new Date());
-        persistCache('qs_cache_orders', mapped);
       }
     } finally {
       isFetchingRef.current = false;
@@ -185,21 +200,24 @@ const App: React.FC = () => {
     };
   }, [fetchUsers, fetchLocations, fetchRestaurants, fetchOrders]);
 
-  // Handle Polling Interval (Scheduler)
+  // Scheduler with Strict Offline Pause
   useEffect(() => {
-    // Logic to determine if we should stop the scheduler:
-    // If the current user is a vendor and their restaurant is currently offline, stop polling.
     const activeVendorRes = currentUser?.role === 'VENDOR' ? restaurants.find(r => r.id === currentUser.restaurantId) : null;
     const isOffline = activeVendorRes && activeVendorRes.isOnline === false;
 
+    // If offline, stop the scheduler immediately
     if (isOffline) {
-      console.log("Vendor is offline. Scheduler paused.");
-      return; 
+      console.log("Scheduler suspended (Vendor Offline)");
+      return;
     }
 
-    const interval = setInterval(fetchOrders, 5000);
+    const interval = setInterval(() => {
+      fetchOrders();
+      fetchRestaurants();
+    }, 5000);
+
     return () => clearInterval(interval);
-  }, [fetchOrders, restaurants, currentUser]);
+  }, [fetchOrders, fetchRestaurants, restaurants, currentUser]);
 
   useEffect(() => {
     if (isDarkMode) document.documentElement.classList.add('dark');
@@ -220,62 +238,37 @@ const App: React.FC = () => {
 
   const placeOrder = async (remark: string) => {
     if (cart.length === 0) return;
-    
     const area = locations.find(l => l.name === sessionLocation);
     const code = area?.code || 'QS';
-    
     let nextNum = 1;
-    const { data: lastOrder } = await supabase
-      .from('orders')
-      .select('id')
-      .ilike('id', `${code}%`)
-      .order('id', { ascending: false })
-      .limit(1);
-
+    const { data: lastOrder } = await supabase.from('orders').select('id').ilike('id', `${code}%`).order('id', { ascending: false }).limit(1);
     if (lastOrder && lastOrder[0]) {
       const lastId = lastOrder[0].id;
       const numPart = lastId.substring(code.length);
       const parsed = parseInt(numPart);
       if (!isNaN(parsed)) nextNum = parsed + 1;
     }
-    
     const orderId = `${code}${String(nextNum).padStart(7, '0')}`;
     const numericTimestamp = Date.now();
-
     const newOrder = {
-      id: orderId,
-      items: cart,
-      total: cart.reduce((acc, item) => acc + item.price * item.quantity, 0),
-      status: OrderStatus.PENDING,
-      timestamp: numericTimestamp, 
-      customer_id: 'guest_user',
-      restaurant_id: cart[0].restaurantId,
-      table_number: sessionTable || 'N/A',
-      location_name: sessionLocation || 'Unspecified',
-      remark: remark
+      id: orderId, items: cart, total: cart.reduce((acc, item) => acc + item.price * item.quantity, 0),
+      status: OrderStatus.PENDING, timestamp: numericTimestamp, customer_id: 'guest_user',
+      restaurant_id: cart[0].restaurantId, table_number: sessionTable || 'N/A',
+      location_name: sessionLocation || 'Unspecified', remark: remark
     };
-    
     const { error } = await supabase.from('orders').insert([newOrder]);
     if (error) {
       alert("Placement Error: " + error.message);
     } else {
       setCart([]);
-      setOrders(prev => [{
-        id: orderId, items: newOrder.items, total: Number(newOrder.total),
-        status: OrderStatus.PENDING, timestamp: numericTimestamp,
-        customerId: newOrder.customer_id, restaurantId: newOrder.restaurant_id,
-        tableNumber: newOrder.table_number, locationName: newOrder.location_name,
-        remark: newOrder.remark
-      }, ...prev]);
+      setOrders(prev => [{ ...newOrder, customerId: newOrder.customer_id, restaurantId: newOrder.restaurant_id, tableNumber: newOrder.table_number, locationName: newOrder.location_name, total: Number(newOrder.total) } as any, ...prev]);
       fetchOrders();
       alert(`Order ${orderId} submitted!`);
     }
   };
 
   const handleLogin = (user: User) => {
-    setCurrentUser(user);
-    setCurrentRole(user.role);
-    setView('APP');
+    setCurrentUser(user); setCurrentRole(user.role); setView('APP');
     localStorage.setItem('qs_user', JSON.stringify(user));
     localStorage.setItem('qs_role', user.role);
     localStorage.setItem('qs_view', 'APP');
@@ -287,31 +280,44 @@ const App: React.FC = () => {
   };
 
   const updateOrderStatus = async (orderId: string, status: OrderStatus, reason?: string, note?: string) => {
+    // 1. Lock the order ID so background fetch doesn't overwrite it
+    lockedOrderIds.current.add(orderId);
+    
+    // 2. Optimistic Update
     setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status, rejectionReason: reason, rejectionNote: note } : o));
+    
+    // 3. Remote Update
     await supabase.from('orders').update({ status, rejection_reason: reason, rejection_note: note }).eq('id', orderId);
+    
+    // 4. Release lock after 3 seconds (enough time for DB propagation)
+    setTimeout(() => {
+      lockedOrderIds.current.delete(orderId);
+    }, 3000);
+    
     fetchOrders();
   };
 
   const toggleVendorOnline = async (restaurantId: string, currentStatus: boolean) => {
     const newStatus = !currentStatus;
     
-    // Set lock to prevent background fetch from overwriting our optimistic state
-    setIsUpdatingStatus(true);
+    // 1. Lock status sync
+    isStatusLocked.current = true;
     
-    // Optimistic Update
+    // 2. Optimistic Update
     setRestaurants(prev => prev.map(r => r.id === restaurantId ? { ...r, isOnline: newStatus } : r));
     
-    try {
-      const { error } = await supabase.from('restaurants').update({ is_online: newStatus }).eq('id', restaurantId);
-      if (error) {
-         console.error("Failed to update status", error);
-         // Reset state if DB fails
-         await fetchRestaurants();
-      }
-    } finally {
-      // Small delay to ensure DB triggers have finished propagation before allowing refetches
-      setTimeout(() => setIsUpdatingStatus(false), 1000);
+    // 3. Remote Update
+    const { error } = await supabase.from('restaurants').update({ is_online: newStatus }).eq('id', restaurantId);
+    
+    if (error) {
+       console.error("Failed to update status", error);
+       fetchRestaurants(); // Rollback
     }
+
+    // 4. Release lock after 3 seconds
+    setTimeout(() => {
+      isStatusLocked.current = false;
+    }, 3000);
   };
 
   const addToCart = (item: CartItem) => {
