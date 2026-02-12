@@ -23,7 +23,6 @@ const LandingPage: React.FC<Props> = ({ onScan, onLoginClick, isDarkMode, onTogg
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const requestRef = useRef<number>(0);
 
-  // Sync selectedLocation once locations are loaded to fix simulation "no response"
   useEffect(() => {
     if (locations.length > 0 && !selectedLocation) {
       setSelectedLocation(locations[0].name);
@@ -134,8 +133,8 @@ const LandingPage: React.FC<Props> = ({ onScan, onLoginClick, isDarkMode, onTogg
     <div className="min-h-screen bg-white dark:bg-gray-900 transition-colors duration-300 flex flex-col">
       <nav className="p-6 flex justify-between items-center max-w-7xl mx-auto w-full">
         <div className="flex items-center gap-2">
-          <div className="w-10 h-10 bg-orange-500 rounded-xl flex items-center justify-center text-white font-black text-xl shadow-lg shadow-orange-200 dark:shadow-none">Q</div>
-          <span className="text-2xl font-black tracking-tighter dark:text-white">QuickServe</span>
+          <div className="w-10 h-10 bg-orange-500 rounded-xl flex items-center justify-center text-white font-black text-xl shadow-lg shadow-orange-200 dark:shadow-none">S</div>
+          <span className="text-2xl font-black tracking-tighter dark:text-white">ServeFlow</span>
         </div>
         <div className="flex items-center gap-4">
           <button onClick={onToggleDarkMode} className="p-2 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">
