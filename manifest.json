@@ -1,7 +1,7 @@
 
 {
-  "name": "ServeFlow Ordering",
-  "short_name": "ServeFlow",
+  "name": "QuickServe Ordering",
+  "short_name": "QuickServe",
   "description": "Multi-Vendor Food Hub & QR Ordering System",
   "start_url": "/",
   "display": "standalone",
