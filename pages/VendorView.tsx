@@ -65,7 +65,6 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
   // Sound & Visual Alert for New Orders
   useEffect(() => {
     if (pendingOrders.length > prevPendingCount.current) {
-      // Trigger Audio Notification
       try {
         const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
         const osc = audioCtx.createOscillator();
@@ -73,7 +72,7 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
         osc.connect(gain);
         gain.connect(audioCtx.destination);
         osc.type = 'sine';
-        osc.frequency.setValueAtTime(880, audioCtx.currentTime); // A5 note
+        osc.frequency.setValueAtTime(880, audioCtx.currentTime);
         gain.gain.setValueAtTime(0, audioCtx.currentTime);
         gain.gain.linearRampToValueAtTime(0.2, audioCtx.currentTime + 0.1);
         gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.8);
@@ -82,8 +81,6 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
       } catch (e) {
         console.warn("Audio Context failed to start (interaction required).");
       }
-      
-      // Visual Alert
       setShowNewOrderAlert(true);
       setTimeout(() => setShowNewOrderAlert(false), 5000);
     }
@@ -116,7 +113,6 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
     return statusMatch && categoryMatch;
   });
 
-  // Report logic
   const filteredReports = useMemo(() => {
     return orders.filter(o => {
       const orderDate = new Date(o.timestamp).toISOString().split('T')[0];
@@ -126,7 +122,6 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
     });
   }, [orders, reportStart, reportEnd, reportStatus]);
 
-  // Reset page when data or entry limit changes
   useEffect(() => {
     setCurrentPage(1);
   }, [filteredReports.length, entriesPerPage, reportStatus, reportStart, reportEnd]);
@@ -139,7 +134,6 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
 
   const handleDownloadReport = () => {
     if (filteredReports.length === 0) return;
-    
     const headers = ['Order ID', 'Time', 'Status', 'Items', 'Total'];
     const rows = filteredReports.map(o => [
       o.id,
@@ -148,7 +142,6 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
       o.items.map(i => `${i.name} (x${i.quantity})`).join('; '),
       o.total.toFixed(2)
     ]);
-
     const csvContent = [headers, ...rows].map(e => e.join(',')).join('\n');
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -176,7 +169,7 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
       description: '',
       price: 0,
       image: '',
-      category: 'Main',
+      category: 'Main Dish',
       sizes: [],
       tempOptions: { enabled: false, hot: 0, cold: 0 }
     });
@@ -234,7 +227,7 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
       description: formItem.description || '',
       price: Number(formItem.price),
       image: formItem.image || `https://picsum.photos/seed/${formItem.name}/400/300`,
-      category: formItem.category || 'Main',
+      category: formItem.category || 'Main Dish',
       isArchived: editingItem ? editingItem.isArchived : false,
       sizes: formItem.sizes,
       tempOptions: formItem.tempOptions?.enabled ? formItem.tempOptions : undefined
@@ -245,7 +238,6 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
     } else {
       onAddMenuItem(restaurant.id, itemToSave);
     }
-    
     setIsFormModalOpen(false);
   };
 
@@ -295,8 +287,6 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
             Sales Reports
           </button>
         </nav>
-        
-        {/* Advanced Live Sync Badge in Sidebar */}
         <div className="p-4 mt-auto border-t dark:border-gray-700 space-y-2">
           <div className="flex items-center justify-between px-3 py-2 bg-gray-50 dark:bg-gray-700/50 rounded-xl border dark:border-gray-600">
              <div className="flex items-center gap-2">
@@ -312,7 +302,6 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
       </aside>
 
       <main className="flex-1 overflow-y-auto bg-gray-50 dark:bg-gray-900 p-8 relative">
-        {/* Real-time Toast Alert */}
         {showNewOrderAlert && (
           <div className="fixed top-20 right-8 z-[100] animate-in slide-in-from-right duration-500">
             <div className="bg-orange-600 text-white px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-4 border-2 border-white/20 backdrop-blur-md">
@@ -358,7 +347,6 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
                 </button>
               </div>
             </div>
-
             <div className="space-y-4">
               {filteredOrders.length === 0 ? (
                 <div className="bg-white dark:bg-gray-800 rounded-2xl p-20 text-center border border-dashed border-gray-300 dark:border-gray-700">
@@ -399,7 +387,6 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
                           </div>
                         ))}
                       </div>
-
                       {order.remark && (
                         <div className="mt-4 p-3 bg-orange-50 dark:bg-orange-900/10 border border-orange-100 dark:border-orange-900/20 rounded-xl">
                            <div className="flex items-center gap-2 mb-1">
@@ -409,7 +396,6 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
                            <p className="text-xs text-gray-700 dark:text-gray-300 italic">{order.remark}</p>
                         </div>
                       )}
-
                       {order.status === OrderStatus.CANCELLED && order.rejectionReason && (
                         <div className="mt-4 p-3 bg-red-50 dark:bg-red-900/10 border border-red-100 dark:border-red-900/20 rounded-xl">
                            <div className="flex items-center gap-2 mb-1">
@@ -420,13 +406,11 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
                            {order.rejectionNote && <p className="text-[10px] text-red-600 dark:text-red-400 mt-1 italic">"{order.rejectionNote}"</p>}
                         </div>
                       )}
-
                       <div className="mt-4 pt-4 border-t dark:border-gray-700 flex justify-between items-center">
                         <span className="text-xs font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest">Grand Total</span>
                         <span className="text-2xl font-black text-gray-900 dark:text-white">RM{order.total.toFixed(2)}</span>
                       </div>
                     </div>
-                    
                     <div className="flex md:flex-col gap-2 min-w-[140px] mt-2 md:mt-0">
                       {order.status === OrderStatus.PENDING && (
                         <>
@@ -478,7 +462,6 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
                 <h1 className="text-2xl font-black dark:text-white uppercase tracking-tighter">Kitchen Menu</h1>
                 <p className="text-sm text-gray-500 dark:text-gray-400">Manage your active listings.</p>
               </div>
-
               <div className="flex flex-wrap items-center gap-3">
                 <div className="flex bg-white dark:bg-gray-800 rounded-xl p-1 border dark:border-gray-700 shadow-sm">
                   <button 
@@ -493,15 +476,13 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
                     className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${menuStatusFilter === 'ARCHIVED' ? 'bg-orange-500 text-white shadow-md' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50'}`}
                   >
                     <Archive size={14} />
-                    Vault
+                    Archived
                   </button>
                 </div>
-
                 <div className="flex bg-white dark:bg-gray-800 rounded-xl p-1 border dark:border-gray-700 shadow-sm">
                   <button onClick={() => setMenuViewMode('grid')} className={`p-2 rounded-lg transition-all ${menuViewMode === 'grid' ? 'bg-orange-500 text-white' : 'text-gray-400'}`}><LayoutGrid size={18} /></button>
                   <button onClick={() => setMenuViewMode('list')} className={`p-2 rounded-lg transition-all ${menuViewMode === 'list' ? 'bg-orange-500 text-white' : 'text-gray-400'}`}><List size={18} /></button>
                 </div>
-
                 <button 
                   onClick={handleOpenAddModal}
                   className="px-6 py-3 bg-black dark:bg-gray-100 text-white dark:text-gray-900 rounded-xl font-bold uppercase tracking-widest text-xs hover:bg-gray-800 transition-all shadow-lg ml-auto"
@@ -510,7 +491,6 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
                 </button>
               </div>
             </div>
-
             <div className="flex items-center gap-2 mb-8 bg-white dark:bg-gray-800 px-4 py-2 border dark:border-gray-700 rounded-2xl shadow-sm overflow-x-auto hide-scrollbar">
               <Filter size={16} className="text-gray-400 shrink-0" />
               {categories.map(cat => (
@@ -523,7 +503,6 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
                 </button>
               ))}
             </div>
-
             {currentMenu.length === 0 ? (
                <div className="bg-white dark:bg-gray-800 rounded-3xl p-20 text-center border border-dashed border-gray-300 dark:border-gray-700">
                   <div className="w-16 h-16 bg-gray-50 dark:bg-gray-700 rounded-full flex items-center justify-center mx-auto mb-4 text-gray-300">
@@ -612,7 +591,6 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
         {activeTab === 'REPORTS' && (
           <div className="max-w-6xl mx-auto animate-in fade-in duration-500">
             <h1 className="text-2xl font-black mb-8 dark:text-white uppercase tracking-tighter">Kitchen Sales Ledger</h1>
-            
             <div className="bg-white dark:bg-gray-800 p-6 rounded-xl border dark:border-gray-700 shadow-sm flex flex-col md:flex-row items-center gap-6 mb-8">
               <div className="flex-1 flex flex-col md:flex-row gap-4 w-full">
                 <div className="flex-1">
@@ -635,7 +613,6 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
               </div>
               <button onClick={handleDownloadReport} className="w-full md:w-auto px-6 py-3 bg-gray-900 text-white dark:bg-white dark:text-gray-900 rounded-xl font-black text-xs uppercase tracking-widest flex items-center gap-2 hover:bg-orange-500 transition-all"><Download size={18} /> Export CSV</button>
             </div>
-
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
               <div className="bg-white dark:bg-gray-800 p-6 rounded-xl border dark:border-gray-700 shadow-sm">
                 <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Total Revenue</p>
@@ -652,7 +629,6 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
                 </p>
               </div>
             </div>
-
             <div className="bg-white dark:bg-gray-800 rounded-xl border dark:border-gray-700 overflow-hidden shadow-sm">
               <table className="w-full">
                 <thead className="bg-gray-50 dark:bg-gray-700/50 text-gray-400 text-[10px] font-black uppercase tracking-widest">
@@ -686,7 +662,6 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
         )}
       </main>
 
-      {/* Reject Order Modal */}
       {rejectingOrderId && (
         <div className="fixed inset-0 z-[100] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white dark:bg-gray-800 rounded-3xl max-w-md w-full p-8 shadow-2xl relative animate-in fade-in zoom-in duration-300">
@@ -710,35 +685,214 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
         </div>
       )}
 
-      {/* Unified Form Modal (Add/Edit) */}
       {isFormModalOpen && (
-        <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-3xl max-w-2xl w-full p-8 shadow-2xl relative overflow-y-auto max-h-[90vh] animate-in fade-in zoom-in duration-300 custom-scrollbar">
-            <button onClick={() => setIsFormModalOpen(false)} className="absolute top-6 right-6 p-2 text-gray-400"><X size={20} /></button>
-            <h2 className="text-2xl font-black mb-1 uppercase tracking-tighter">{editingItem ? 'Modify Recipe' : 'Inventory Creation'}</h2>
-            <form onSubmit={handleSaveItem} className="space-y-6 mt-8">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-4">
-                  <div className="relative aspect-video bg-gray-100 dark:bg-gray-700 rounded-2xl overflow-hidden flex flex-col items-center justify-center border-2 border-dashed border-gray-200 dark:border-gray-600 group">
-                    {formItem.image ? <img src={formItem.image} className="w-full h-full object-cover" /> : <div className="text-center p-6"><ImageIcon size={32} className="mx-auto text-gray-300 mb-2" /><p className="text-[10px] font-black uppercase text-gray-400">Branding Asset</p></div>}
-                    <button type="button" onClick={() => fileInputRef.current?.click()} className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white font-black uppercase text-[10px] tracking-[0.2em]"><Upload size={24} /></button>
+        <div className="fixed inset-0 z-[100] bg-[#1a1c23]/95 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-[#242731] text-gray-100 rounded-3xl max-w-3xl w-full p-10 shadow-2xl relative overflow-y-auto max-h-[95vh] animate-in fade-in zoom-in duration-300">
+            <button onClick={() => setIsFormModalOpen(false)} className="absolute top-8 right-8 p-2 text-gray-400 hover:text-white transition-colors">
+              <X size={24} />
+            </button>
+            
+            <div className="mb-8">
+              <h2 className="text-3xl font-black uppercase tracking-tighter mb-1">
+                {editingItem ? 'Modify Menu' : 'Inventory Creation'}
+              </h2>
+              {editingItem && (
+                <p className="text-gray-400 text-sm">Currently editing "{editingItem.name}"</p>
+              )}
+            </div>
+
+            <form onSubmit={handleSaveItem} className="space-y-10">
+              <div className="grid grid-cols-1 md:grid-cols-12 gap-10">
+                {/* Left Side: Image */}
+                <div className="md:col-span-5 space-y-4">
+                  <div className="relative aspect-[4/3] bg-gray-800 rounded-3xl overflow-hidden border-2 border-dashed border-gray-700 group">
+                    {formItem.image ? (
+                      <img src={formItem.image} className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="flex flex-col items-center justify-center h-full text-gray-500">
+                        <ImageIcon size={48} className="mb-2" />
+                        <p className="text-[10px] font-black uppercase">No Image</p>
+                      </div>
+                    )}
+                    <button 
+                      type="button" 
+                      onClick={() => fileInputRef.current?.click()} 
+                      className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
+                    >
+                      <Upload size={32} className="text-white" />
+                    </button>
                     <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleImageUpload} />
                   </div>
-                </div>
-                <div className="space-y-4">
-                  <input required placeholder="DISH IDENTITY" className="w-full p-4 bg-gray-50 dark:bg-gray-700 border-none rounded-xl font-black uppercase text-xs tracking-widest" value={formItem.name} onChange={(e) => setFormItem({...formItem, name: e.target.value})} />
-                  <div className="grid grid-cols-2 gap-4">
-                    <select className="w-full p-4 bg-gray-50 dark:bg-gray-700 border-none rounded-xl text-xs font-black uppercase tracking-widest" value={formItem.category} onChange={(e) => setFormItem({...formItem, category: e.target.value})}>
-                      {categories.filter(c => c !== 'All').map(c => <option key={c} value={c}>{c}</option>)}
-                    </select>
-                    <input required type="number" step="0.01" placeholder="RM 0.00" className="w-full p-4 bg-gray-50 dark:bg-gray-700 border-none rounded-xl font-black text-xs" value={formItem.price || ''} onChange={(e) => setFormItem({...formItem, price: Number(e.target.value)})} />
+                  
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest block">Image Source</label>
+                    <div className="flex gap-2">
+                      <button 
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="bg-[#323644] p-3 rounded-xl hover:bg-[#3d4253] transition-colors"
+                      >
+                        <Upload size={18} />
+                      </button>
+                      <input 
+                        placeholder="Or paste an image URL..." 
+                        className="flex-1 bg-[#323644] border-none rounded-xl text-sm p-3 focus:ring-1 focus:ring-orange-500 outline-none"
+                        value={formItem.image}
+                        onChange={(e) => setFormItem({...formItem, image: e.target.value})}
+                      />
+                    </div>
                   </div>
-                  <textarea rows={2} placeholder="SENSORY DESCRIPTION..." className="w-full p-4 bg-gray-50 dark:bg-gray-700 border-none rounded-xl text-xs font-medium uppercase tracking-tight resize-none" value={formItem.description} onChange={(e) => setFormItem({...formItem, description: e.target.value})} />
+                </div>
+
+                {/* Right Side: Inputs */}
+                <div className="md:col-span-7 space-y-6">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest block">Item Title</label>
+                    <input 
+                      required 
+                      className="w-full bg-[#323644] border-none rounded-xl text-lg font-bold p-4 focus:ring-1 focus:ring-orange-500 outline-none"
+                      value={formItem.name}
+                      onChange={(e) => setFormItem({...formItem, name: e.target.value})}
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest block">Classification</label>
+                      <select 
+                        className="w-full bg-[#323644] border-none rounded-xl text-sm font-bold p-4 focus:ring-1 focus:ring-orange-500 outline-none appearance-none"
+                        value={formItem.category}
+                        onChange={(e) => setFormItem({...formItem, category: e.target.value})}
+                      >
+                        {categories.filter(c => c !== 'All').map(c => <option key={c} value={c}>{c}</option>)}
+                      </select>
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest block">Base Price (RM)</label>
+                      <input 
+                        required 
+                        type="number" 
+                        step="0.01" 
+                        className="w-full bg-[#323644] border-none rounded-xl text-lg font-bold p-4 focus:ring-1 focus:ring-orange-500 outline-none"
+                        value={formItem.price || ''}
+                        onChange={(e) => setFormItem({...formItem, price: Number(e.target.value)})}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest block">Description</label>
+                    <textarea 
+                      rows={3} 
+                      className="w-full bg-[#323644] border-none rounded-xl text-sm p-4 focus:ring-1 focus:ring-orange-500 outline-none resize-none"
+                      value={formItem.description}
+                      onChange={(e) => setFormItem({...formItem, description: e.target.value})}
+                    />
+                  </div>
                 </div>
               </div>
-              <div className="flex gap-4 pt-6 border-t dark:border-gray-700">
-                <button type="button" onClick={() => setIsFormModalOpen(false)} className="flex-1 py-4 bg-gray-100 dark:bg-gray-700 rounded-2xl font-black uppercase text-[10px] tracking-[0.3em]">Abort</button>
-                <button type="submit" className="flex-1 py-4 bg-orange-500 text-white rounded-2xl font-black uppercase text-[10px] tracking-[0.3em] shadow-xl">Commit Engine Change</button>
+
+              {/* Sizes Section */}
+              <div className="border-t border-gray-700 pt-8">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-sm font-black uppercase tracking-widest">Available Sizes (+ Price)</h3>
+                  <button 
+                    type="button" 
+                    onClick={handleAddSize}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-[#2d303b] hover:bg-[#383c4a] text-orange-500 rounded-lg text-[10px] font-black uppercase transition-colors"
+                  >
+                    <Plus size={14} /> Add Size
+                  </button>
+                </div>
+                
+                {(!formItem.sizes || formItem.sizes.length === 0) ? (
+                  <p className="text-center py-8 text-gray-500 text-xs italic">No custom sizes added.</p>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {formItem.sizes.map((size, idx) => (
+                      <div key={idx} className="flex gap-2 bg-[#323644] p-3 rounded-2xl border border-gray-700 shadow-inner">
+                        <input 
+                          placeholder="Size (e.g. Large)"
+                          className="flex-1 bg-transparent border-none text-xs font-bold outline-none"
+                          value={size.name}
+                          onChange={(e) => handleSizeChange(idx, 'name', e.target.value)}
+                        />
+                        <div className="w-24 flex items-center gap-1 border-l border-gray-600 pl-2">
+                           <span className="text-[10px] text-gray-500 font-bold">RM</span>
+                           <input 
+                             type="number"
+                             step="0.01"
+                             placeholder="0.00"
+                             className="w-full bg-transparent border-none text-xs font-bold outline-none"
+                             value={size.price || ''}
+                             onChange={(e) => handleSizeChange(idx, 'price', Number(e.target.value))}
+                           />
+                        </div>
+                        <button type="button" onClick={() => handleRemoveSize(idx)} className="text-red-400 hover:text-red-500 ml-1"><X size={16} /></button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Temp Options */}
+              <div className="border-t border-gray-700 pt-8 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Thermometer size={18} className="text-blue-400" />
+                  <h3 className="text-sm font-black uppercase tracking-widest">Hot / Cold (+ Price)</h3>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input 
+                    type="checkbox" 
+                    className="sr-only peer"
+                    checked={formItem.tempOptions?.enabled}
+                    onChange={(e) => setFormItem({
+                      ...formItem, 
+                      tempOptions: { ...formItem.tempOptions!, enabled: e.target.checked }
+                    })}
+                  />
+                  <div className="w-12 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-orange-500"></div>
+                </label>
+              </div>
+
+              {formItem.tempOptions?.enabled && (
+                <div className="grid grid-cols-2 gap-4 animate-in slide-in-from-top-2 duration-300">
+                   <div className="space-y-1.5">
+                      <label className="text-[10px] font-black text-orange-400 uppercase tracking-widest ml-1">Hot Premium (RM)</label>
+                      <input 
+                        type="number" step="0.01"
+                        className="w-full bg-[#323644] border-none rounded-xl text-sm font-bold p-3 outline-none"
+                        value={formItem.tempOptions.hot || 0}
+                        onChange={(e) => setFormItem({...formItem, tempOptions: {...formItem.tempOptions!, hot: Number(e.target.value)}})}
+                      />
+                   </div>
+                   <div className="space-y-1.5">
+                      <label className="text-[10px] font-black text-blue-400 uppercase tracking-widest ml-1">Cold Premium (RM)</label>
+                      <input 
+                        type="number" step="0.01"
+                        className="w-full bg-[#323644] border-none rounded-xl text-sm font-bold p-3 outline-none"
+                        value={formItem.tempOptions.cold || 0}
+                        onChange={(e) => setFormItem({...formItem, tempOptions: {...formItem.tempOptions!, cold: Number(e.target.value)}})}
+                      />
+                   </div>
+                </div>
+              )}
+
+              {/* Footer Buttons */}
+              <div className="flex gap-4 pt-10">
+                <button 
+                  type="button" 
+                  onClick={() => setIsFormModalOpen(false)} 
+                  className="flex-1 py-4 bg-[#323644] hover:bg-[#3d4253] text-gray-300 rounded-2xl font-black text-sm transition-all"
+                >
+                  Cancel
+                </button>
+                <button 
+                  type="submit" 
+                  className="flex-1 py-4 bg-orange-500 hover:bg-orange-600 text-white rounded-2xl font-black text-sm shadow-xl shadow-orange-900/20 transition-all active:scale-95"
+                >
+                  Save All Changes
+                </button>
               </div>
             </form>
           </div>
@@ -756,6 +910,16 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
         }
         .animate-ring {
           animation: ring 1s infinite ease-in-out;
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+          width: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+          background: #1a1c23;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+          background: #323644;
+          border-radius: 10px;
         }
       `}</style>
     </div>
