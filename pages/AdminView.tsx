@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { User, Restaurant, Order, Area, OrderStatus } from '../types';
-import { Users, Store, TrendingUp, Settings, ShieldCheck, Mail, Search, Filter, X, Plus, MapPin, Power, CheckCircle2, AlertCircle, LogIn, Trash2, LayoutGrid, List, ChevronRight, Eye, EyeOff, Globe, Phone, ShoppingBag, Edit3, Hash, Download, Calendar, ChevronLeft, Database, Image as ImageIcon, Key, QrCode, Printer, Layers, Info } from 'lucide-react';
+// Added XCircle to the lucide-react imports
+import { Users, Store, TrendingUp, Settings, ShieldCheck, Mail, Search, Filter, X, Plus, MapPin, Power, CheckCircle2, AlertCircle, LogIn, Trash2, LayoutGrid, List, ChevronRight, Eye, EyeOff, Globe, Phone, ShoppingBag, Edit3, Hash, Download, Calendar, ChevronLeft, Database, Image as ImageIcon, Key, QrCode, Printer, Layers, Info, ExternalLink, XCircle } from 'lucide-react';
 
 interface Props {
   vendors: User[];
@@ -458,6 +459,143 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
         )}
       </div>
 
+      {/* QR Generator Modal */}
+      {generatingQrHub && (
+        <div className="fixed inset-0 z-[110] bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-[2.5rem] max-w-2xl w-full p-8 shadow-2xl relative flex flex-col max-h-[90vh] overflow-hidden no-print animate-in zoom-in duration-300">
+            <button onClick={() => setGeneratingQrHub(null)} className="absolute top-6 right-6 p-2 text-gray-400 hover:text-red-500 transition-colors"><X size={20} /></button>
+            
+            <div className="mb-6">
+              <h2 className="text-2xl font-black uppercase tracking-tighter dark:text-white">QR Code Generator</h2>
+              <p className="text-[10px] font-black text-orange-500 uppercase tracking-widest">Location: {generatingQrHub.name} ({generatingQrHub.code})</p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 flex-1 overflow-y-auto pr-2 custom-scrollbar">
+              <div className="space-y-6">
+                <div>
+                  <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3 ml-1">Generation Mode</label>
+                  <div className="flex bg-gray-50 dark:bg-gray-700 p-1 rounded-xl">
+                    <button onClick={() => setQrMode('SINGLE')} className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${qrMode === 'SINGLE' ? 'bg-white dark:bg-gray-600 shadow-sm text-orange-500' : 'text-gray-400'}`}>Single Table</button>
+                    <button onClick={() => setQrMode('BATCH')} className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${qrMode === 'BATCH' ? 'bg-white dark:bg-gray-600 shadow-sm text-orange-500' : 'text-gray-400'}`}>Batch Range</button>
+                  </div>
+                </div>
+
+                {qrMode === 'SINGLE' ? (
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Table Number</label>
+                    <div className="relative">
+                      <Hash size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
+                      <input type="text" className="w-full pl-11 pr-4 py-2.5 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none text-sm font-bold dark:text-white" value={qrTableNo} onChange={e => setQrTableNo(e.target.value)} />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">From</label>
+                      <input type="number" className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none text-sm font-bold dark:text-white" value={qrStartRange} onChange={e => setQrStartRange(e.target.value)} />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">To</label>
+                      <input type="number" className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none text-sm font-bold dark:text-white" value={qrEndRange} onChange={e => setQrEndRange(e.target.value)} />
+                    </div>
+                  </div>
+                )}
+
+                <div className="p-4 bg-orange-50 dark:bg-orange-900/10 rounded-2xl border border-orange-100 dark:border-orange-900/20">
+                  <div className="flex items-center gap-2 mb-2">
+                    <ExternalLink size={14} className="text-orange-500" />
+                    <span className="text-[10px] font-black text-orange-700 dark:text-orange-400 uppercase tracking-widest">Target Link</span>
+                  </div>
+                  <p className="text-[9px] font-bold text-gray-500 dark:text-gray-400 break-all leading-tight">
+                    {getQrUrl(generatingQrHub.name, qrMode === 'SINGLE' ? qrTableNo : '{ID}')}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex flex-col items-center justify-center p-6 bg-gray-50 dark:bg-gray-700/50 rounded-3xl border dark:border-gray-600 min-h-[300px]">
+                {qrMode === 'SINGLE' ? (
+                  <>
+                    <div className="p-4 bg-white rounded-2xl shadow-xl border border-gray-100 mb-4">
+                       <img src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(getQrUrl(generatingQrHub.name, qrTableNo))}`} alt="QR Code" className="w-40 h-40" />
+                    </div>
+                    <div className="text-center">
+                       <p className="font-black text-sm uppercase dark:text-white">{generatingQrHub.name}</p>
+                       <p className="font-black text-lg text-orange-500 uppercase tracking-tighter">TABLE {qrTableNo}</p>
+                    </div>
+                  </>
+                ) : (
+                  <div className="text-center">
+                    <QrCode size={48} className="mx-auto mb-4 text-orange-500" />
+                    <p className="text-sm font-bold dark:text-white">Batch Ready</p>
+                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mt-1">
+                      {Math.max(0, parseInt(qrEndRange) - parseInt(qrStartRange) + 1)} Labels Prepared
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="pt-6 mt-6 border-t dark:border-gray-700 flex gap-4 no-print">
+              <button onClick={() => setGeneratingQrHub(null)} className="flex-1 py-4 bg-gray-100 dark:bg-gray-700 text-gray-500 rounded-2xl font-black uppercase text-xs tracking-widest">Close</button>
+              <button onClick={handlePrintQr} className="flex-[2] py-4 bg-orange-500 text-white rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl flex items-center justify-center gap-2">
+                <Printer size={18} /> Print Labels
+              </button>
+            </div>
+          </div>
+
+          {/* Hidden Print Section */}
+          <div className="hidden print:block fixed inset-0 bg-white z-[999]">
+             <div className="grid grid-cols-2 gap-8 p-8">
+               {qrMode === 'SINGLE' ? (
+                 <div className="border-4 border-dashed border-gray-200 p-8 flex flex-col items-center justify-center rounded-3xl text-center page-break-inside-avoid">
+                    <h2 className="text-2xl font-black uppercase tracking-tighter mb-4">QuickServe Ordering</h2>
+                    <img src={`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(getQrUrl(generatingQrHub!.name, qrTableNo))}`} className="w-64 h-64 mb-6" />
+                    <p className="text-xl font-black uppercase tracking-widest mb-1">{generatingQrHub.name}</p>
+                    <p className="text-4xl font-black text-orange-500 uppercase">TABLE {qrTableNo}</p>
+                    <p className="text-sm font-bold text-gray-400 mt-6">Scan QR Code to Start Ordering</p>
+                 </div>
+               ) : (
+                 Array.from({ length: Math.max(0, parseInt(qrEndRange) - parseInt(qrStartRange) + 1) }).map((_, i) => {
+                   const tableId = (parseInt(qrStartRange) + i).toString();
+                   return (
+                     <div key={tableId} className="border-2 border-dashed border-gray-200 p-6 flex flex-col items-center justify-center rounded-2xl text-center page-break-inside-avoid h-[400px]">
+                        <h2 className="text-lg font-black uppercase tracking-tighter mb-2">QuickServe</h2>
+                        <img src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(getQrUrl(generatingQrHub!.name, tableId))}`} className="w-40 h-40 mb-4" />
+                        <p className="text-sm font-black uppercase tracking-widest">{generatingQrHub.name}</p>
+                        <p className="text-3xl font-black text-orange-500 uppercase">TABLE {tableId}</p>
+                        <p className="text-[10px] font-bold text-gray-400 mt-4 uppercase">Scan to Order</p>
+                     </div>
+                   );
+                 })
+               )}
+             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Hub Selection Modal for Global QR Button */}
+      {isHubSelectionModalOpen && (
+        <div className="fixed inset-0 z-[105] bg-black/70 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-[2.5rem] max-w-sm w-full p-8 shadow-2xl relative animate-in zoom-in duration-300">
+             <button onClick={() => setIsHubSelectionModalOpen(false)} className="absolute top-6 right-6 p-2 text-gray-400"><X size={20} /></button>
+             <h2 className="text-2xl font-black mb-6 dark:text-white uppercase tracking-tighter">Select Hub</h2>
+             <p className="text-xs text-gray-500 dark:text-gray-400 mb-6">Choose a location to generate QR codes for.</p>
+             <div className="space-y-2 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+               {locations.map(loc => (
+                 <button 
+                   key={loc.id} 
+                   onClick={() => { setGeneratingQrHub(loc); setIsHubSelectionModalOpen(false); }}
+                   className="w-full flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700 hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded-2xl group transition-all"
+                 >
+                   <span className="font-bold dark:text-white group-hover:text-orange-500">{loc.name}</span>
+                   <ChevronRight size={18} className="text-gray-400 group-hover:text-orange-500" />
+                 </button>
+               ))}
+             </div>
+          </div>
+        </div>
+      )}
+
       {/* Vendor Modal - Compact Layout */}
       {isModalOpen && (
         <div className="fixed inset-0 z-[100] bg-black/70 backdrop-blur-md flex items-center justify-center p-4 no-print">
@@ -566,6 +704,58 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
           </div>
         </div>
       )}
+
+      {/* Viewing Vendors in Hub Modal */}
+      {viewingHubVendors && (
+        <div className="fixed inset-0 z-[100] bg-black/70 backdrop-blur-md flex items-center justify-center p-4 no-print">
+          <div className="bg-white dark:bg-gray-800 rounded-[2.5rem] max-w-md w-full p-8 shadow-2xl relative animate-in zoom-in duration-300">
+             <button onClick={() => setViewingHubVendors(null)} className="absolute top-6 right-6 p-2 text-gray-400"><X size={20} /></button>
+             <h2 className="text-2xl font-black mb-6 dark:text-white uppercase tracking-tighter">Kitchens in {viewingHubVendors.name}</h2>
+             <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
+                {restaurants.filter(r => r.location === viewingHubVendors.name).length === 0 ? (
+                  <p className="text-center py-8 text-gray-400 text-xs italic">No vendors currently assigned to this hub.</p>
+                ) : (
+                  restaurants.filter(r => r.location === viewingHubVendors.name).map(res => (
+                    <div key={res.id} className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700 rounded-2xl border dark:border-gray-600">
+                      <div className="flex items-center gap-3">
+                         <img src={res.logo} className="w-10 h-10 rounded-xl shadow-sm object-cover" />
+                         <span className="font-bold dark:text-white text-sm">{res.name}</span>
+                      </div>
+                      <button 
+                        onClick={() => { if(confirm(`Remove ${res.name} from this hub?`)) onRemoveVendorFromHub(res.id); }}
+                        className="p-2 text-gray-400 hover:text-red-500 transition-colors"
+                      >
+                        <XCircle size={18} />
+                      </button>
+                    </div>
+                  ))
+                )}
+             </div>
+          </div>
+        </div>
+      )}
+
+      <style>{`
+        @media print {
+          .no-print { display: none !important; }
+          body { background: white !important; }
+          .print-content { display: block !important; }
+          .page-break-inside-avoid { page-break-inside: avoid; }
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+          width: 5px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+          background: #cbd5e1;
+          border-radius: 10px;
+        }
+        .dark .custom-scrollbar::-webkit-scrollbar-thumb {
+          background: #475569;
+        }
+      `}</style>
     </div>
   );
 };
