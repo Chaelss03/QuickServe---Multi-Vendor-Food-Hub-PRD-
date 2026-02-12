@@ -392,7 +392,7 @@ const App: React.FC = () => {
               className="flex items-center gap-2 px-4 py-2 bg-orange-500 text-white rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-orange-600 transition-all shadow-lg active:scale-95"
             >
               <LogIn size={14} />
-              Staff Login
+              Login
             </button>
           )}
         </div>

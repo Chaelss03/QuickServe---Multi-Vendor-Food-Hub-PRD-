@@ -183,7 +183,7 @@ const CustomerView: React.FC<Props> = ({ restaurants, cart, orders, onAddToCart,
                 >
                   <X size={14} />
                 </button>
-                <div className="flex items-center justify-between pr-6">
+                <div className="flex items-center justify-between pr-8">
                    <div className="flex items-center gap-2">
                       <div className={`w-2 h-2 rounded-full ${order.status === OrderStatus.CANCELLED ? 'bg-red-500' : 'bg-orange-500 animate-pulse'}`}></div>
                       <span className={`text-[10px] font-black uppercase tracking-widest ${order.status === OrderStatus.CANCELLED ? 'text-red-700 dark:text-red-400' : 'text-orange-800 dark:text-orange-200'}`}>
@@ -250,6 +250,7 @@ const CustomerView: React.FC<Props> = ({ restaurants, cart, orders, onAddToCart,
           ))}
         </div>
 
+        {/* Empty State */}
         {restaurants.length === 0 && (
           <div className="text-center py-24 bg-white dark:bg-gray-800 rounded-3xl border-2 border-dashed border-gray-100 dark:border-gray-700">
             <UtensilsCrossed size={48} className="mx-auto mb-4 text-gray-200" />
@@ -360,12 +361,12 @@ const CustomerView: React.FC<Props> = ({ restaurants, cart, orders, onAddToCart,
         </div>
       )}
 
-      {/* Persistent Cart FAB */}
+      {/* Persistent Cart FAB - Adjusted height to be smaller (py-2.5) */}
       {cart.length > 0 && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 w-full max-w-[340px] px-4 z-50">
           <button 
             onClick={() => setShowCart(true)}
-            className="w-full bg-black dark:bg-gray-100 text-white dark:text-gray-900 py-3 px-4 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.3)] flex items-center justify-between hover:scale-[1.02] active:scale-95 transition-all border-4 border-white dark:border-gray-800"
+            className="w-full bg-black dark:bg-gray-100 text-white dark:text-gray-900 py-2.5 px-4 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.3)] flex items-center justify-between hover:scale-[1.02] active:scale-95 transition-all border-4 border-white dark:border-gray-800"
           >
             <div className="flex items-center gap-3">
               <div className="w-7 h-7 bg-orange-500 rounded-lg flex items-center justify-center font-black text-[10px] text-white">
@@ -436,7 +437,25 @@ const CustomerView: React.FC<Props> = ({ restaurants, cart, orders, onAddToCart,
               )}
             </div>
 
-            <div className="p-8 border-t dark:border-gray-800 bg-gray-50 dark:bg-gray-800/80 backdrop-blur-xl"><div className="space-y-3 mb-8"><div className="flex justify-between text-[10px] font-black text-gray-400 uppercase tracking-widest"><span>Subtotal</span><span className="text-gray-900 dark:text-white font-black">RM{cartTotal.toFixed(2)}</span></div><div className="flex justify-between text-2xl font-black text-gray-900 dark:text-white border-t pt-6 mt-6 uppercase tracking-tighter"><span>Grand Total</span><span className="text-orange-500">RM{cartTotal.toFixed(2)}</span></div></div><button disabled={cart.length === 0} onClick={() => { onPlaceOrder(orderRemark); setShowCart(false); setOrderRemark(''); }} className="w-full py-5 bg-orange-500 text-white rounded-[2rem] font-black text-sm uppercase tracking-[0.3em] shadow-2xl hover:bg-orange-600 transition-all active:scale-[0.98] disabled:opacity-50">Send Order to Kitchen</button></div>
+            <div className="p-8 border-t dark:border-gray-800 bg-gray-50 dark:bg-gray-800/80 backdrop-blur-xl">
+              <div className="space-y-3 mb-8">
+                <div className="flex justify-between text-[10px] font-black text-gray-400 uppercase tracking-widest">
+                  <span>Subtotal</span>
+                  <span className="text-gray-900 dark:text-white font-black">RM{cartTotal.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between text-2xl font-black text-gray-900 dark:text-white border-t pt-6 mt-6 uppercase tracking-tighter">
+                  <span>Grand Total</span>
+                  <span className="text-orange-500">RM{cartTotal.toFixed(2)}</span>
+                </div>
+              </div>
+              <button 
+                disabled={cart.length === 0} 
+                onClick={() => { onPlaceOrder(orderRemark); setShowCart(false); setOrderRemark(''); }} 
+                className="w-full py-5 bg-orange-500 text-white rounded-[2rem] font-black text-sm uppercase tracking-[0.3em] shadow-2xl hover:bg-orange-600 transition-all active:scale-[0.98] disabled:opacity-50"
+              >
+                Send Order to Kitchen
+              </button>
+            </div>
           </div>
         </div>
       )}
