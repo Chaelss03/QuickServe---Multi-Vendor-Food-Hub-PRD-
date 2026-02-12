@@ -1,7 +1,7 @@
 
 import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { Restaurant, Order, OrderStatus, MenuItem, MenuItemVariant } from '../types';
-import { ShoppingBag, BookOpen, BarChart3, Edit3, CheckCircle, Clock, X, Plus, Trash2, Image as ImageIcon, Thermometer, LayoutGrid, List, Filter, Archive, RotateCcw, XCircle, Power, Eye, Upload, Hash, MessageSquare, Download, Calendar, Ban, ChevronLeft, ChevronRight, Bell, AlertTriangle, RefreshCw, Activity } from 'lucide-react';
+import { ShoppingBag, BookOpen, BarChart3, Edit3, CheckCircle, Clock, X, Plus, Trash2, Image as ImageIcon, Thermometer, LayoutGrid, List, Filter, Archive, RotateCcw, XCircle, Power, Eye, Upload, Hash, MessageSquare, Download, Calendar, Ban, ChevronLeft, ChevronRight, Bell, AlertTriangle, RefreshCw, Activity, Layers, Tag } from 'lucide-react';
 
 interface Props {
   restaurant: Restaurant;
@@ -27,6 +27,12 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
   const [syncStatus, setSyncStatus] = useState<'IDLE' | 'SYNCING'>('IDLE');
   
+  // Menu Sub-Tabs
+  const [menuSubTab, setMenuSubTab] = useState<'KITCHEN' | 'CLASSIFICATION'>('KITCHEN');
+  const [showAddClassModal, setShowAddClassModal] = useState(false);
+  const [newClassName, setNewClassName] = useState('');
+  const [extraCategories, setExtraCategories] = useState<string[]>([]);
+
   // Rejection State
   const [rejectingOrderId, setRejectingOrderId] = useState<string | null>(null);
   const [rejectionReason, setRejectionReason] = useState<string>(REJECTION_REASONS[0]);
@@ -100,7 +106,11 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const categories = ['All', ...new Set(restaurant.menu.map(item => item.category))];
+  const categories = useMemo(() => {
+    const base = new Set(restaurant.menu.map(item => item.category));
+    extraCategories.forEach(c => base.add(c));
+    return ['All', ...Array.from(base)];
+  }, [restaurant.menu, extraCategories]);
 
   const filteredOrders = orders.filter(o => {
     if (orderFilter === 'ONGOING_ALL') return o.status === OrderStatus.PENDING || o.status === OrderStatus.ONGOING;
@@ -162,14 +172,14 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
     }
   };
 
-  const handleOpenAddModal = () => {
+  const handleOpenAddModal = (initialCategory?: string) => {
     setEditingItem(null);
     setFormItem({
       name: '',
       description: '',
       price: 0,
       image: '',
-      category: 'Main Dish',
+      category: initialCategory || 'Main Dish',
       sizes: [],
       tempOptions: { enabled: false, hot: 0, cold: 0 }
     });
@@ -253,6 +263,17 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
     if (confirm('Are you sure you want to permanently delete this item?')) {
       onPermanentDeleteMenuItem(restaurant.id, itemId);
     }
+  };
+
+  const handleAddClassification = () => {
+    if (!newClassName.trim()) return;
+    if (categories.includes(newClassName.trim())) {
+      alert("Classification already exists.");
+      return;
+    }
+    setExtraCategories(prev => [...prev, newClassName.trim()]);
+    setNewClassName('');
+    setShowAddClassModal(false);
   };
 
   return (
@@ -459,131 +480,221 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
           <div className="max-w-6xl mx-auto">
             <div className="flex flex-col lg:flex-row lg:items-center justify-between mb-8 gap-4">
               <div>
-                <h1 className="text-2xl font-black dark:text-white uppercase tracking-tighter">Kitchen Menu</h1>
-                <p className="text-sm text-gray-500 dark:text-gray-400">Manage your active listings.</p>
-              </div>
-              <div className="flex flex-wrap items-center gap-3">
-                <div className="flex bg-white dark:bg-gray-800 rounded-xl p-1 border dark:border-gray-700 shadow-sm">
+                <h1 className="text-2xl font-black dark:text-white uppercase tracking-tighter">Kitchen Menu Editor</h1>
+                <div className="flex mt-2 bg-white dark:bg-gray-800 rounded-xl p-1 border dark:border-gray-700 shadow-sm w-fit">
                   <button 
-                    onClick={() => setMenuStatusFilter('ACTIVE')}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${menuStatusFilter === 'ACTIVE' ? 'bg-orange-500 text-white shadow-md' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50'}`}
+                    onClick={() => setMenuSubTab('KITCHEN')}
+                    className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${menuSubTab === 'KITCHEN' ? 'bg-orange-500 text-white shadow-md' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50'}`}
                   >
-                    <Eye size={14} />
-                    Active
+                    Kitchen Menu
                   </button>
                   <button 
-                    onClick={() => setMenuStatusFilter('ARCHIVED')}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${menuStatusFilter === 'ARCHIVED' ? 'bg-orange-500 text-white shadow-md' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50'}`}
+                    onClick={() => setMenuSubTab('CLASSIFICATION')}
+                    className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${menuSubTab === 'CLASSIFICATION' ? 'bg-orange-500 text-white shadow-md' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50'}`}
                   >
-                    <Archive size={14} />
-                    Archived
+                    Menu Classification
                   </button>
                 </div>
-                <div className="flex bg-white dark:bg-gray-800 rounded-xl p-1 border dark:border-gray-700 shadow-sm">
-                  <button onClick={() => setMenuViewMode('grid')} className={`p-2 rounded-lg transition-all ${menuViewMode === 'grid' ? 'bg-orange-500 text-white' : 'text-gray-400'}`}><LayoutGrid size={18} /></button>
-                  <button onClick={() => setMenuViewMode('list')} className={`p-2 rounded-lg transition-all ${menuViewMode === 'list' ? 'bg-orange-500 text-white' : 'text-gray-400'}`}><List size={18} /></button>
-                </div>
-                <button 
-                  onClick={handleOpenAddModal}
-                  className="px-6 py-3 bg-black dark:bg-gray-100 text-white dark:text-gray-900 rounded-xl font-bold uppercase tracking-widest text-xs hover:bg-gray-800 transition-all shadow-lg ml-auto"
-                >
-                  + Add Item
-                </button>
               </div>
-            </div>
-            <div className="flex items-center gap-2 mb-8 bg-white dark:bg-gray-800 px-4 py-2 border dark:border-gray-700 rounded-2xl shadow-sm overflow-x-auto hide-scrollbar">
-              <Filter size={16} className="text-gray-400 shrink-0" />
-              {categories.map(cat => (
-                <button
-                  key={cat}
-                  onClick={() => setMenuCategoryFilter(cat)}
-                  className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${menuCategoryFilter === cat ? 'bg-orange-100 text-orange-600' : 'text-gray-400 hover:text-gray-600'}`}
-                >
-                  {cat}
-                </button>
-              ))}
-            </div>
-            {currentMenu.length === 0 ? (
-               <div className="bg-white dark:bg-gray-800 rounded-3xl p-20 text-center border border-dashed border-gray-300 dark:border-gray-700">
-                  <div className="w-16 h-16 bg-gray-50 dark:bg-gray-700 rounded-full flex items-center justify-center mx-auto mb-4 text-gray-300">
-                    <BookOpen size={24} />
+
+              {menuSubTab === 'KITCHEN' ? (
+                <div className="flex flex-wrap items-center gap-3">
+                  <div className="flex bg-white dark:bg-gray-800 rounded-xl p-1 border dark:border-gray-700 shadow-sm">
+                    <button 
+                      onClick={() => setMenuStatusFilter('ACTIVE')}
+                      className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${menuStatusFilter === 'ACTIVE' ? 'bg-orange-500 text-white shadow-md' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50'}`}
+                    >
+                      <Eye size={14} />
+                      Active
+                    </button>
+                    <button 
+                      onClick={() => setMenuStatusFilter('ARCHIVED')}
+                      className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${menuStatusFilter === 'ARCHIVED' ? 'bg-orange-500 text-white shadow-md' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50'}`}
+                    >
+                      <Archive size={14} />
+                      Archived
+                    </button>
                   </div>
-                  <h3 className="text-xl font-bold text-gray-900 dark:text-white uppercase tracking-tighter">Inventory Empty</h3>
-                  <p className="text-gray-500 dark:text-gray-400 text-xs mt-1">Start adding your signature dishes.</p>
-               </div>
-            ) : (
-              menuViewMode === 'grid' ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {currentMenu.map(item => (
-                    <div key={item.id} className="bg-white dark:bg-gray-800 rounded-3xl overflow-hidden border dark:border-gray-700 hover:shadow-xl transition-all group flex flex-col">
-                      <div className="relative h-48">
-                        <img src={item.image} className="w-full h-full object-cover" />
-                        <div className="absolute top-4 right-4 flex gap-2">
-                          {menuStatusFilter === 'ACTIVE' ? (
-                            <>
-                              <button onClick={() => handleArchiveItem(item)} className="p-2.5 bg-red-50/90 backdrop-blur rounded-xl text-red-600 shadow-sm"><Archive size={18} /></button>
-                              <button onClick={() => handleOpenEditModal(item)} className="p-2.5 bg-white/90 backdrop-blur rounded-xl text-gray-700 shadow-sm"><Edit3 size={18} /></button>
-                            </>
-                          ) : (
-                            <>
-                              <button onClick={() => handleRestoreItem(item)} className="p-2.5 bg-green-50/90 backdrop-blur rounded-xl text-green-600 shadow-sm"><RotateCcw size={18} /></button>
-                              <button onClick={() => handlePermanentDelete(item.id)} className="p-2.5 bg-red-50/90 backdrop-blur rounded-xl text-red-600 shadow-sm"><Trash2 size={18} /></button>
-                            </>
-                          )}
-                        </div>
-                      </div>
-                      <div className="p-6 flex-1 flex flex-col">
-                        <h3 className="font-black text-lg text-gray-900 dark:text-white mb-1 uppercase tracking-tight">{item.name}</h3>
-                        <p className="text-xs text-gray-500 dark:text-gray-400 line-clamp-2 mb-4 flex-1">{item.description}</p>
-                        <div className="flex justify-between items-center mt-auto pt-4 border-t dark:border-gray-700">
-                          <span className="text-xl font-black text-orange-500">RM{item.price.toFixed(2)}</span>
-                          <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">{item.category}</span>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
+                  <div className="flex bg-white dark:bg-gray-800 rounded-xl p-1 border dark:border-gray-700 shadow-sm">
+                    <button onClick={() => setMenuViewMode('grid')} className={`p-2 rounded-lg transition-all ${menuViewMode === 'grid' ? 'bg-orange-500 text-white' : 'text-gray-400'}`}><LayoutGrid size={18} /></button>
+                    <button onClick={() => setMenuViewMode('list')} className={`p-2 rounded-lg transition-all ${menuViewMode === 'list' ? 'bg-orange-500 text-white' : 'text-gray-400'}`}><List size={18} /></button>
+                  </div>
+                  <button 
+                    onClick={() => handleOpenAddModal()}
+                    className="px-6 py-3 bg-black dark:bg-gray-100 text-white dark:text-gray-900 rounded-xl font-bold uppercase tracking-widest text-xs hover:bg-gray-800 transition-all shadow-lg ml-auto"
+                  >
+                    + Add Item
+                  </button>
                 </div>
               ) : (
-                <div className="bg-white dark:bg-gray-800 rounded-3xl border dark:border-gray-700 overflow-hidden shadow-sm">
-                  <table className="w-full">
-                    <thead className="bg-gray-50 dark:bg-gray-700/50 text-gray-400 text-[10px] font-black uppercase tracking-widest">
-                      <tr>
-                        <th className="px-8 py-4 text-left">Dish Profile</th>
-                        <th className="px-4 py-4 text-left">Category</th>
-                        <th className="px-4 py-4 text-left">Base Cost</th>
-                        <th className="px-8 py-4 text-right">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y dark:divide-gray-700">
-                      {currentMenu.map(item => (
-                        <tr key={item.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors">
-                          <td className="px-8 py-4">
-                            <div className="flex items-center gap-4">
-                              <img src={item.image} className="w-12 h-12 rounded-xl object-cover" />
-                              <div>
-                                <p className="font-black text-gray-900 dark:text-white uppercase tracking-tight">{item.name}</p>
-                                <p className="text-[10px] text-gray-500 dark:text-gray-400 truncate max-w-xs">{item.description}</p>
-                              </div>
-                            </div>
-                          </td>
-                          <td className="px-4 py-4 text-[10px] font-black uppercase text-gray-400">{item.category}</td>
-                          <td className="px-4 py-4 font-black text-gray-900 dark:text-white text-sm">RM{item.price.toFixed(2)}</td>
-                          <td className="px-8 py-4 text-right">
-                             <div className="flex justify-end items-center gap-2">
-                               {menuStatusFilter === 'ACTIVE' ? (
-                                 <button onClick={() => handleArchiveItem(item)} className="p-3 text-red-500 hover:bg-red-50 rounded-xl transition-all"><Archive size={18} /></button>
-                               ) : (
-                                 <button onClick={() => handleRestoreItem(item)} className="p-3 text-green-600 hover:bg-green-50 rounded-xl transition-all"><RotateCcw size={18} /></button>
-                               )}
-                               <button onClick={() => handleOpenEditModal(item)} className="p-3 text-gray-400 hover:text-orange-500 rounded-xl transition-all"><Edit3 size={18} /></button>
-                             </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                <button 
+                  onClick={() => setShowAddClassModal(true)}
+                  className="px-6 py-3 bg-black dark:bg-gray-100 text-white dark:text-gray-900 rounded-xl font-bold uppercase tracking-widest text-xs hover:bg-gray-800 transition-all shadow-lg ml-auto flex items-center gap-2"
+                >
+                  <Tag size={16} /> + New Classification
+                </button>
+              )}
+            </div>
+
+            {menuSubTab === 'KITCHEN' ? (
+              <>
+                <div className="flex items-center gap-2 mb-8 bg-white dark:bg-gray-800 px-4 py-2 border dark:border-gray-700 rounded-2xl shadow-sm overflow-x-auto hide-scrollbar">
+                  <Filter size={16} className="text-gray-400 shrink-0" />
+                  {categories.map(cat => (
+                    <button
+                      key={cat}
+                      onClick={() => setMenuCategoryFilter(cat)}
+                      className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${menuCategoryFilter === cat ? 'bg-orange-100 text-orange-600' : 'text-gray-400 hover:text-gray-600'}`}
+                    >
+                      {cat}
+                    </button>
+                  ))}
                 </div>
-              )
+                {currentMenu.length === 0 ? (
+                  <div className="bg-white dark:bg-gray-800 rounded-3xl p-20 text-center border border-dashed border-gray-300 dark:border-gray-700">
+                      <div className="w-16 h-16 bg-gray-50 dark:bg-gray-700 rounded-full flex items-center justify-center mx-auto mb-4 text-gray-300">
+                        <BookOpen size={24} />
+                      </div>
+                      <h3 className="text-xl font-bold text-gray-900 dark:text-white uppercase tracking-tighter">Inventory Empty</h3>
+                      <p className="text-gray-500 dark:text-gray-400 text-xs mt-1">Start adding your signature dishes.</p>
+                  </div>
+                ) : (
+                  menuViewMode === 'grid' ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                      {currentMenu.map(item => (
+                        <div key={item.id} className="bg-white dark:bg-gray-800 rounded-3xl overflow-hidden border dark:border-gray-700 hover:shadow-xl transition-all group flex flex-col">
+                          <div className="relative h-48">
+                            <img src={item.image} className="w-full h-full object-cover" />
+                            <div className="absolute top-4 right-4 flex gap-2">
+                              {menuStatusFilter === 'ACTIVE' ? (
+                                <>
+                                  <button onClick={() => handleArchiveItem(item)} className="p-2.5 bg-red-50/90 backdrop-blur rounded-xl text-red-600 shadow-sm"><Archive size={18} /></button>
+                                  <button onClick={() => handleOpenEditModal(item)} className="p-2.5 bg-white/90 backdrop-blur rounded-xl text-gray-700 shadow-sm"><Edit3 size={18} /></button>
+                                </>
+                              ) : (
+                                <>
+                                  <button onClick={() => handleRestoreItem(item)} className="p-2.5 bg-green-50/90 backdrop-blur rounded-xl text-green-600 shadow-sm"><RotateCcw size={18} /></button>
+                                  <button onClick={() => handlePermanentDelete(item.id)} className="p-2.5 bg-red-50/90 backdrop-blur rounded-xl text-red-600 shadow-sm"><Trash2 size={18} /></button>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                          <div className="p-6 flex-1 flex flex-col">
+                            <h3 className="font-black text-lg text-gray-900 dark:text-white mb-1 uppercase tracking-tight">{item.name}</h3>
+                            <p className="text-xs text-gray-500 dark:text-gray-400 line-clamp-2 mb-4 flex-1">{item.description}</p>
+                            <div className="flex justify-between items-center mt-auto pt-4 border-t dark:border-gray-700">
+                              <span className="text-xl font-black text-orange-500">RM{item.price.toFixed(2)}</span>
+                              <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">{item.category}</span>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="bg-white dark:bg-gray-800 rounded-3xl border dark:border-gray-700 overflow-hidden shadow-sm">
+                      <table className="w-full">
+                        <thead className="bg-gray-50 dark:bg-gray-700/50 text-gray-400 text-[10px] font-black uppercase tracking-widest">
+                          <tr>
+                            <th className="px-8 py-4 text-left">Dish Profile</th>
+                            <th className="px-4 py-4 text-left">Category</th>
+                            <th className="px-4 py-4 text-left">Base Cost</th>
+                            <th className="px-8 py-4 text-right">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y dark:divide-gray-700">
+                          {currentMenu.map(item => (
+                            <tr key={item.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors">
+                              <td className="px-8 py-4">
+                                <div className="flex items-center gap-4">
+                                  <img src={item.image} className="w-12 h-12 rounded-xl object-cover" />
+                                  <div>
+                                    <p className="font-black text-gray-900 dark:text-white uppercase tracking-tight">{item.name}</p>
+                                    <p className="text-[10px] text-gray-500 dark:text-gray-400 truncate max-w-xs">{item.description}</p>
+                                  </div>
+                                </div>
+                              </td>
+                              <td className="px-4 py-4 text-[10px] font-black uppercase text-gray-400">{item.category}</td>
+                              <td className="px-4 py-4 font-black text-gray-900 dark:text-white text-sm">RM{item.price.toFixed(2)}</td>
+                              <td className="px-8 py-4 text-right">
+                                <div className="flex justify-end items-center gap-2">
+                                  {menuStatusFilter === 'ACTIVE' ? (
+                                    <button onClick={() => handleArchiveItem(item)} className="p-3 text-red-500 hover:bg-red-50 rounded-xl transition-all"><Archive size={18} /></button>
+                                  ) : (
+                                    <button onClick={() => handleRestoreItem(item)} className="p-3 text-green-600 hover:bg-green-50 rounded-xl transition-all"><RotateCcw size={18} /></button>
+                                  )}
+                                  <button onClick={() => handleOpenEditModal(item)} className="p-3 text-gray-400 hover:text-orange-500 rounded-xl transition-all"><Edit3 size={18} /></button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )
+                )}
+              </>
+            ) : (
+              <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                 {categories.filter(c => c !== 'All').map(cat => {
+                   const itemsInCat = restaurant.menu.filter(i => i.category === cat && !i.isArchived);
+                   return (
+                     <div key={cat} className="bg-white dark:bg-gray-800 rounded-[2rem] border dark:border-gray-700 shadow-sm overflow-hidden">
+                       <div className="px-8 py-6 bg-gray-50 dark:bg-gray-700/30 border-b dark:border-gray-700 flex items-center justify-between">
+                         <div className="flex items-center gap-3">
+                           <div className="p-2.5 bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 rounded-xl">
+                             <Layers size={18} />
+                           </div>
+                           <div>
+                              <h3 className="text-lg font-black dark:text-white uppercase tracking-tighter leading-none">{cat}</h3>
+                              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1">{itemsInCat.length} Active Dishes</p>
+                           </div>
+                         </div>
+                         <button 
+                           onClick={() => handleOpenAddModal(cat)}
+                           className="px-4 py-2 bg-white dark:bg-gray-800 border dark:border-gray-600 text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-orange-500 hover:text-white transition-all shadow-sm flex items-center gap-2"
+                         >
+                           <Plus size={14} /> Add to {cat}
+                         </button>
+                       </div>
+                       <div className="p-4 overflow-x-auto hide-scrollbar flex gap-4">
+                          {itemsInCat.length === 0 ? (
+                            <div className="w-full py-12 flex flex-col items-center justify-center text-gray-400">
+                               <ImageIcon size={24} className="opacity-20 mb-2" />
+                               <p className="text-[10px] font-black uppercase tracking-widest italic">No items in this classification</p>
+                            </div>
+                          ) : (
+                            itemsInCat.map(item => (
+                              <div key={item.id} className="min-w-[180px] max-w-[180px] bg-white dark:bg-gray-900/50 rounded-2xl border dark:border-gray-700 overflow-hidden group">
+                                <div className="h-28 relative">
+                                   <img src={item.image} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                                   <button 
+                                      onClick={() => handleOpenEditModal(item)}
+                                      className="absolute top-2 right-2 p-1.5 bg-black/40 backdrop-blur-md text-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
+                                   >
+                                      <Edit3 size={12} />
+                                   </button>
+                                </div>
+                                <div className="p-3">
+                                   <p className="text-[11px] font-black dark:text-white uppercase tracking-tight truncate">{item.name}</p>
+                                   <p className="text-xs font-black text-orange-500 mt-1">RM{item.price.toFixed(2)}</p>
+                                </div>
+                              </div>
+                            ))
+                          )}
+                       </div>
+                     </div>
+                   );
+                 })}
+                 
+                 {categories.filter(c => c !== 'All').length === 0 && (
+                   <div className="bg-white dark:bg-gray-800 rounded-3xl p-20 text-center border border-dashed border-gray-300 dark:border-gray-700">
+                      <Layers size={48} className="mx-auto text-gray-200 mb-4" />
+                      <h3 className="text-xl font-black text-gray-900 dark:text-white uppercase">No Classifications</h3>
+                      <p className="text-gray-400 text-xs mt-1">Start by adding a classification to group your menu.</p>
+                      <button onClick={() => setShowAddClassModal(true)} className="mt-6 px-8 py-3 bg-orange-500 text-white rounded-xl font-black text-xs uppercase tracking-widest shadow-xl">Create Classification</button>
+                   </div>
+                 )}
+              </div>
             )}
           </div>
         )}
@@ -661,6 +772,37 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
           </div>
         )}
       </main>
+
+      {/* Add Classification Modal */}
+      {showAddClassModal && (
+        <div className="fixed inset-0 z-[110] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-[2.5rem] max-w-sm w-full p-8 shadow-2xl relative animate-in zoom-in fade-in duration-300">
+            <button onClick={() => setShowAddClassModal(false)} className="absolute top-6 right-6 p-2 text-gray-400"><X size={20} /></button>
+            <div className="mb-6">
+               <div className="w-12 h-12 bg-orange-100 dark:bg-orange-900/30 text-orange-600 rounded-xl flex items-center justify-center mb-4"><Tag size={24}/></div>
+               <h2 className="text-xl font-black dark:text-white uppercase tracking-tighter">New Classification</h2>
+               <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1">Add a new category label to your menu.</p>
+            </div>
+            <div className="space-y-4">
+               <div className="space-y-1">
+                 <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Classification Name</label>
+                 <input 
+                   autoFocus
+                   placeholder="e.g. Beverages, Hot Snacks..."
+                   className="w-full px-4 py-3.5 bg-gray-50 dark:bg-gray-700 border-none rounded-2xl outline-none text-sm font-bold dark:text-white"
+                   value={newClassName}
+                   onChange={e => setNewClassName(e.target.value)}
+                   onKeyDown={e => e.key === 'Enter' && handleAddClassification()}
+                 />
+               </div>
+               <div className="flex gap-3 pt-2">
+                 <button onClick={() => setShowAddClassModal(false)} className="flex-1 py-3.5 bg-gray-100 dark:bg-gray-700 text-gray-500 rounded-2xl font-black uppercase text-[10px] tracking-widest">Cancel</button>
+                 <button onClick={handleAddClassification} className="flex-1 py-3.5 bg-orange-500 text-white rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl">Create</button>
+               </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {rejectingOrderId && (
         <div className="fixed inset-0 z-[100] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
