@@ -111,7 +111,7 @@ const App: React.FC = () => {
     const { data, error } = await supabase.from('areas').select('*').order('name');
     if (!error && data) {
       const mapped = data.map(l => ({
-        id: l.id, name: l.name, city: l.city, state: l.state, code: l.code, isActive: l.is_active ?? true
+        id: l.id, name: l.name, city: l.city, state: l.state, code: l.code, isActive: l.is_active ?? true, type: l.type as 'MULTI' | 'SINGLE'
       }));
       setLocations(mapped);
       persistCache('qs_cache_locations', mapped);
@@ -254,9 +254,6 @@ const App: React.FC = () => {
     }
   };
 
-  // Rest of the existing methods (handleLogin, handleLogout, updateOrderStatus, etc.) remain the same
-  // (Adding them back for file completeness)
-  
   const handleLogin = (user: User) => {
     setCurrentUser(user);
     setCurrentRole(user.role);
@@ -314,12 +311,12 @@ const App: React.FC = () => {
   };
 
   const handleAddLocation = async (a: Area) => {
-    await supabase.from('areas').insert([{ name: a.name, city: a.city, state: a.state, code: a.code, is_active: a.isActive }]);
+    await supabase.from('areas').insert([{ name: a.name, city: a.city, state: a.state, code: a.code, is_active: a.isActive, type: a.type }]);
     fetchLocations();
   };
 
   const handleUpdateLocation = async (a: Area) => {
-    await supabase.from('areas').update({ name: a.name, city: a.city, state: a.state, code: a.code, is_active: a.isActive }).eq('id', a.id);
+    await supabase.from('areas').update({ name: a.name, city: a.city, state: a.state, code: a.code, is_active: a.isActive, type: a.type }).eq('id', a.id);
     await Promise.all([fetchLocations(), fetchRestaurants()]);
   };
 

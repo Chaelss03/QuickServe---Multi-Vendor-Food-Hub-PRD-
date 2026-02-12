@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { User, Restaurant, Order, Area, OrderStatus } from '../types';
-import { Users, Store, TrendingUp, Settings, ShieldCheck, Mail, Search, Filter, X, Plus, MapPin, Power, CheckCircle2, AlertCircle, LogIn, Trash2, LayoutGrid, List, ChevronRight, Eye, EyeOff, Globe, Phone, ShoppingBag, Edit3, Hash, Download, Calendar, ChevronLeft, Database, Image as ImageIcon, Key, QrCode, Printer, Layers } from 'lucide-react';
+import { Users, Store, TrendingUp, Settings, ShieldCheck, Mail, Search, Filter, X, Plus, MapPin, Power, CheckCircle2, AlertCircle, LogIn, Trash2, LayoutGrid, List, ChevronRight, Eye, EyeOff, Globe, Phone, ShoppingBag, Edit3, Hash, Download, Calendar, ChevronLeft, Database, Image as ImageIcon, Key, QrCode, Printer, Layers, Info } from 'lucide-react';
 
 interface Props {
   vendors: User[];
@@ -39,7 +39,9 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
   // Hub Modal State
   const [isAreaModalOpen, setIsAreaModalOpen] = useState(false);
   const [editingArea, setEditingArea] = useState<Area | null>(null);
-  const [formArea, setFormArea] = useState({ name: '', city: '', state: '', code: '' });
+  const [formArea, setFormArea] = useState<{ name: string; city: string; state: string; code: string; type: 'MULTI' | 'SINGLE' }>({ 
+    name: '', city: '', state: '', code: '', type: 'MULTI' 
+  });
   
   const [viewingHubVendors, setViewingHubVendors] = useState<Area | null>(null);
 
@@ -170,13 +172,13 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
 
   const handleOpenHubEdit = (loc: Area) => {
     setEditingArea(loc);
-    setFormArea({ name: loc.name, city: loc.city, state: loc.state, code: loc.code });
+    setFormArea({ name: loc.name, city: loc.city, state: loc.state, code: loc.code, type: loc.type || 'MULTI' });
     setIsAreaModalOpen(true);
   };
 
   const handleOpenHubAdd = () => {
     setEditingArea(null);
-    setFormArea({ name: '', city: '', state: '', code: '' });
+    setFormArea({ name: '', city: '', state: '', code: '', type: 'MULTI' });
     setIsAreaModalOpen(true);
   };
 
@@ -313,6 +315,7 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
                 <thead className="bg-gray-50 dark:bg-gray-700/50 text-gray-400 text-[10px] font-black uppercase tracking-widest">
                   <tr>
                     <th className="px-8 py-4 text-left">Hub Identity</th>
+                    <th className="px-8 py-4 text-left">Type</th>
                     <th className="px-8 py-4 text-left">City / State</th>
                     <th className="px-8 py-4 text-center">Partners</th>
                     <th className="px-8 py-4 text-center">Status</th>
@@ -329,6 +332,12 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
                             <span className="font-black dark:text-white text-sm block uppercase tracking-tight">{loc.name}</span>
                             <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{loc.code}</span>
                           </div>
+                        </div>
+                      </td>
+                      <td className="px-8 py-5">
+                        <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-tighter ${loc.type === 'SINGLE' ? 'bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400' : 'bg-purple-50 text-purple-600 dark:bg-purple-900/20 dark:text-purple-400'}`}>
+                          {loc.type === 'SINGLE' ? <Users size={12} /> : <Layers size={12} />}
+                          {loc.type || 'MULTI'} Vendor
                         </div>
                       </td>
                       <td className="px-8 py-5 text-sm font-bold text-gray-500 uppercase">{loc.city}</td>
@@ -511,7 +520,7 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
         </div>
       )}
 
-      {/* Hub Modal - Compact Layout */}
+      {/* Hub Modal - Compact Layout with Hub Type */}
       {isAreaModalOpen && (
         <div className="fixed inset-0 z-[100] bg-black/70 backdrop-blur-md flex items-center justify-center p-4 no-print">
           <div className="bg-white dark:bg-gray-800 rounded-[2.5rem] max-w-sm w-full p-8 shadow-2xl relative animate-in zoom-in duration-300">
@@ -522,6 +531,19 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
                 <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Hub Name</label>
                 <input required placeholder="e.g. Floor 1 Zone A" className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none text-sm font-bold dark:text-white" value={formArea.name} onChange={e => setFormArea({...formArea, name: e.target.value})} />
               </div>
+              
+              <div className="space-y-1">
+                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Hub Category</label>
+                <div className="relative">
+                   <Layers size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
+                   <select required className="w-full pl-11 pr-4 py-2.5 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none text-sm font-bold dark:text-white appearance-none cursor-pointer" value={formArea.type} onChange={e => setFormArea({...formArea, type: e.target.value as 'MULTI' | 'SINGLE'})}>
+                     <option value="MULTI">Multi-Vendor Food Hub</option>
+                     <option value="SINGLE">Single-Vendor Outlet</option>
+                   </select>
+                </div>
+                <p className="text-[8px] text-gray-400 mt-1 ml-1 flex items-center gap-1 uppercase font-bold"><Info size={8}/> Defines if the hub supports multiple kitchens or a single one.</p>
+              </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1">
                   <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">City</label>
