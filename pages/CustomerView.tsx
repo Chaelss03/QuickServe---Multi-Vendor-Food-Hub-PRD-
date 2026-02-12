@@ -31,7 +31,7 @@ const CustomerView: React.FC<Props> = ({ restaurants, cart, orders, onAddToCart,
     setActiveRestaurant(id);
     const element = sectionRefs.current[id];
     if (element) {
-      const offset = 140; 
+      const offset = 140; // Adjust for sticky header + nav height
       const bodyRect = document.body.getBoundingClientRect().top;
       const elementRect = element.getBoundingClientRect().top;
       const elementPosition = elementRect - bodyRect;
@@ -111,6 +111,7 @@ const CustomerView: React.FC<Props> = ({ restaurants, cart, orders, onAddToCart,
 
   return (
     <div className="relative min-h-screen pb-28 bg-gray-50 dark:bg-gray-900 transition-colors">
+      {/* Restaurant Navbar */}
       <div className="sticky top-16 z-40 bg-white/95 dark:bg-gray-800/95 backdrop-blur-md border-b dark:border-gray-700 shadow-md">
         <div className="px-4 py-2 border-b dark:border-gray-700 flex items-center justify-between">
            <div className="flex items-center gap-2">
@@ -138,13 +139,14 @@ const CustomerView: React.FC<Props> = ({ restaurants, cart, orders, onAddToCart,
       </div>
 
       <div className="max-w-7xl mx-auto px-2 md:px-4 py-4">
+        {/* Compact Location Info */}
         <div className="mb-4 px-3 py-2 bg-white dark:bg-gray-800 rounded-xl border dark:border-gray-700 shadow-sm flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <MapPin size={14} className="text-orange-500 shrink-0" />
             <div className="flex flex-col">
                <span className="text-[8px] font-black text-gray-400 uppercase tracking-widest">Serving At</span>
                <h2 className="text-[11px] font-black dark:text-white leading-tight uppercase tracking-tight truncate">
-                 {locationName || 'ServeFlow Hub'}
+                 {locationName || 'QuickServe Hub'}
                </h2>
             </div>
           </div>
@@ -166,6 +168,7 @@ const CustomerView: React.FC<Props> = ({ restaurants, cart, orders, onAddToCart,
           </div>
         </div>
 
+        {/* Active/Cancelled Orders Ticker */}
         {activeOrders.length > 0 && (
           <div className="mb-6 space-y-2">
             {activeOrders.map(order => (
@@ -188,11 +191,19 @@ const CustomerView: React.FC<Props> = ({ restaurants, cart, orders, onAddToCart,
                       </span>
                    </div>
                 </div>
+                {order.status === OrderStatus.CANCELLED && (
+                  <div className="pl-4 border-l-2 border-red-200 dark:border-red-800">
+                    <p className="text-[10px] font-bold text-red-800 dark:text-red-300">
+                      {order.rejectionReason}
+                    </p>
+                  </div>
+                )}
               </div>
             ))}
           </div>
         )}
 
+        {/* Menu Sections */}
         <div className="space-y-12">
           {restaurants.map(res => (
             <section 
@@ -239,11 +250,21 @@ const CustomerView: React.FC<Props> = ({ restaurants, cart, orders, onAddToCart,
           ))}
         </div>
 
+        {/* Empty State */}
+        {restaurants.length === 0 && (
+          <div className="text-center py-24 bg-white dark:bg-gray-800 rounded-3xl border-2 border-dashed border-gray-100 dark:border-gray-700">
+            <UtensilsCrossed size={48} className="mx-auto mb-4 text-gray-200" />
+            <h3 className="text-xl font-black text-gray-900 dark:text-white uppercase tracking-widest">No Active Kitchens</h3>
+            <p className="text-gray-400 text-xs mt-2">Check back later or try another location.</p>
+          </div>
+        )}
+
         <div className="mt-16 text-center pb-8 border-t dark:border-gray-800 pt-8 flex flex-col items-center gap-4">
-          <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">©ServeFlow Platform by LumoraTech</p>
+          <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">© QuickServe Platform</p>
         </div>
       </div>
 
+      {/* Variant Selection Modal */}
       {selectedItemForVariants && (
         <div className="fixed inset-0 z-[70] bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
           <div className="bg-white dark:bg-gray-800 w-full max-w-sm rounded-[2.5rem] overflow-hidden shadow-2xl animate-in zoom-in fade-in duration-300">
@@ -340,6 +361,7 @@ const CustomerView: React.FC<Props> = ({ restaurants, cart, orders, onAddToCart,
         </div>
       )}
 
+      {/* Persistent Cart FAB - Adjusted height to be smaller (py-2.5) */}
       {cart.length > 0 && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 w-full max-w-[340px] px-4 z-50">
           <button 
@@ -357,6 +379,7 @@ const CustomerView: React.FC<Props> = ({ restaurants, cart, orders, onAddToCart,
         </div>
       )}
 
+      {/* Cart Drawer */}
       {showCart && (
         <div className="fixed inset-0 z-[80] bg-black/70 backdrop-blur-md flex justify-end">
           <div className="w-full max-w-md bg-white dark:bg-gray-900 h-full shadow-2xl flex flex-col animate-slide-left transition-colors">
@@ -390,6 +413,13 @@ const CustomerView: React.FC<Props> = ({ restaurants, cart, orders, onAddToCart,
                   </div>
                 </div>
               ))}
+              {cart.length === 0 && (
+                 <div className="text-center py-24">
+                    <ShoppingCart size={48} className="mx-auto mb-4 text-gray-200" />
+                    <p className="text-xs font-black text-gray-400 uppercase tracking-widest">Your tray is empty</p>
+                 </div>
+              )}
+
               {cart.length > 0 && (
                 <div className="pt-6 mt-6 border-t dark:border-gray-800">
                    <div className="flex items-center gap-2 mb-3">
