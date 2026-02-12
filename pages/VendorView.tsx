@@ -22,7 +22,7 @@ const REJECTION_REASONS = [
 
 const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpdateMenu, onAddMenuItem, onPermanentDeleteMenuItem, lastSyncTime }) => {
   const [activeTab, setActiveTab] = useState<'ORDERS' | 'MENU' | 'REPORTS'>('ORDERS');
-  const [orderFilter, setOrderFilter] = useState<OrderStatus | 'ONGOING_ALL'>( 'ONGOING_ALL');
+  const [orderFilter, setOrderFilter] = useState<OrderStatus | 'ONGOING_ALL' | 'ALL'>('ONGOING_ALL');
   const [editingItem, setEditingItem] = useState<MenuItem | null>(null);
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
   const [syncStatus, setSyncStatus] = useState<'IDLE' | 'SYNCING'>('IDLE');
@@ -113,6 +113,7 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
   }, [restaurant.menu, extraCategories]);
 
   const filteredOrders = orders.filter(o => {
+    if (orderFilter === 'ALL') return true;
     if (orderFilter === 'ONGOING_ALL') return o.status === OrderStatus.PENDING || o.status === OrderStatus.ONGOING;
     return o.status === orderFilter;
   });
@@ -339,7 +340,7 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
           <div className="max-w-5xl mx-auto">
             <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
               <div className="flex items-center gap-4">
-                <h1 className="text-2xl font-black dark:text-white uppercase tracking-tighter">Kitchen Feed</h1>
+                <h1 className="text-2xl font-black dark:text-white uppercase tracking-tighter">kitchen order</h1>
                 {lastSyncTime && (
                   <div className={`flex items-center gap-2 text-[10px] font-black px-3 py-1.5 rounded-full border transition-all duration-300 ${syncStatus === 'SYNCING' ? 'bg-blue-50 border-blue-200 text-blue-600' : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-400'}`}>
                     <Activity size={12} className={syncStatus === 'SYNCING' ? 'animate-pulse' : ''} />
@@ -350,21 +351,27 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
               <div className="flex bg-white dark:bg-gray-800 rounded-xl p-1 border dark:border-gray-700 shadow-sm overflow-x-auto hide-scrollbar">
                 <button 
                   onClick={() => setOrderFilter('ONGOING_ALL')}
-                  className={`px-4 py-2 rounded-lg text-sm font-bold transition-all whitespace-nowrap ${orderFilter === 'ONGOING_ALL' ? 'bg-orange-500 text-white shadow-md' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50'}`}
+                  className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${orderFilter === 'ONGOING_ALL' ? 'bg-orange-500 text-white shadow-md' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50'}`}
                 >
-                  Ongoing Feed
+                  ONGOING
                 </button>
                 <button 
                   onClick={() => setOrderFilter(OrderStatus.COMPLETED)}
-                  className={`px-4 py-2 rounded-lg text-sm font-bold transition-all whitespace-nowrap ${orderFilter === OrderStatus.COMPLETED ? 'bg-orange-500 text-white shadow-md' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50'}`}
+                  className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${orderFilter === OrderStatus.COMPLETED ? 'bg-orange-500 text-white shadow-md' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50'}`}
                 >
-                  Served
+                  SERVED
                 </button>
                 <button 
                   onClick={() => setOrderFilter(OrderStatus.CANCELLED)}
-                  className={`px-4 py-2 rounded-lg text-sm font-bold transition-all whitespace-nowrap ${orderFilter === OrderStatus.CANCELLED ? 'bg-orange-500 text-white shadow-md' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50'}`}
+                  className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${orderFilter === OrderStatus.CANCELLED ? 'bg-orange-500 text-white shadow-md' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50'}`}
                 >
-                  Rejections
+                  CANCELLED
+                </button>
+                <button 
+                  onClick={() => setOrderFilter('ALL')}
+                  className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${orderFilter === 'ALL' ? 'bg-orange-500 text-white shadow-md' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50'}`}
+                >
+                  ALL ORDER
                 </button>
               </div>
             </div>
@@ -701,7 +708,9 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
 
         {activeTab === 'REPORTS' && (
           <div className="max-w-6xl mx-auto animate-in fade-in duration-500">
-            <h1 className="text-2xl font-black mb-8 dark:text-white uppercase tracking-tighter">Kitchen Sales Ledger</h1>
+            <h1 className="text-2xl font-black mb-1 dark:text-white uppercase tracking-tighter">Sales Report</h1>
+            <p className="text-xs text-gray-500 dark:text-gray-400 font-medium mb-8 uppercase tracking-widest">A comprehensive overview of your store's financial performance and order history.</p>
+            
             <div className="bg-white dark:bg-gray-800 p-6 rounded-xl border dark:border-gray-700 shadow-sm flex flex-col md:flex-row items-center gap-6 mb-8">
               <div className="flex-1 flex flex-col md:flex-row gap-4 w-full">
                 <div className="flex-1">
