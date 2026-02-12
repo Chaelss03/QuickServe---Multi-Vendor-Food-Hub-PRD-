@@ -143,39 +143,72 @@ const App: React.FC = () => {
     }
   }, []);
 
+  const autoCancelExpiredOrders = useCallback(async (currentOrders: Order[]) => {
+    const FIFTEEN_MINUTES = 15 * 60 * 1000;
+    const now = Date.now();
+    
+    const expiredOrders = currentOrders.filter(o => 
+      o.status === OrderStatus.PENDING && 
+      (now - o.timestamp) > FIFTEEN_MINUTES
+    );
+
+    if (expiredOrders.length > 0) {
+      const idsToCancel = expiredOrders.map(o => o.id);
+      console.log(`Auto-cancelling ${idsToCancel.length} expired orders...`);
+      
+      const { error } = await supabase.from('orders')
+        .update({ 
+          status: OrderStatus.CANCELLED,
+          rejection_reason: 'Auto-cancelled (Inactivity)',
+          rejection_note: 'No response from kitchen within 15 minutes.'
+        })
+        .in('id', idsToCancel);
+      
+      if (!error) {
+        setOrders(prev => prev.map(o => 
+          idsToCancel.includes(o.id) 
+            ? { ...o, status: OrderStatus.CANCELLED, rejectionReason: 'Auto-cancelled (Inactivity)', rejectionNote: 'No response from kitchen within 15 minutes.' }
+            : o
+        ));
+      }
+    }
+  }, []);
+
   const fetchOrders = useCallback(async () => {
     if (isFetchingRef.current) return;
     isFetchingRef.current = true;
     try {
       const { data, error } = await supabase.from('orders').select('*').order('timestamp', { ascending: false }).limit(200);
       if (!error && data) {
-        setOrders(prev => {
-          const mapped = data.map(o => {
-            const mappedOrder: Order = {
-              id: o.id, items: o.items || [], total: Number(o.total || 0),
-              status: o.status as OrderStatus, timestamp: parseTimestamp(o.timestamp),
-              customerId: o.customer_id, restaurantId: o.restaurant_id,
-              tableNumber: o.table_number, locationName: o.location_name,
-              remark: o.remark, rejectionReason: o.rejection_reason, rejectionNote: o.rejection_note
-            };
+        const mapped = data.map(o => {
+          const mappedOrder: Order = {
+            id: o.id, items: o.items || [], total: Number(o.total || 0),
+            status: o.status as OrderStatus, timestamp: parseTimestamp(o.timestamp),
+            customerId: o.customer_id, restaurantId: o.restaurant_id,
+            tableNumber: o.table_number, locationName: o.location_name,
+            remark: o.remark, rejectionReason: o.rejection_reason, rejectionNote: o.rejection_note
+          };
 
-            if (lockedOrderIds.current.has(o.id)) {
-              const localOrder = prev.find(p => p.id === o.id);
-              if (localOrder) {
-                mappedOrder.status = localOrder.status;
-              }
+          if (lockedOrderIds.current.has(o.id)) {
+            const localOrder = orders.find(p => p.id === o.id);
+            if (localOrder) {
+              mappedOrder.status = localOrder.status;
             }
-            return mappedOrder;
-          });
-          persistCache('qs_cache_orders', mapped);
-          return mapped;
+          }
+          return mappedOrder;
         });
+
+        setOrders(mapped);
+        persistCache('qs_cache_orders', mapped);
         setLastSyncTime(new Date());
+
+        // Perform auto-cancellation check for all users to ensure consistency across the platform
+        autoCancelExpiredOrders(mapped);
       }
     } finally {
       isFetchingRef.current = false;
     }
-  }, []);
+  }, [orders, autoCancelExpiredOrders]);
 
   useEffect(() => {
     const initApp = async () => {

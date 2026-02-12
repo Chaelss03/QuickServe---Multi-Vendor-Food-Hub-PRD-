@@ -1,7 +1,7 @@
 
 import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { Restaurant, Order, OrderStatus, MenuItem, MenuItemVariant } from '../types';
-import { ShoppingBag, BookOpen, BarChart3, Edit3, CheckCircle, Clock, X, Plus, Trash2, Image as ImageIcon, Thermometer, LayoutGrid, List, Filter, Archive, RotateCcw, XCircle, Power, Eye, Upload, Hash, MessageSquare, Download, Calendar, Ban, ChevronLeft, ChevronRight, Bell, AlertTriangle, RefreshCw, Activity, Layers, Tag, Wifi, WifiOff } from 'lucide-react';
+import { ShoppingBag, BookOpen, BarChart3, Edit3, CheckCircle, Clock, X, Plus, Trash2, Image as ImageIcon, Thermometer, LayoutGrid, List, Filter, Archive, RotateCcw, XCircle, Power, Eye, Upload, Hash, MessageSquare, Download, Calendar, Ban, ChevronLeft, ChevronRight, Bell, AlertTriangle, RefreshCw, Activity, Layers, Tag, Wifi, WifiOff, Timer } from 'lucide-react';
 
 interface Props {
   restaurant: Restaurant;
@@ -20,6 +20,43 @@ const REJECTION_REASONS = [
   'Restaurant closed early',
   'Other'
 ];
+
+const OrderDeadlineTimer: React.FC<{ timestamp: number }> = ({ timestamp }) => {
+  const [timeLeft, setTimeLeft] = useState<number>(0);
+
+  useEffect(() => {
+    const calculateTime = () => {
+      const FIFTEEN_MINUTES = 15 * 60 * 1000;
+      const elapsed = Date.now() - timestamp;
+      const remaining = Math.max(0, FIFTEEN_MINUTES - elapsed);
+      setTimeLeft(remaining);
+    };
+
+    calculateTime();
+    const interval = setInterval(calculateTime, 1000);
+    return () => clearInterval(interval);
+  }, [timestamp]);
+
+  const minutes = Math.floor(timeLeft / 60000);
+  const seconds = Math.floor((timeLeft % 60000) / 1000);
+  const isUrgent = minutes < 5;
+  const isExpired = timeLeft === 0;
+
+  return (
+    <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border transition-all ${
+      isExpired 
+        ? 'bg-red-500 text-white border-red-600' 
+        : isUrgent 
+          ? 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 border-red-200 animate-pulse' 
+          : 'bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400 border-orange-200'
+    }`}>
+      <Timer size={12} className={isUrgent && !isExpired ? 'animate-spin' : ''} />
+      <span className="text-[10px] font-black uppercase tracking-widest">
+        {isExpired ? 'EXPIRED' : `${minutes}:${seconds.toString().padStart(2, '0')} Left`}
+      </span>
+    </div>
+  );
+};
 
 const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpdateMenu, onAddMenuItem, onPermanentDeleteMenuItem, onToggleOnline, lastSyncTime }) => {
   const [activeTab, setActiveTab] = useState<'ORDERS' | 'MENU' | 'REPORTS'>('ORDERS');
@@ -416,6 +453,9 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
                             <Hash size={12} className="text-orange-500" />
                             <span className="text-xs font-black">Table {order.tableNumber}</span>
                           </div>
+                          {order.status === OrderStatus.PENDING && (
+                            <OrderDeadlineTimer timestamp={order.timestamp} />
+                          )}
                         </div>
                         <div className="flex items-center gap-2">
                           <Clock size={14} className="text-gray-400" />

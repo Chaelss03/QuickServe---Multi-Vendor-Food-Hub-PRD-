@@ -33,7 +33,7 @@ const CustomerView: React.FC<Props> = ({ restaurants, cart, orders, onAddToCart,
     setActiveRestaurant(id);
     const element = sectionRefs.current[id];
     if (element) {
-      const offset = 140; // Adjust for sticky header + nav height
+      const offset = 150; // Adjusted for sticky header + nav height
       const bodyRect = document.body.getBoundingClientRect().top;
       const elementRect = element.getBoundingClientRect().top;
       const elementPosition = elementRect - bodyRect;
@@ -122,29 +122,32 @@ const CustomerView: React.FC<Props> = ({ restaurants, cart, orders, onAddToCart,
 
   return (
     <div className="relative min-h-screen pb-28 bg-gray-50 dark:bg-gray-900 transition-colors">
-      {/* Restaurant Navbar - Only shown for MULTI vendor hubs */}
+      {/* Restaurant Navbar - Enhanced Tabbed Appearance */}
       {areaType !== 'SINGLE' && (
-        <div className="sticky top-16 z-40 bg-white/95 dark:bg-gray-800/95 backdrop-blur-md border-b dark:border-gray-700 shadow-md">
-          <div className="px-4 py-2 border-b dark:border-gray-700 flex items-center justify-between">
+        <div className="sticky top-16 z-40 bg-white dark:bg-gray-800 border-b dark:border-gray-700 shadow-lg">
+          <div className="px-4 py-1 border-b dark:border-gray-700 flex items-center justify-between">
             <div className="flex items-center gap-2">
-                <UtensilsCrossed size={14} className="text-orange-500" />
-                <span className="text-[10px] font-black uppercase tracking-[0.2em] dark:text-gray-300">Available Kitchens</span>
+                <UtensilsCrossed size={12} className="text-orange-500" />
+                <span className="text-[9px] font-black uppercase tracking-[0.2em] text-gray-400 dark:text-gray-500">Available Brands</span>
             </div>
-            <span className="text-[9px] font-bold text-gray-400 uppercase">{restaurants.length} Stores Online</span>
           </div>
           <nav className="overflow-x-auto hide-scrollbar flex items-center px-4 py-3 gap-3">
             {restaurants.map(res => (
               <button
                 key={res.id}
                 onClick={() => scrollToSection(res.id)}
-                className={`whitespace-nowrap flex items-center gap-2 px-4 py-2 rounded-xl text-[11px] font-black uppercase tracking-tight transition-all duration-300 border-2 ${
+                className={`group whitespace-nowrap flex flex-col items-center gap-1.5 px-4 py-2.5 rounded-2xl transition-all duration-300 ${
                   activeRestaurant === res.id 
-                    ? 'bg-orange-500 border-orange-500 text-white shadow-lg shadow-orange-100 dark:shadow-none scale-105' 
-                    : 'bg-white dark:bg-gray-700 border-gray-100 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-orange-200'
+                    ? 'bg-orange-500 text-white shadow-xl shadow-orange-500/20 scale-105' 
+                    : 'bg-gray-50 dark:bg-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-600'
                 }`}
               >
-                <img src={res.logo} className="w-4 h-4 rounded-full object-cover" />
-                {res.name}
+                <div className={`w-10 h-10 rounded-xl overflow-hidden border-2 transition-colors ${activeRestaurant === res.id ? 'border-white/40' : 'border-gray-100 dark:border-gray-600'}`}>
+                   <img src={res.logo} className="w-full h-full object-cover" />
+                </div>
+                <span className={`text-[10px] font-black uppercase tracking-tighter ${activeRestaurant === res.id ? 'opacity-100' : 'opacity-70 group-hover:opacity-100'}`}>
+                  {res.name}
+                </span>
               </button>
             ))}
           </nav>
@@ -223,7 +226,7 @@ const CustomerView: React.FC<Props> = ({ restaurants, cart, orders, onAddToCart,
               key={res.id} 
               id={res.id} 
               ref={el => { sectionRefs.current[res.id] = el; }}
-              className={areaType === 'SINGLE' ? "mt-4" : "scroll-mt-48"}
+              className={areaType === 'SINGLE' ? "mt-4" : "scroll-mt-[180px]"}
             >
               <div className="flex items-center justify-between mb-4 px-1">
                 <div className="flex items-center gap-3">
