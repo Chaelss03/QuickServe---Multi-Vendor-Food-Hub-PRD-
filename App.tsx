@@ -156,7 +156,15 @@ const App: React.FC = () => {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => fetchOrders())
       .subscribe();
 
-    return () => { supabase.removeChannel(orderSubscription); };
+    // Heartbeat scheduler: poll every 15 seconds as a backup for real-time
+    const interval = setInterval(() => {
+      fetchOrders();
+    }, 15000);
+
+    return () => { 
+      supabase.removeChannel(orderSubscription); 
+      clearInterval(interval);
+    };
   }, [fetchUsers, fetchLocations, fetchRestaurants, fetchOrders]);
 
   useEffect(() => {
