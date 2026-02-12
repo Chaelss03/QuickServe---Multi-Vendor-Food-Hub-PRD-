@@ -15,6 +15,7 @@ const App: React.FC = () => {
   const [orders, setOrders] = useState<Order[]>([]);
   const [locations, setLocations] = useState<Area[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [lastSyncTime, setLastSyncTime] = useState<Date>(new Date());
   
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
     try {
@@ -135,6 +136,7 @@ const App: React.FC = () => {
         rejectionReason: o.rejection_reason,
         rejectionNote: o.rejection_note
       })));
+      setLastSyncTime(new Date());
     }
   }, []);
 
@@ -156,10 +158,10 @@ const App: React.FC = () => {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => fetchOrders())
       .subscribe();
 
-    // Heartbeat scheduler: poll every 15 seconds as a backup for real-time
+    // Heartbeat scheduler: poll every 5 seconds for aggressive real-time performance
     const interval = setInterval(() => {
       fetchOrders();
-    }, 15000);
+    }, 5000);
 
     return () => { 
       supabase.removeChannel(orderSubscription); 
@@ -450,6 +452,7 @@ const App: React.FC = () => {
           <VendorView 
             restaurant={activeVendorRes} orders={orders.filter(o => o.restaurantId === currentUser?.restaurantId)}
             onUpdateOrder={updateOrderStatus} onUpdateMenu={handleUpdateMenuItem} onAddMenuItem={handleAddMenuItem} onPermanentDeleteMenuItem={handleDeleteMenuItem}
+            lastSyncTime={lastSyncTime}
           />
         )}
         {currentRole === 'ADMIN' && (

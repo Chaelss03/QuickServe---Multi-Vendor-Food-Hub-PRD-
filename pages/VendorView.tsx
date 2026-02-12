@@ -1,7 +1,7 @@
 
 import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { Restaurant, Order, OrderStatus, MenuItem, MenuItemVariant } from '../types';
-import { ShoppingBag, BookOpen, BarChart3, Edit3, CheckCircle, Clock, X, Plus, Trash2, Image as ImageIcon, Thermometer, LayoutGrid, List, Filter, Archive, RotateCcw, XCircle, Power, Eye, Upload, Hash, MessageSquare, Download, Calendar, Ban, ChevronLeft, ChevronRight, Bell, AlertTriangle } from 'lucide-react';
+import { ShoppingBag, BookOpen, BarChart3, Edit3, CheckCircle, Clock, X, Plus, Trash2, Image as ImageIcon, Thermometer, LayoutGrid, List, Filter, Archive, RotateCcw, XCircle, Power, Eye, Upload, Hash, MessageSquare, Download, Calendar, Ban, ChevronLeft, ChevronRight, Bell, AlertTriangle, RefreshCw } from 'lucide-react';
 
 interface Props {
   restaurant: Restaurant;
@@ -10,6 +10,7 @@ interface Props {
   onUpdateMenu: (restaurantId: string, updatedItem: MenuItem) => void;
   onAddMenuItem: (restaurantId: string, newItem: MenuItem) => void;
   onPermanentDeleteMenuItem: (restaurantId: string, itemId: string) => void;
+  lastSyncTime?: Date;
 }
 
 const REJECTION_REASONS = [
@@ -19,7 +20,7 @@ const REJECTION_REASONS = [
   'Other'
 ];
 
-const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpdateMenu, onAddMenuItem, onPermanentDeleteMenuItem }) => {
+const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpdateMenu, onAddMenuItem, onPermanentDeleteMenuItem, lastSyncTime }) => {
   const [activeTab, setActiveTab] = useState<'ORDERS' | 'MENU' | 'REPORTS'>('ORDERS');
   const [orderFilter, setOrderFilter] = useState<OrderStatus | 'ONGOING_ALL'>( 'ONGOING_ALL');
   const [editingItem, setEditingItem] = useState<MenuItem | null>(null);
@@ -284,6 +285,14 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
             Sales Reports
           </button>
         </nav>
+        
+        {/* Live Sync Badge in Sidebar */}
+        <div className="p-4 mt-auto border-t dark:border-gray-700">
+          <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 dark:bg-gray-700/50 rounded-xl">
+             <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
+             <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Live Connection Active</span>
+          </div>
+        </div>
       </aside>
 
       <main className="flex-1 overflow-y-auto bg-gray-50 dark:bg-gray-900 p-8 relative">
@@ -302,8 +311,16 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
 
         {activeTab === 'ORDERS' && (
           <div className="max-w-5xl mx-auto">
-            <div className="flex items-center justify-between mb-8">
-              <h1 className="text-2xl font-black dark:text-white uppercase tracking-tighter">Kitchen Feed</h1>
+            <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
+              <div className="flex items-center gap-4">
+                <h1 className="text-2xl font-black dark:text-white uppercase tracking-tighter">Kitchen Feed</h1>
+                {lastSyncTime && (
+                  <div className="flex items-center gap-2 text-[10px] font-black text-gray-400 bg-white dark:bg-gray-800 px-3 py-1 rounded-full border dark:border-gray-700">
+                    <RefreshCw size={10} className="animate-spin text-green-500" />
+                    SYNCED {lastSyncTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                  </div>
+                )}
+              </div>
               <div className="flex bg-white dark:bg-gray-800 rounded-xl p-1 border dark:border-gray-700 shadow-sm overflow-x-auto hide-scrollbar">
                 <button 
                   onClick={() => setOrderFilter('ONGOING_ALL')}
