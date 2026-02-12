@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { User, Restaurant, Order, Area, OrderStatus } from '../types';
 import { Users, Store, TrendingUp, Settings, ShieldCheck, Mail, Search, Filter, X, Plus, MapPin, Power, CheckCircle2, AlertCircle, LogIn, Trash2, LayoutGrid, List, ChevronRight, Eye, Globe, Phone, ShoppingBag, Edit3, Hash, Download, Calendar, ChevronLeft } from 'lucide-react';
@@ -808,7 +809,7 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
                               </div>
                             </td>
                             <td className="px-8 py-5 text-right font-black text-sm text-gray-900 dark:text-white">
-                              ${report.total.toFixed(2)}
+                              RM{report.total.toFixed(2)}
                             </td>
                           </tr>
                         );

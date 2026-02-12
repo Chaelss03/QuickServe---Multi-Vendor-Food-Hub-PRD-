@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { Restaurant, Order, OrderStatus, MenuItem, MenuItemVariant } from '../types';
 import { ShoppingBag, BookOpen, BarChart3, Edit3, CheckCircle, Clock, X, Plus, Trash2, Image as ImageIcon, Thermometer, LayoutGrid, List, Filter, Archive, RotateCcw, XCircle, Power, Eye, Upload, Hash, MessageSquare, Download, Calendar, Ban, ChevronLeft, ChevronRight } from 'lucide-react';
@@ -315,7 +316,7 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
                                     {item.selectedTemp && <span className={`text-[9px] font-black px-1.5 py-0.5 rounded uppercase tracking-tighter ${item.selectedTemp === 'Hot' ? 'bg-orange-50 text-orange-600' : 'bg-blue-50 text-blue-600'}`}>Temp: {item.selectedTemp}</span>}
                                 </div>
                             </div>
-                            <span className="text-gray-500 dark:text-gray-400 font-bold">${(item.price * item.quantity).toFixed(2)}</span>
+                            <span className="text-gray-500 dark:text-gray-400 font-bold">RM{(item.price * item.quantity).toFixed(2)}</span>
                           </div>
                         ))}
                       </div>
@@ -343,7 +344,7 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
 
                       <div className="mt-4 pt-4 border-t dark:border-gray-700 flex justify-between items-center">
                         <span className="text-xs font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest">Grand Total</span>
-                        <span className="text-2xl font-black text-gray-900 dark:text-white">${order.total.toFixed(2)}</span>
+                        <span className="text-2xl font-black text-gray-900 dark:text-white">RM{order.total.toFixed(2)}</span>
                       </div>
                     </div>
                     
@@ -516,7 +517,7 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
                         <h3 className="font-black text-lg text-gray-900 dark:text-white mb-1">{item.name}</h3>
                         <p className="text-xs text-gray-500 dark:text-gray-400 line-clamp-2 mb-4 flex-1">{item.description}</p>
                         <div className="flex justify-between items-center mt-auto">
-                          <span className="text-xl font-black text-orange-500">${item.price.toFixed(2)}</span>
+                          <span className="text-xl font-black text-orange-500">RM{item.price.toFixed(2)}</span>
                           <span className={`text-[10px] font-black px-2 py-1 rounded-full uppercase ${item.isArchived ? 'bg-gray-100 text-gray-400 dark:bg-gray-700 dark:text-gray-500' : 'bg-green-50 text-green-600 dark:bg-green-900/20 dark:text-green-400'}`}>
                             {item.isArchived ? 'Archived' : 'Live'}
                           </span>
@@ -551,7 +552,7 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
                           <td className="px-4 py-4 hidden sm:table-cell">
                              <span className="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase">{item.category}</span>
                           </td>
-                          <td className="px-4 py-4 font-black text-gray-900 dark:text-white">${item.price.toFixed(2)}</td>
+                          <td className="px-4 py-4 font-black text-gray-900 dark:text-white">RM{item.price.toFixed(2)}</td>
                           <td className="px-6 md:px-8 py-4 text-right">
                              <div className="flex justify-end items-center gap-2 md:gap-4">
                                {menuStatusFilter === 'ACTIVE' ? (
@@ -667,7 +668,7 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
               <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
                 <p className="text-gray-400 dark:text-gray-500 text-[10px] font-black mb-1 uppercase tracking-widest">Total Sales (Served)</p>
                 <p className="text-3xl font-black text-gray-900 dark:text-white">
-                  ${filteredReports.filter(o => o.status === OrderStatus.COMPLETED).reduce((acc, o) => acc + o.total, 0).toFixed(2)}
+                  RM{filteredReports.filter(o => o.status === OrderStatus.COMPLETED).reduce((acc, o) => acc + o.total, 0).toFixed(2)}
                 </p>
               </div>
               <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
@@ -748,7 +749,7 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
                           </div>
                         </td>
                         <td className="px-8 py-5 text-right font-black text-gray-900 dark:text-white">
-                          ${report.total.toFixed(2)}
+                          RM{report.total.toFixed(2)}
                         </td>
                       </tr>
                     ))
@@ -944,7 +945,7 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
                       <select 
                         className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border-none rounded-xl focus:ring-2 focus:ring-orange-500 dark:text-white font-medium outline-none text-sm cursor-pointer"
                         value={formItem.category}
-                        onChange={(e) => setFormItem({...formItem, category: e.target.value})}
+                        onChange={(e) => setMenuCategoryFilter(e.target.value)}
                       >
                         <option value="Main">Main Dish</option>
                         <option value="Sides">Sides</option>
@@ -957,7 +958,7 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
                       </select>
                     </div>
                     <div>
-                      <label className="block text-xs font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-1.5 ml-1">Base Price ($)</label>
+                      <label className="block text-xs font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-1.5 ml-1">Base Price (RM)</label>
                       <input 
                         required
                         type="number" 
@@ -1004,7 +1005,7 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
                         onChange={(e) => handleSizeChange(idx, 'name', e.target.value)}
                       />
                       <div className="flex items-center gap-2 bg-white dark:bg-gray-800 rounded-xl px-3 py-2">
-                        <span className="text-gray-400 text-xs">$</span>
+                        <span className="text-gray-400 text-xs">RM</span>
                         <input 
                           type="number" 
                           step="0.01"
@@ -1049,9 +1050,9 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
                 {formItem.tempOptions?.enabled && (
                   <div className="grid grid-cols-2 gap-4 animate-in slide-in-from-top duration-300">
                     <div className="bg-orange-50 dark:bg-orange-900/10 p-4 rounded-2xl border border-orange-100 dark:border-orange-900/20">
-                      <p className="text-xs font-black text-orange-600 dark:text-orange-400 mb-2 uppercase tracking-widest">Hot (+ $)</p>
+                      <p className="text-xs font-black text-orange-600 dark:text-orange-400 mb-2 uppercase tracking-widest">Hot (+ RM)</p>
                       <div className="flex items-center gap-2 bg-white dark:bg-gray-800 rounded-xl px-3 py-2 border dark:border-gray-700">
-                        <span className="text-gray-400 text-xs">+$</span>
+                        <span className="text-gray-400 text-xs">+RM</span>
                         <input 
                           type="number" 
                           step="0.01"
@@ -1063,9 +1064,9 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
                       </div>
                     </div>
                     <div className="bg-blue-50 dark:bg-blue-900/10 p-4 rounded-2xl border border-blue-100 dark:border-blue-900/20">
-                      <p className="text-xs font-black text-blue-600 dark:text-blue-400 mb-2 uppercase tracking-widest">Cold (+ $)</p>
+                      <p className="text-xs font-black text-blue-600 dark:text-blue-400 mb-2 uppercase tracking-widest">Cold (+ RM)</p>
                       <div className="flex items-center gap-2 bg-white dark:bg-gray-800 rounded-xl px-3 py-2 border dark:border-gray-700">
-                        <span className="text-gray-400 text-xs">+$</span>
+                        <span className="text-gray-400 text-xs">+RM</span>
                         <input 
                           type="number" 
                           step="0.01"

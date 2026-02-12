@@ -23,6 +23,7 @@ const CustomerView: React.FC<Props> = ({ restaurants, cart, orders, onAddToCart,
   const [selectedTemp, setSelectedTemp] = useState<'Hot' | 'Cold' | undefined>(undefined);
   const [gridColumns, setGridColumns] = useState<2 | 3>(3);
   const [orderRemark, setOrderRemark] = useState('');
+  const [dismissedOrders, setDismissedOrders] = useState<string[]>([]);
   
   const sectionRefs = useRef<{ [key: string]: HTMLElement | null }>({});
 
@@ -102,11 +103,15 @@ const CustomerView: React.FC<Props> = ({ restaurants, cart, orders, onAddToCart,
     setGridColumns(prev => (prev === 3 ? 2 : 3));
   };
 
-  const activeOrders = orders.filter(o => o.status !== OrderStatus.COMPLETED);
+  const handleDismissOrder = (orderId: string) => {
+    setDismissedOrders(prev => [...prev, orderId]);
+  };
+
+  const activeOrders = orders.filter(o => o.status !== OrderStatus.COMPLETED && !dismissedOrders.includes(o.id));
 
   return (
     <div className="relative min-h-screen pb-28 bg-gray-50 dark:bg-gray-900 transition-colors">
-      {/* Restaurant Navbar - Enhanced for the 'Menu Page' requirement */}
+      {/* Restaurant Navbar */}
       <div className="sticky top-16 z-40 bg-white/95 dark:bg-gray-800/95 backdrop-blur-md border-b dark:border-gray-700 shadow-md">
         <div className="px-4 py-2 border-b dark:border-gray-700 flex items-center justify-between">
            <div className="flex items-center gap-2">
@@ -167,12 +172,18 @@ const CustomerView: React.FC<Props> = ({ restaurants, cart, orders, onAddToCart,
         {activeOrders.length > 0 && (
           <div className="mb-6 space-y-2">
             {activeOrders.map(order => (
-              <div key={order.id} className={`p-4 rounded-2xl border flex flex-col gap-2 transition-all shadow-sm ${
+              <div key={order.id} className={`relative p-4 rounded-2xl border flex flex-col gap-2 transition-all shadow-sm ${
                 order.status === OrderStatus.CANCELLED 
                   ? 'bg-red-50 dark:bg-red-900/10 border-red-200 dark:border-red-900/30' 
                   : 'bg-orange-50 dark:bg-orange-900/10 border-orange-200 dark:border-orange-900/30'
               }`}>
-                <div className="flex items-center justify-between">
+                <button 
+                  onClick={() => handleDismissOrder(order.id)}
+                  className="absolute top-3 right-3 p-1.5 hover:bg-black/5 dark:hover:bg-white/5 rounded-full text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  <X size={14} />
+                </button>
+                <div className="flex items-center justify-between pr-6">
                    <div className="flex items-center gap-2">
                       <div className={`w-2 h-2 rounded-full ${order.status === OrderStatus.CANCELLED ? 'bg-red-500' : 'bg-orange-500 animate-pulse'}`}></div>
                       <span className={`text-[10px] font-black uppercase tracking-widest ${order.status === OrderStatus.CANCELLED ? 'text-red-700 dark:text-red-400' : 'text-orange-800 dark:text-orange-200'}`}>
@@ -222,7 +233,7 @@ const CustomerView: React.FC<Props> = ({ restaurants, cart, orders, onAddToCart,
                     <div className="p-2 md:p-4 flex-1 flex flex-col">
                       <div className="mb-2">
                         <h4 className={`font-black text-gray-900 dark:text-white leading-tight line-clamp-1 mb-1 ${gridColumns === 3 ? 'text-[10px] md:text-sm' : 'text-xs md:text-base'}`}>{item.name}</h4>
-                        <p className="font-black text-orange-500 text-xs md:text-lg">${item.price.toFixed(2)}</p>
+                        <p className="font-black text-orange-500 text-xs md:text-lg">RM{item.price.toFixed(2)}</p>
                       </div>
                       
                       <button 
@@ -249,13 +260,6 @@ const CustomerView: React.FC<Props> = ({ restaurants, cart, orders, onAddToCart,
 
         <div className="mt-16 text-center pb-8 border-t dark:border-gray-800 pt-8 flex flex-col items-center gap-4">
           <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">© QuickServe Platform</p>
-          <button 
-            onClick={onLoginClick}
-            className="flex items-center gap-2 px-6 py-3 bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:text-orange-500 transition-all border border-transparent hover:border-orange-200 active:scale-95"
-          >
-            <LogIn size={14} />
-            Vendor & Admin Login
-          </button>
         </div>
       </div>
 
@@ -295,7 +299,7 @@ const CustomerView: React.FC<Props> = ({ restaurants, cart, orders, onAddToCart,
                           }`}
                         >
                           <p className="text-[10px] font-black uppercase tracking-tighter mb-1">{size.name}</p>
-                          <p className="font-black text-sm">+{size.price > 0 ? `$${size.price.toFixed(2)}` : 'FREE'}</p>
+                          <p className="font-black text-sm">+{size.price > 0 ? `RM${size.price.toFixed(2)}` : 'FREE'}</p>
                         </button>
                       ))}
                     </div>
@@ -337,7 +341,7 @@ const CustomerView: React.FC<Props> = ({ restaurants, cart, orders, onAddToCart,
                 <div className="text-left">
                    <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">Total Price</p>
                    <p className="text-3xl font-black dark:text-white">
-                      ${(
+                      RM{(
                         selectedItemForVariants.item.price + 
                         (selectedItemForVariants.item.sizes?.find(s => s.name === selectedSize)?.price || 0) +
                         (selectedTemp === 'Hot' ? (selectedItemForVariants.item.tempOptions?.hot || 0) : (selectedTemp === 'Cold' ? (selectedItemForVariants.item.tempOptions?.cold || 0) : 0))
@@ -361,15 +365,15 @@ const CustomerView: React.FC<Props> = ({ restaurants, cart, orders, onAddToCart,
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 w-full max-w-[340px] px-4 z-50">
           <button 
             onClick={() => setShowCart(true)}
-            className="w-full bg-black dark:bg-gray-100 text-white dark:text-gray-900 p-4 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.3)] flex items-center justify-between hover:scale-[1.02] active:scale-95 transition-all border-4 border-white dark:border-gray-800"
+            className="w-full bg-black dark:bg-gray-100 text-white dark:text-gray-900 py-3 px-4 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.3)] flex items-center justify-between hover:scale-[1.02] active:scale-95 transition-all border-4 border-white dark:border-gray-800"
           >
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 bg-orange-500 rounded-xl flex items-center justify-center font-black text-xs text-white">
+              <div className="w-7 h-7 bg-orange-500 rounded-lg flex items-center justify-center font-black text-[10px] text-white">
                 {cart.length}
               </div>
-              <span className="font-black text-[11px] uppercase tracking-[0.2em]">View Your Tray</span>
+              <span className="font-black text-[10px] uppercase tracking-[0.2em]">View Your Tray</span>
             </div>
-            <span className="font-black text-xl tracking-tight">${cartTotal.toFixed(2)}</span>
+            <span className="font-black text-lg tracking-tight">RM{cartTotal.toFixed(2)}</span>
           </button>
         </div>
       )}
@@ -392,7 +396,7 @@ const CustomerView: React.FC<Props> = ({ restaurants, cart, orders, onAddToCart,
                   <div className="flex-1">
                     <div className="flex justify-between font-bold dark:text-white mb-2">
                       <p className="text-xs font-black uppercase tracking-tight">{item.name}</p>
-                      <p className="text-xs font-black text-orange-500">${(item.price * item.quantity).toFixed(2)}</p>
+                      <p className="text-xs font-black text-orange-500">RM{(item.price * item.quantity).toFixed(2)}</p>
                     </div>
                     <div className="flex flex-wrap gap-1 mb-3">
                       {item.selectedSize && <span className="text-[8px] font-black px-2 py-0.5 bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 rounded uppercase">{item.selectedSize}</span>}
@@ -432,7 +436,7 @@ const CustomerView: React.FC<Props> = ({ restaurants, cart, orders, onAddToCart,
               )}
             </div>
 
-            <div className="p-8 border-t dark:border-gray-800 bg-gray-50 dark:bg-gray-800/80 backdrop-blur-xl"><div className="space-y-3 mb-8"><div className="flex justify-between text-[10px] font-black text-gray-400 uppercase tracking-widest"><span>Subtotal</span><span className="text-gray-900 dark:text-white font-black">${cartTotal.toFixed(2)}</span></div><div className="flex justify-between text-2xl font-black text-gray-900 dark:text-white border-t pt-6 mt-6 uppercase tracking-tighter"><span>Grand Total</span><span className="text-orange-500">${cartTotal.toFixed(2)}</span></div></div><button disabled={cart.length === 0} onClick={() => { onPlaceOrder(orderRemark); setShowCart(false); setOrderRemark(''); }} className="w-full py-5 bg-orange-500 text-white rounded-[2rem] font-black text-sm uppercase tracking-[0.3em] shadow-2xl hover:bg-orange-600 transition-all active:scale-[0.98] disabled:opacity-50">Send Order to Kitchen</button></div>
+            <div className="p-8 border-t dark:border-gray-800 bg-gray-50 dark:bg-gray-800/80 backdrop-blur-xl"><div className="space-y-3 mb-8"><div className="flex justify-between text-[10px] font-black text-gray-400 uppercase tracking-widest"><span>Subtotal</span><span className="text-gray-900 dark:text-white font-black">RM{cartTotal.toFixed(2)}</span></div><div className="flex justify-between text-2xl font-black text-gray-900 dark:text-white border-t pt-6 mt-6 uppercase tracking-tighter"><span>Grand Total</span><span className="text-orange-500">RM{cartTotal.toFixed(2)}</span></div></div><button disabled={cart.length === 0} onClick={() => { onPlaceOrder(orderRemark); setShowCart(false); setOrderRemark(''); }} className="w-full py-5 bg-orange-500 text-white rounded-[2rem] font-black text-sm uppercase tracking-[0.3em] shadow-2xl hover:bg-orange-600 transition-all active:scale-[0.98] disabled:opacity-50">Send Order to Kitchen</button></div>
           </div>
         </div>
       )}
