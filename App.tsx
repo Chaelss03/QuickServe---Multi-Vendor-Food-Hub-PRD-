@@ -12,29 +12,40 @@ import { LogOut, Sun, Moon, MapPin, LogIn, Loader2 } from 'lucide-react';
 const App: React.FC = () => {
   // --- HYDRATED STATE (Instant Boot from Cache) ---
   const [allUsers, setAllUsers] = useState<User[]>(() => {
-    const saved = localStorage.getItem('qs_cache_users');
-    return saved ? JSON.parse(saved) : [];
+    try {
+      const saved = localStorage.getItem('qs_cache_users');
+      return saved ? JSON.parse(saved) : [];
+    } catch { return []; }
   });
   
   const [restaurants, setRestaurants] = useState<Restaurant[]>(() => {
-    const saved = localStorage.getItem('qs_cache_restaurants');
-    return saved ? JSON.parse(saved) : [];
+    try {
+      const saved = localStorage.getItem('qs_cache_restaurants');
+      return saved ? JSON.parse(saved) : [];
+    } catch { return []; }
   });
   
   const [orders, setOrders] = useState<Order[]>(() => {
-    const saved = localStorage.getItem('qs_cache_orders');
-    return saved ? JSON.parse(saved) : [];
+    try {
+      const saved = localStorage.getItem('qs_cache_orders');
+      return saved ? JSON.parse(saved) : [];
+    } catch { return []; }
   });
   
   const [locations, setLocations] = useState<Area[]>(() => {
-    const saved = localStorage.getItem('qs_cache_locations');
-    return saved ? JSON.parse(saved) : [];
+    try {
+      const saved = localStorage.getItem('qs_cache_locations');
+      return saved ? JSON.parse(saved) : [];
+    } catch { return []; }
   });
 
   const [isLoading, setIsLoading] = useState(() => {
-    // Only show loader if we have NO cached structural data
-    const hasCache = localStorage.getItem('qs_cache_restaurants') && localStorage.getItem('qs_cache_locations');
-    return !hasCache;
+    // Only show loader if we have NO cached structural data at all
+    try {
+      const hasRes = localStorage.getItem('qs_cache_restaurants');
+      const hasLoc = localStorage.getItem('qs_cache_locations');
+      return !(hasRes && hasLoc);
+    } catch { return true; }
   });
 
   const [lastSyncTime, setLastSyncTime] = useState<Date>(new Date());
@@ -70,104 +81,128 @@ const App: React.FC = () => {
 
   // --- PERSISTENCE HELPERS ---
   const persistCache = (key: string, data: any) => {
-    localStorage.setItem(key, JSON.stringify(data));
+    try {
+      localStorage.setItem(key, JSON.stringify(data));
+    } catch (e) {
+      console.warn("Storage quota exceeded or unavailable.");
+    }
   };
 
-  // --- FETCHING ENGINE ---
+  // --- FETCHING ENGINE (Resilient) ---
   const fetchUsers = useCallback(async () => {
-    const { data } = await supabase.from('users').select('*');
-    if (data) {
-      const mapped = data.map(u => ({
-        id: u.id,
-        username: u.username,
-        role: u.role as Role,
-        restaurantId: u.restaurant_id,
-        password: u.password,
-        isActive: u.is_active,
-        email: u.email,
-        phone: u.phone
-      }));
-      setAllUsers(mapped);
-      persistCache('qs_cache_users', mapped);
-    }
+    try {
+      const { data, error } = await supabase.from('users').select('*');
+      if (error) throw error;
+      if (data) {
+        const mapped = data.map(u => ({
+          id: u.id,
+          username: u.username,
+          role: u.role as Role,
+          restaurantId: u.restaurant_id,
+          password: u.password,
+          isActive: u.is_active,
+          email: u.email,
+          phone: u.phone
+        }));
+        setAllUsers(mapped);
+        persistCache('qs_cache_users', mapped);
+      }
+    } catch (e) { console.error("Fetch Users Failed", e); }
   }, []);
 
   const fetchLocations = useCallback(async () => {
-    const { data } = await supabase.from('areas').select('*').order('name');
-    if (data) {
-      const mapped = data.map(l => ({
-        id: l.id,
-        name: l.name,
-        city: l.city,
-        state: l.state,
-        code: l.code,
-        isActive: l.is_active ?? true
-      }));
-      setLocations(mapped);
-      persistCache('qs_cache_locations', mapped);
-    }
+    try {
+      const { data, error } = await supabase.from('areas').select('*').order('name');
+      if (error) throw error;
+      if (data) {
+        const mapped = data.map(l => ({
+          id: l.id,
+          name: l.name,
+          city: l.city,
+          state: l.state,
+          code: l.code,
+          isActive: l.is_active ?? true
+        }));
+        setLocations(mapped);
+        persistCache('qs_cache_locations', mapped);
+      }
+    } catch (e) { console.error("Fetch Locations Failed", e); }
   }, []);
 
   const fetchRestaurants = useCallback(async () => {
-    const { data: resData } = await supabase.from('restaurants').select('*');
-    const { data: menuData } = await supabase.from('menu_items').select('*');
-    
-    if (resData && menuData) {
-      const formatted: Restaurant[] = resData.map(res => ({
-        id: res.id,
-        name: res.name,
-        logo: res.logo,
-        vendorId: res.vendor_id,
-        location: res.location_name,
-        created_at: res.created_at,
-        menu: menuData
-          .filter(m => m.restaurant_id === res.id)
-          .map(m => ({
-            id: m.id,
-            name: m.name,
-            description: m.description,
-            price: Number(m.price),
-            image: m.image,
-            category: m.category,
-            isArchived: m.is_archived,
-            sizes: m.sizes,
-            tempOptions: m.temp_options
-          }))
-      }));
-      setRestaurants(formatted);
-      persistCache('qs_cache_restaurants', formatted);
-    }
+    try {
+      const { data: resData, error: resError } = await supabase.from('restaurants').select('*');
+      const { data: menuData, error: menuError } = await supabase.from('menu_items').select('*');
+      
+      if (resError || menuError) throw (resError || menuError);
+
+      if (resData && menuData) {
+        const formatted: Restaurant[] = resData.map(res => ({
+          id: res.id,
+          name: res.name,
+          logo: res.logo,
+          vendorId: res.vendor_id,
+          location: res.location_name,
+          created_at: res.created_at,
+          menu: menuData
+            .filter(m => m.restaurant_id === res.id)
+            .map(m => ({
+              id: m.id,
+              name: m.name,
+              description: m.description,
+              price: Number(m.price),
+              image: m.image,
+              category: m.category,
+              isArchived: m.is_archived,
+              sizes: m.sizes,
+              tempOptions: m.temp_options
+            }))
+        }));
+        setRestaurants(formatted);
+        persistCache('qs_cache_restaurants', formatted);
+      }
+    } catch (e) { console.error("Fetch Restaurants Failed", e); }
   }, []);
 
   const fetchOrders = useCallback(async () => {
-    const { data } = await supabase.from('orders').select('*').order('timestamp', { ascending: false }).limit(500);
-    if (data) {
-      const mapped = data.map(o => ({
-        id: o.id,
-        items: o.items,
-        total: Number(o.total),
-        status: o.status as OrderStatus,
-        timestamp: Number(o.timestamp),
-        customerId: o.customer_id,
-        restaurantId: o.restaurant_id,
-        tableNumber: o.table_number,
-        locationName: o.location_name,
-        remark: o.remark,
-        rejectionReason: o.rejection_reason,
-        rejectionNote: o.rejection_note
-      }));
-      setOrders(mapped);
-      setLastSyncTime(new Date());
-      persistCache('qs_cache_orders', mapped);
-    }
+    try {
+      const { data, error } = await supabase.from('orders').select('*').order('timestamp', { ascending: false }).limit(200);
+      if (error) throw error;
+      if (data) {
+        const mapped = data.map(o => ({
+          id: o.id,
+          items: o.items,
+          total: Number(o.total),
+          status: o.status as OrderStatus,
+          timestamp: Number(o.timestamp),
+          customerId: o.customer_id,
+          restaurantId: o.restaurant_id,
+          tableNumber: o.table_number,
+          locationName: o.location_name,
+          remark: o.remark,
+          rejectionReason: o.rejection_reason,
+          rejectionNote: o.rejection_note
+        }));
+        setOrders(mapped);
+        setLastSyncTime(new Date());
+        persistCache('qs_cache_orders', mapped);
+      }
+    } catch (e) { console.error("Fetch Orders Failed", e); }
   }, []);
 
-  // Initialization: Background sync while showing cached UI
+  // Initialization: Background sync with a hard timeout fail-safe
   useEffect(() => {
+    const bootTimeout = setTimeout(() => {
+      setIsLoading(false);
+    }, 4000); // HARD FAILSAFE: Max 4 seconds of loading screen ever.
+
     const initApp = async () => {
-      // Background sync
+      // Parallel non-blocking sync
       Promise.allSettled([fetchUsers(), fetchLocations(), fetchRestaurants(), fetchOrders()])
-        .finally(() => setIsLoading(false));
+        .finally(() => {
+          clearTimeout(bootTimeout);
+          setIsLoading(false);
+        });
     };
     initApp();
 
@@ -183,6 +218,7 @@ const App: React.FC = () => {
     return () => { 
       supabase.removeChannel(orderSubscription); 
       clearInterval(interval);
+      clearTimeout(bootTimeout);
     };
   }, [fetchUsers, fetchLocations, fetchRestaurants, fetchOrders]);
 
@@ -234,23 +270,23 @@ const App: React.FC = () => {
   };
 
   const updateOrderStatus = async (orderId: string, status: OrderStatus, reason?: string, note?: string) => {
-    // 1. OPTIMISTIC UPDATE: Immediate UI response
+    // 1. OPTIMISTIC UPDATE: Instant UI response
     setOrders(prev => {
       const updated = prev.map(o => 
         o.id === orderId ? { ...o, status, rejectionReason: reason, rejectionNote: note } : o
       );
-      persistCache('qs_cache_orders', updated); // Persist optimistic state
+      persistCache('qs_cache_orders', updated);
       return updated;
     });
 
-    // 2. BACKGROUND SYNC: No 'await' blocking the UI
+    // 2. BACKGROUND SYNC: Direct fire-and-forget
     supabase.from('orders')
       .update({ status, rejection_reason: reason, rejection_note: note })
       .eq('id', orderId)
       .then(({ error }) => {
         if (error) {
-          console.error("Sync Failure", error);
-          fetchOrders(); // Correct state if failed
+          console.error("Order Sync Failure", error);
+          fetchOrders(); // Correct local state to match server truth
         }
       });
   };
@@ -297,7 +333,7 @@ const App: React.FC = () => {
     };
     
     const { error } = await supabase.from('orders').insert([newOrder]);
-    if (error) alert("Error: " + error.message);
+    if (error) alert("Placement Error: " + error.message);
     else {
       setCart([]);
       fetchOrders();
@@ -306,40 +342,39 @@ const App: React.FC = () => {
   };
 
   const handleAddVendor = async (newUser: User, newRestaurant: Restaurant) => {
-    const { data: userData, error: userError } = await supabase.from('users').insert([{
-      username: newUser.username,
-      password: newUser.password,
-      role: 'VENDOR',
-      email: newUser.email,
-      phone: newUser.phone,
-      is_active: true
-    }]).select();
-
-    if (userError) {
-      alert("Account Error: " + userError.message);
-      return;
-    }
-
-    if (userData && userData[0]) {
-      const createdUserId = userData[0].id;
-      const { data: resData, error: resError } = await supabase.from('restaurants').insert([{
-        name: newRestaurant.name, 
-        logo: newRestaurant.logo, 
-        vendor_id: createdUserId, 
-        location_name: newRestaurant.location
+    try {
+      const { data: userData, error: userError } = await supabase.from('users').insert([{
+        username: newUser.username,
+        password: newUser.password,
+        role: 'VENDOR',
+        email: newUser.email,
+        phone: newUser.phone,
+        is_active: true
       }]).select();
 
-      if (resError) {
-        alert("Store Error: " + resError.message);
-        await supabase.from('users').delete().eq('id', createdUserId);
-      } else {
-        if (resData && resData[0]) {
-           await supabase.from('users').update({ restaurant_id: resData[0].id }).eq('id', createdUserId);
+      if (userError) throw userError;
+
+      if (userData && userData[0]) {
+        const createdUserId = userData[0].id;
+        const { data: resData, error: resError } = await supabase.from('restaurants').insert([{
+          name: newRestaurant.name, 
+          logo: newRestaurant.logo, 
+          vendor_id: createdUserId, 
+          location_name: newRestaurant.location
+        }]).select();
+
+        if (resError) {
+          await supabase.from('users').delete().eq('id', createdUserId);
+          throw resError;
+        } else {
+          if (resData && resData[0]) {
+             await supabase.from('users').update({ restaurant_id: resData[0].id }).eq('id', createdUserId);
+          }
+          await Promise.all([fetchUsers(), fetchRestaurants()]);
+          alert("Vendor profile initialized.");
         }
-        await Promise.all([fetchUsers(), fetchRestaurants()]);
-        alert("Vendor profile created!");
       }
-    }
+    } catch (e: any) { alert("Admin Error: " + e.message); }
   };
 
   const handleUpdateVendor = async (u: User, r: Restaurant) => {
@@ -358,17 +393,15 @@ const App: React.FC = () => {
         location_name: r.location 
       }).eq('id', r.id);
 
-      if (userError || resError) throw new Error("Partial update failure");
+      if (userError || resError) throw new Error("Sync failure");
       await Promise.all([fetchUsers(), fetchRestaurants()]);
-      alert("Vendor updated successfully!");
-    } catch (e: any) {
-      alert("Update Error: " + e.message);
-    }
+      alert("Vendor synchronized.");
+    } catch (e: any) { alert("Update Error: " + e.message); }
   };
 
   const handleRemoveVendorFromHub = async (restaurantId: string) => {
     const { error } = await supabase.from('restaurants').update({ location_name: null }).eq('id', restaurantId);
-    if (error) alert("Error removing vendor: " + error.message);
+    if (error) alert("Removal Error: " + error.message);
     else await fetchRestaurants();
   };
 
@@ -407,7 +440,7 @@ const App: React.FC = () => {
         if (areaErr) throw areaErr;
       }
       await Promise.all([fetchLocations(), fetchRestaurants()]);
-      alert("Location synced!");
+      alert("Hub node updated.");
     } catch (err: any) {
       alert("Sync Error: " + err.message);
       await Promise.all([fetchLocations(), fetchRestaurants()]);
@@ -442,8 +475,8 @@ const App: React.FC = () => {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 dark:bg-gray-900">
         <Loader2 className="w-12 h-12 text-orange-500 animate-spin mb-4" />
-        <p className="text-gray-500 font-black uppercase tracking-[0.2em] text-[10px]">Cold Booting Engine...</p>
-        <p className="text-gray-400 text-[8px] mt-2 uppercase">Fetching fresh data from Supabase Hub</p>
+        <p className="text-gray-500 font-black uppercase tracking-[0.2em] text-[10px]">Assembling Engine...</p>
+        <p className="text-gray-400 text-[8px] mt-2 uppercase">Connecting to Supabase Hub</p>
       </div>
     );
   }
