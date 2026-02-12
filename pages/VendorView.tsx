@@ -687,30 +687,32 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
 
       {isFormModalOpen && (
         <div className="fixed inset-0 z-[100] bg-[#1a1c23]/95 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-[#242731] text-gray-100 rounded-3xl max-w-3xl w-full p-10 shadow-2xl relative overflow-y-auto max-h-[95vh] animate-in fade-in zoom-in duration-300">
-            <button onClick={() => setIsFormModalOpen(false)} className="absolute top-8 right-8 p-2 text-gray-400 hover:text-white transition-colors">
-              <X size={24} />
+          <div className="bg-[#242731] text-gray-100 rounded-3xl max-w-2xl w-full p-8 shadow-2xl relative overflow-y-auto max-h-[95vh] animate-in fade-in zoom-in duration-300">
+            <button onClick={() => setIsFormModalOpen(false)} className="absolute top-6 right-6 p-2 text-gray-400 hover:text-white transition-colors">
+              <X size={22} />
             </button>
             
-            <div className="mb-8">
-              <h2 className="text-3xl font-black uppercase tracking-tighter mb-1">
-                {editingItem ? 'Modify Menu' : 'Inventory Creation'}
+            <div className="mb-6">
+              <h2 className="text-2xl font-black uppercase tracking-tighter mb-1">
+                {editingItem ? 'Modify Menu' : 'Add New Item'}
               </h2>
-              {editingItem && (
+              {editingItem ? (
                 <p className="text-gray-400 text-sm">Currently editing "{editingItem.name}"</p>
+              ) : (
+                <p className="text-gray-400 text-sm">Create a new dish or drink for your customers.</p>
               )}
             </div>
 
-            <form onSubmit={handleSaveItem} className="space-y-10">
-              <div className="grid grid-cols-1 md:grid-cols-12 gap-10">
+            <form onSubmit={handleSaveItem} className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-12 gap-8">
                 {/* Left Side: Image */}
-                <div className="md:col-span-5 space-y-4">
-                  <div className="relative aspect-[4/3] bg-gray-800 rounded-3xl overflow-hidden border-2 border-dashed border-gray-700 group">
+                <div className="md:col-span-5 space-y-3">
+                  <div className="relative aspect-[4/3] bg-gray-800 rounded-2xl overflow-hidden border-2 border-dashed border-gray-700 group">
                     {formItem.image ? (
                       <img src={formItem.image} className="w-full h-full object-cover" />
                     ) : (
                       <div className="flex flex-col items-center justify-center h-full text-gray-500">
-                        <ImageIcon size={48} className="mb-2" />
+                        <ImageIcon size={40} className="mb-2" />
                         <p className="text-[10px] font-black uppercase">No Image</p>
                       </div>
                     )}
@@ -719,24 +721,24 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
                       onClick={() => fileInputRef.current?.click()} 
                       className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
                     >
-                      <Upload size={32} className="text-white" />
+                      <Upload size={28} className="text-white" />
                     </button>
                     <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleImageUpload} />
                   </div>
                   
-                  <div className="space-y-2">
+                  <div className="space-y-1">
                     <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest block">Image Source</label>
                     <div className="flex gap-2">
                       <button 
                         type="button"
                         onClick={() => fileInputRef.current?.click()}
-                        className="bg-[#323644] p-3 rounded-xl hover:bg-[#3d4253] transition-colors"
+                        className="bg-[#323644] p-2.5 rounded-xl hover:bg-[#3d4253] transition-colors"
                       >
-                        <Upload size={18} />
+                        <Upload size={16} />
                       </button>
                       <input 
-                        placeholder="Or paste an image URL..." 
-                        className="flex-1 bg-[#323644] border-none rounded-xl text-sm p-3 focus:ring-1 focus:ring-orange-500 outline-none"
+                        placeholder="Or paste URL..." 
+                        className="flex-1 bg-[#323644] border-none rounded-xl text-xs p-2.5 focus:ring-1 focus:ring-orange-500 outline-none"
                         value={formItem.image}
                         onChange={(e) => setFormItem({...formItem, image: e.target.value})}
                       />
@@ -745,46 +747,46 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
                 </div>
 
                 {/* Right Side: Inputs */}
-                <div className="md:col-span-7 space-y-6">
-                  <div className="space-y-2">
+                <div className="md:col-span-7 space-y-4">
+                  <div className="space-y-1">
                     <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest block">Item Title</label>
                     <input 
                       required 
-                      className="w-full bg-[#323644] border-none rounded-xl text-lg font-bold p-4 focus:ring-1 focus:ring-orange-500 outline-none"
+                      className="w-full bg-[#323644] border-none rounded-xl text-base font-bold p-3.5 focus:ring-1 focus:ring-orange-500 outline-none"
                       value={formItem.name}
                       onChange={(e) => setFormItem({...formItem, name: e.target.value})}
                     />
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
                       <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest block">Classification</label>
                       <select 
-                        className="w-full bg-[#323644] border-none rounded-xl text-sm font-bold p-4 focus:ring-1 focus:ring-orange-500 outline-none appearance-none"
+                        className="w-full bg-[#323644] border-none rounded-xl text-xs font-bold p-3.5 focus:ring-1 focus:ring-orange-500 outline-none appearance-none"
                         value={formItem.category}
                         onChange={(e) => setFormItem({...formItem, category: e.target.value})}
                       >
                         {categories.filter(c => c !== 'All').map(c => <option key={c} value={c}>{c}</option>)}
                       </select>
                     </div>
-                    <div className="space-y-2">
+                    <div className="space-y-1">
                       <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest block">Base Price (RM)</label>
                       <input 
                         required 
                         type="number" 
                         step="0.01" 
-                        className="w-full bg-[#323644] border-none rounded-xl text-lg font-bold p-4 focus:ring-1 focus:ring-orange-500 outline-none"
+                        className="w-full bg-[#323644] border-none rounded-xl text-base font-bold p-3.5 focus:ring-1 focus:ring-orange-500 outline-none"
                         value={formItem.price || ''}
                         onChange={(e) => setFormItem({...formItem, price: Number(e.target.value)})}
                       />
                     </div>
                   </div>
 
-                  <div className="space-y-2">
+                  <div className="space-y-1">
                     <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest block">Description</label>
                     <textarea 
-                      rows={3} 
-                      className="w-full bg-[#323644] border-none rounded-xl text-sm p-4 focus:ring-1 focus:ring-orange-500 outline-none resize-none"
+                      rows={2} 
+                      className="w-full bg-[#323644] border-none rounded-xl text-xs p-3 focus:ring-1 focus:ring-orange-500 outline-none resize-none"
                       value={formItem.description}
                       onChange={(e) => setFormItem({...formItem, description: e.target.value})}
                     />
@@ -793,42 +795,42 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
               </div>
 
               {/* Sizes Section */}
-              <div className="border-t border-gray-700 pt-8">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-sm font-black uppercase tracking-widest">Available Sizes (+ Price)</h3>
+              <div className="border-t border-gray-700 pt-4">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-[10px] font-black uppercase tracking-widest">Available Sizes (+ Price)</h3>
                   <button 
                     type="button" 
                     onClick={handleAddSize}
                     className="flex items-center gap-1.5 px-3 py-1.5 bg-[#2d303b] hover:bg-[#383c4a] text-orange-500 rounded-lg text-[10px] font-black uppercase transition-colors"
                   >
-                    <Plus size={14} /> Add Size
+                    <Plus size={12} /> Add Size
                   </button>
                 </div>
                 
                 {(!formItem.sizes || formItem.sizes.length === 0) ? (
-                  <p className="text-center py-8 text-gray-500 text-xs italic">No custom sizes added.</p>
+                  <p className="text-center py-4 text-gray-500 text-[10px] italic">No custom sizes added.</p>
                 ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     {formItem.sizes.map((size, idx) => (
-                      <div key={idx} className="flex gap-2 bg-[#323644] p-3 rounded-2xl border border-gray-700 shadow-inner">
+                      <div key={idx} className="flex gap-2 bg-[#323644] p-2.5 rounded-xl border border-gray-700 shadow-inner">
                         <input 
-                          placeholder="Size (e.g. Large)"
-                          className="flex-1 bg-transparent border-none text-xs font-bold outline-none"
+                          placeholder="e.g. Large"
+                          className="flex-1 bg-transparent border-none text-[10px] font-bold outline-none"
                           value={size.name}
                           onChange={(e) => handleSizeChange(idx, 'name', e.target.value)}
                         />
-                        <div className="w-24 flex items-center gap-1 border-l border-gray-600 pl-2">
-                           <span className="text-[10px] text-gray-500 font-bold">RM</span>
+                        <div className="w-20 flex items-center gap-1 border-l border-gray-600 pl-2">
+                           <span className="text-[9px] text-gray-500 font-bold">RM</span>
                            <input 
                              type="number"
                              step="0.01"
                              placeholder="0.00"
-                             className="w-full bg-transparent border-none text-xs font-bold outline-none"
+                             className="w-full bg-transparent border-none text-[10px] font-bold outline-none"
                              value={size.price || ''}
                              onChange={(e) => handleSizeChange(idx, 'price', Number(e.target.value))}
                            />
                         </div>
-                        <button type="button" onClick={() => handleRemoveSize(idx)} className="text-red-400 hover:text-red-500 ml-1"><X size={16} /></button>
+                        <button type="button" onClick={() => handleRemoveSize(idx)} className="text-red-400 hover:text-red-500 ml-1"><X size={14} /></button>
                       </div>
                     ))}
                   </div>
@@ -836,10 +838,10 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
               </div>
 
               {/* Temp Options */}
-              <div className="border-t border-gray-700 pt-8 flex items-center justify-between">
+              <div className="border-t border-gray-700 pt-4 flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <Thermometer size={18} className="text-blue-400" />
-                  <h3 className="text-sm font-black uppercase tracking-widest">Hot / Cold (+ Price)</h3>
+                  <Thermometer size={16} className="text-blue-400" />
+                  <h3 className="text-[10px] font-black uppercase tracking-widest">Hot / Cold (+ Price)</h3>
                 </div>
                 <label className="relative inline-flex items-center cursor-pointer">
                   <input 
@@ -851,26 +853,26 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
                       tempOptions: { ...formItem.tempOptions!, enabled: e.target.checked }
                     })}
                   />
-                  <div className="w-12 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-orange-500"></div>
+                  <div className="w-10 h-5 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-orange-500"></div>
                 </label>
               </div>
 
               {formItem.tempOptions?.enabled && (
-                <div className="grid grid-cols-2 gap-4 animate-in slide-in-from-top-2 duration-300">
-                   <div className="space-y-1.5">
-                      <label className="text-[10px] font-black text-orange-400 uppercase tracking-widest ml-1">Hot Premium (RM)</label>
+                <div className="grid grid-cols-2 gap-3 animate-in slide-in-from-top-2 duration-300">
+                   <div className="space-y-1">
+                      <label className="text-[9px] font-black text-orange-400 uppercase tracking-widest ml-1">Hot Premium</label>
                       <input 
                         type="number" step="0.01"
-                        className="w-full bg-[#323644] border-none rounded-xl text-sm font-bold p-3 outline-none"
+                        className="w-full bg-[#323644] border-none rounded-xl text-[10px] font-bold p-2.5 outline-none"
                         value={formItem.tempOptions.hot || 0}
                         onChange={(e) => setFormItem({...formItem, tempOptions: {...formItem.tempOptions!, hot: Number(e.target.value)}})}
                       />
                    </div>
-                   <div className="space-y-1.5">
-                      <label className="text-[10px] font-black text-blue-400 uppercase tracking-widest ml-1">Cold Premium (RM)</label>
+                   <div className="space-y-1">
+                      <label className="text-[9px] font-black text-blue-400 uppercase tracking-widest ml-1">Cold Premium</label>
                       <input 
                         type="number" step="0.01"
-                        className="w-full bg-[#323644] border-none rounded-xl text-sm font-bold p-3 outline-none"
+                        className="w-full bg-[#323644] border-none rounded-xl text-[10px] font-bold p-2.5 outline-none"
                         value={formItem.tempOptions.cold || 0}
                         onChange={(e) => setFormItem({...formItem, tempOptions: {...formItem.tempOptions!, cold: Number(e.target.value)}})}
                       />
@@ -879,17 +881,17 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
               )}
 
               {/* Footer Buttons */}
-              <div className="flex gap-4 pt-10">
+              <div className="flex gap-4 pt-6">
                 <button 
                   type="button" 
                   onClick={() => setIsFormModalOpen(false)} 
-                  className="flex-1 py-4 bg-[#323644] hover:bg-[#3d4253] text-gray-300 rounded-2xl font-black text-sm transition-all"
+                  className="flex-1 py-3.5 bg-[#323644] hover:bg-[#3d4253] text-gray-300 rounded-xl font-black text-xs transition-all"
                 >
                   Cancel
                 </button>
                 <button 
                   type="submit" 
-                  className="flex-1 py-4 bg-orange-500 hover:bg-orange-600 text-white rounded-2xl font-black text-sm shadow-xl shadow-orange-900/20 transition-all active:scale-95"
+                  className="flex-1 py-3.5 bg-orange-500 hover:bg-orange-600 text-white rounded-xl font-black text-xs shadow-xl shadow-orange-900/20 transition-all active:scale-95"
                 >
                   Save All Changes
                 </button>
