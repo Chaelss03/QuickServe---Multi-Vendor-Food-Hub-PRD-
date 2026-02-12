@@ -1,7 +1,7 @@
 
 import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { Restaurant, Order, OrderStatus, MenuItem, MenuItemVariant } from '../types';
-import { ShoppingBag, BookOpen, BarChart3, Edit3, CheckCircle, Clock, X, Plus, Trash2, Image as ImageIcon, Thermometer, LayoutGrid, List, Filter, Archive, RotateCcw, XCircle, Power, Eye, Upload, Hash, MessageSquare, Download, Calendar, Ban, ChevronLeft, ChevronRight, Bell, AlertTriangle, RefreshCw, Activity, Layers, Tag } from 'lucide-react';
+import { ShoppingBag, BookOpen, BarChart3, Edit3, CheckCircle, Clock, X, Plus, Trash2, Image as ImageIcon, Thermometer, LayoutGrid, List, Filter, Archive, RotateCcw, XCircle, Power, Eye, Upload, Hash, MessageSquare, Download, Calendar, Ban, ChevronLeft, ChevronRight, Bell, AlertTriangle, RefreshCw, Activity, Layers, Tag, Wifi, WifiOff } from 'lucide-react';
 
 interface Props {
   restaurant: Restaurant;
@@ -10,6 +10,7 @@ interface Props {
   onUpdateMenu: (restaurantId: string, updatedItem: MenuItem) => void;
   onAddMenuItem: (restaurantId: string, newItem: MenuItem) => void;
   onPermanentDeleteMenuItem: (restaurantId: string, itemId: string) => void;
+  onToggleOnline: () => void;
   lastSyncTime?: Date;
 }
 
@@ -20,7 +21,7 @@ const REJECTION_REASONS = [
   'Other'
 ];
 
-const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpdateMenu, onAddMenuItem, onPermanentDeleteMenuItem, lastSyncTime }) => {
+const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpdateMenu, onAddMenuItem, onPermanentDeleteMenuItem, onToggleOnline, lastSyncTime }) => {
   const [activeTab, setActiveTab] = useState<'ORDERS' | 'MENU' | 'REPORTS'>('ORDERS');
   const [orderFilter, setOrderFilter] = useState<OrderStatus | 'ONGOING_ALL' | 'ALL'>('ONGOING_ALL');
   const [editingItem, setEditingItem] = useState<MenuItem | null>(null);
@@ -277,6 +278,8 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
     setShowAddClassModal(false);
   };
 
+  const isOnline = restaurant.isOnline !== false;
+
   return (
     <div className="flex h-[calc(100vh-64px)] overflow-hidden dark:bg-gray-900 transition-colors">
       <aside className="w-64 bg-white dark:bg-gray-800 border-r dark:border-gray-700 flex flex-col transition-colors relative z-10">
@@ -309,10 +312,28 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
             Sales Reports
           </button>
         </nav>
-        <div className="p-4 mt-auto border-t dark:border-gray-700 space-y-2">
+        <div className="p-4 mt-auto border-t dark:border-gray-700 space-y-4">
+          <div className="space-y-2">
+            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Store Presence</label>
+            <button 
+              onClick={onToggleOnline}
+              className={`w-full py-3 rounded-xl font-black text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-3 shadow-lg ${
+                isOnline 
+                  ? 'bg-green-500 text-white hover:bg-green-600' 
+                  : 'bg-red-500 text-white hover:bg-red-600'
+              }`}
+            >
+              {isOnline ? <Wifi size={18} /> : <WifiOff size={18} />}
+              {isOnline ? 'Online' : 'Offline'}
+            </button>
+            <p className="text-[8px] text-center text-gray-400 uppercase font-bold px-2">
+              {isOnline ? 'Customers can view your menu and order.' : 'Your store is hidden from customers.'}
+            </p>
+          </div>
+
           <div className="flex items-center justify-between px-3 py-2 bg-gray-50 dark:bg-gray-700/50 rounded-xl border dark:border-gray-600">
              <div className="flex items-center gap-2">
-                <div className={`w-2 h-2 rounded-full ${syncStatus === 'SYNCING' ? 'bg-blue-500 scale-125' : 'bg-green-500'} transition-all duration-300 animate-pulse`}></div>
+                <div className={`w-2 h-2 rounded-full ${syncStatus === 'SYNCING' ? 'bg-blue-500 scale-125' : (isOnline ? 'bg-green-500' : 'bg-red-500')} transition-all duration-300 animate-pulse`}></div>
                 <span className="text-[9px] font-black text-gray-500 dark:text-gray-400 uppercase tracking-widest">Live Feed</span>
              </div>
              {syncStatus === 'SYNCING' && <RefreshCw size={10} className="animate-spin text-blue-500" />}
@@ -645,7 +666,7 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
                  {categories.filter(c => c !== 'All').map(cat => {
                    const itemsInCat = restaurant.menu.filter(i => i.category === cat && !i.isArchived);
                    return (
-                     <div key={cat} className="bg-white dark:bg-gray-800 rounded-[2rem] border dark:border-gray-700 shadow-sm overflow-hidden">
+                     <div key={cat} className="bg-white dark:bg-gray-800 rounded-[2.5rem] border dark:border-gray-700 shadow-sm overflow-hidden">
                        <div className="px-8 py-6 bg-gray-50 dark:bg-gray-700/30 border-b dark:border-gray-700 flex items-center justify-between">
                          <div className="flex items-center gap-3">
                            <div className="p-2.5 bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 rounded-xl">

@@ -126,6 +126,7 @@ const App: React.FC = () => {
       const formatted: Restaurant[] = resData.map(res => ({
         id: res.id, name: res.name, logo: res.logo, vendorId: res.vendor_id,
         location: res.location_name, created_at: res.created_at,
+        isOnline: res.is_online !== false, // Default to online if not specified
         menu: menuData.filter(m => m.restaurant_id === res.id).map(m => ({
           id: m.id, name: m.name, description: m.description, price: Number(m.price),
           image: m.image, category: m.category, isArchived: m.is_archived,
@@ -166,14 +167,15 @@ const App: React.FC = () => {
     };
     initApp();
 
-    // Optimize Real-time: Listen for all events and trigger immediate fetch
     const channel = supabase.channel('order-updates')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => {
-        fetchOrders(); // Immediate sync on change
+        fetchOrders();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'restaurants' }, () => {
+        fetchRestaurants();
       })
       .subscribe();
 
-    // Reduced fallback interval to 5 seconds for snappier experience if realtime fails
     const interval = setInterval(fetchOrders, 5000); 
 
     return () => { 
@@ -205,7 +207,6 @@ const App: React.FC = () => {
     const area = locations.find(l => l.name === sessionLocation);
     const code = area?.code || 'QS';
     
-    // NEW Order ID Logic: Find max and increment (xxx0000001 format)
     let nextNum = 1;
     const { data: lastOrder } = await supabase
       .from('orders')
@@ -242,15 +243,14 @@ const App: React.FC = () => {
       alert("Placement Error: " + error.message);
     } else {
       setCart([]);
-      // Optimistic local update
       setOrders(prev => [{
-        id: newOrder.id, items: newOrder.items, total: Number(newOrder.total),
-        status: newOrder.status as OrderStatus, timestamp: numericTimestamp,
+        id: orderId, items: newOrder.items, total: Number(newOrder.total),
+        status: OrderStatus.PENDING, timestamp: numericTimestamp,
         customerId: newOrder.customer_id, restaurantId: newOrder.restaurant_id,
         tableNumber: newOrder.table_number, locationName: newOrder.location_name,
         remark: newOrder.remark
       }, ...prev]);
-      fetchOrders(); // Rapidly sync
+      fetchOrders();
       alert(`Order ${orderId} submitted!`);
     }
   };
@@ -273,6 +273,16 @@ const App: React.FC = () => {
     setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status, rejectionReason: reason, rejectionNote: note } : o));
     await supabase.from('orders').update({ status, rejection_reason: reason, rejection_note: note }).eq('id', orderId);
     fetchOrders();
+  };
+
+  const toggleVendorOnline = async (restaurantId: string, currentStatus: boolean) => {
+    const newStatus = !currentStatus;
+    setRestaurants(prev => prev.map(r => r.id === restaurantId ? { ...r, isOnline: newStatus } : r));
+    const { error } = await supabase.from('restaurants').update({ is_online: newStatus }).eq('id', restaurantId);
+    if (error) {
+       console.error("Failed to update status", error);
+       fetchRestaurants(); // Rollback on error
+    }
   };
 
   const addToCart = (item: CartItem) => {
@@ -298,7 +308,7 @@ const App: React.FC = () => {
     if (!userError && userData?.[0]) {
       const uid = userData[0].id;
       const { data: resData, error: resError } = await supabase.from('restaurants').insert([{
-        name: newRestaurant.name, logo: newRestaurant.logo, vendor_id: uid, location_name: newRestaurant.location
+        name: newRestaurant.name, logo: newRestaurant.logo, vendor_id: uid, location_name: newRestaurant.location, is_online: true
       }]).select();
       if (!resError && resData?.[0]) await supabase.from('users').update({ restaurant_id: resData[0].id }).eq('id', uid);
       await Promise.all([fetchUsers(), fetchRestaurants()]);
@@ -384,8 +394,8 @@ const App: React.FC = () => {
         </div>
       </header>
       <main className="flex-1">
-        {currentRole === 'CUSTOMER' && <CustomerView restaurants={restaurants.filter(r => r.location === sessionLocation)} cart={cart} orders={orders} onAddToCart={addToCart} onRemoveFromCart={removeFromCart} onPlaceOrder={placeOrder} locationName={sessionLocation || undefined} tableNo={sessionTable || undefined} areaType={currentArea?.type || 'MULTI'} />}
-        {currentRole === 'VENDOR' && activeVendorRes && <VendorView restaurant={activeVendorRes} orders={orders.filter(o => o.restaurantId === currentUser?.restaurantId)} onUpdateOrder={updateOrderStatus} onUpdateMenu={handleUpdateMenuItem} onAddMenuItem={handleAddMenuItem} onPermanentDeleteMenuItem={handleDeleteMenuItem} lastSyncTime={lastSyncTime} />}
+        {currentRole === 'CUSTOMER' && <CustomerView restaurants={restaurants.filter(r => r.location === sessionLocation && r.isOnline !== false)} cart={cart} orders={orders} onAddToCart={addToCart} onRemoveFromCart={removeFromCart} onPlaceOrder={placeOrder} locationName={sessionLocation || undefined} tableNo={sessionTable || undefined} areaType={currentArea?.type || 'MULTI'} />}
+        {currentRole === 'VENDOR' && activeVendorRes && <VendorView restaurant={activeVendorRes} orders={orders.filter(o => o.restaurantId === currentUser?.restaurantId)} onUpdateOrder={updateOrderStatus} onUpdateMenu={handleUpdateMenuItem} onAddMenuItem={handleAddMenuItem} onPermanentDeleteMenuItem={handleDeleteMenuItem} onToggleOnline={() => toggleVendorOnline(activeVendorRes.id, activeVendorRes.isOnline ?? true)} lastSyncTime={lastSyncTime} />}
         {currentRole === 'ADMIN' && <AdminView vendors={allUsers.filter(u => u.role === 'VENDOR')} restaurants={restaurants} orders={orders} locations={locations} onAddVendor={handleAddVendor} onUpdateVendor={handleUpdateVendor} onImpersonateVendor={handleLogin} onAddLocation={handleAddLocation} onUpdateLocation={handleUpdateLocation} onDeleteLocation={handleDeleteLocation} onRemoveVendorFromHub={(rid) => supabase.from('restaurants').update({ location_name: null }).eq('id', rid).then(() => fetchRestaurants())} />}
       </main>
     </div>

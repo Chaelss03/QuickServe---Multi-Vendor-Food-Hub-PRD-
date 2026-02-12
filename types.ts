@@ -46,6 +46,7 @@ export interface Restaurant {
   menu: MenuItem[];
   vendorId: string;
   location: string; // This refers to the Area name
+  isOnline?: boolean;
   created_at?: string;
 }
 
