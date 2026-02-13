@@ -1,7 +1,7 @@
 
 import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { Restaurant, Order, OrderStatus, MenuItem, MenuItemVariant } from '../types';
-import { ShoppingBag, BookOpen, BarChart3, Edit3, CheckCircle, Clock, X, Plus, Trash2, Image as ImageIcon, Thermometer, LayoutGrid, List, Filter, Archive, RotateCcw, XCircle, Power, Eye, Upload, Hash, MessageSquare, Download, Calendar, Ban, ChevronLeft, ChevronRight, Bell, AlertTriangle, RefreshCw, Activity, Layers, Tag, Wifi, WifiOff, QrCode, Printer, ExternalLink, ThermometerSun, Info } from 'lucide-react';
+import { ShoppingBag, BookOpen, BarChart3, Edit3, CheckCircle, Clock, X, Plus, Trash2, Image as ImageIcon, Thermometer, LayoutGrid, List, Filter, Archive, RotateCcw, XCircle, Power, Eye, Upload, Hash, MessageSquare, Download, Calendar, Ban, ChevronLeft, ChevronRight, Bell, AlertTriangle, RefreshCw, Activity, Layers, Tag, Wifi, WifiOff, QrCode, Printer, ExternalLink, ThermometerSun, Info, Settings2 } from 'lucide-react';
 
 interface Props {
   restaurant: Restaurant;
@@ -33,6 +33,11 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
   const [showAddClassModal, setShowAddClassModal] = useState(false);
   const [newClassName, setNewClassName] = useState('');
   const [extraCategories, setExtraCategories] = useState<string[]>([]);
+  
+  // Classification Specific State
+  const [classViewMode, setClassViewMode] = useState<'grid' | 'list'>('list');
+  const [renamingClass, setRenamingClass] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState('');
 
   // QR State
   const [qrMode, setQrMode] = useState<'SINGLE' | 'BATCH'>('SINGLE');
@@ -281,6 +286,24 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
     setExtraCategories(prev => [...prev, newClassName.trim()]);
     setNewClassName('');
     setShowAddClassModal(false);
+  };
+
+  const handleRenameClassification = (oldName: string, newName: string) => {
+    if (!newName.trim() || oldName === newName) {
+      setRenamingClass(null);
+      return;
+    }
+    
+    // Update extraCategories if it's there
+    setExtraCategories(prev => prev.map(c => c === oldName ? newName : c));
+    
+    // Update all menu items with this category
+    const affectedItems = restaurant.menu.filter(i => i.category === oldName);
+    affectedItems.forEach(item => {
+      onUpdateMenu(restaurant.id, { ...item, category: newName });
+    });
+
+    setRenamingClass(null);
   };
 
   const getQrUrl = (hubName: string, table: string) => {
@@ -671,12 +694,20 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
                   </button>
                 </div>
               ) : (
-                <button 
-                  onClick={() => setShowAddClassModal(true)}
-                  className="px-6 py-3 bg-black dark:bg-gray-100 text-white dark:text-gray-900 rounded-xl font-bold uppercase tracking-widest text-xs hover:bg-gray-800 transition-all shadow-lg ml-auto flex items-center gap-2"
-                >
-                  <Tag size={16} /> + New Classification
-                </button>
+                <div className="flex gap-3">
+                  <button 
+                    onClick={() => setClassViewMode(classViewMode === 'grid' ? 'list' : 'grid')}
+                    className="p-3 bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-xl text-gray-400 hover:text-orange-500 transition-all shadow-sm"
+                  >
+                    {classViewMode === 'grid' ? <List size={18} /> : <LayoutGrid size={18} />}
+                  </button>
+                  <button 
+                    onClick={() => setShowAddClassModal(true)}
+                    className="px-6 py-3 bg-black dark:bg-gray-100 text-white dark:text-gray-900 rounded-xl font-bold uppercase tracking-widest text-xs hover:bg-gray-800 transition-all shadow-lg ml-auto flex items-center gap-2"
+                  >
+                    <Tag size={16} /> + New Classification
+                  </button>
+                </div>
               )}
             </div>
 
@@ -778,57 +809,82 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
                 )}
               </>
             ) : (
-              <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                 {categories.filter(c => c !== 'All').map(cat => {
-                   const itemsInCat = restaurant.menu.filter(i => i.category === cat && !i.isArchived);
-                   return (
-                     <div key={cat} className="bg-white dark:bg-gray-800 rounded-[2.5rem] border dark:border-gray-700 shadow-sm overflow-hidden">
-                       <div className="px-8 py-6 bg-gray-50 dark:bg-gray-700/30 border-b dark:border-gray-700 flex items-center justify-between">
-                         <div className="flex items-center gap-3">
-                           <div className="p-2.5 bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 rounded-xl">
-                             <Layers size={18} />
+              <div className="bg-white dark:bg-gray-800 rounded-2xl border dark:border-gray-700 shadow-sm overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-500">
+                <div className="p-4 bg-gray-50 dark:bg-gray-700/30 border-b dark:border-gray-700 flex justify-between items-center">
+                   <div className="flex items-center gap-2 text-gray-400">
+                      <Settings2 size={16} />
+                      <span className="text-[10px] font-black uppercase tracking-widest">Manage All Classifications</span>
+                   </div>
+                   <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{categories.length - 1} Total</span>
+                </div>
+                
+                <div className={classViewMode === 'grid' ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 p-6' : 'divide-y dark:divide-gray-700'}>
+                  {categories.filter(c => c !== 'All').map(cat => {
+                    const itemsInCat = restaurant.menu.filter(i => i.category === cat && !i.isArchived);
+                    
+                    if (classViewMode === 'grid') {
+                      return (
+                        <div key={cat} className="p-6 bg-gray-50/50 dark:bg-gray-900/50 border dark:border-gray-700 rounded-xl flex flex-col gap-4 group hover:border-orange-200 transition-all">
+                           <div className="flex justify-between items-start">
+                              <div className="flex items-center gap-3">
+                                 <div className="w-10 h-10 bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 rounded-xl flex items-center justify-center">
+                                    <Layers size={20} />
+                                 </div>
+                                 <div>
+                                    <h4 className="font-black text-sm dark:text-white uppercase tracking-tight">{cat}</h4>
+                                    <p className="text-[10px] font-bold text-gray-400 uppercase">{itemsInCat.length} Items</p>
+                                 </div>
+                              </div>
+                              <button 
+                                onClick={() => { setRenamingClass(cat); setRenameValue(cat); }}
+                                className="p-2 text-gray-400 hover:text-orange-500 hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded-lg transition-all"
+                              >
+                                <Edit3 size={16} />
+                              </button>
+                           </div>
+                           <div className="flex -space-x-2">
+                              {itemsInCat.slice(0, 4).map(item => (
+                                <img key={item.id} src={item.image} className="w-8 h-8 rounded-full border-2 border-white dark:border-gray-800 object-cover" />
+                              ))}
+                              {itemsInCat.length > 4 && (
+                                <div className="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center text-[10px] font-black border-2 border-white dark:border-gray-800 text-gray-500">
+                                   +{itemsInCat.length - 4}
+                                </div>
+                              )}
+                           </div>
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div key={cat} className="flex items-center justify-between p-4 px-6 hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-all">
+                        <div className="flex items-center gap-4">
+                           <div className="w-8 h-8 bg-orange-50 dark:bg-orange-900/20 text-orange-500 rounded-lg flex items-center justify-center">
+                              <Layers size={16} />
                            </div>
                            <div>
-                              <h3 className="text-lg font-black dark:text-white uppercase tracking-tighter leading-none">{cat}</h3>
-                              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1">{itemsInCat.length} Active Dishes</p>
+                              <p className="text-sm font-black dark:text-white uppercase tracking-tight">{cat}</p>
+                              <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">{itemsInCat.length} Active Dishes</p>
                            </div>
-                         </div>
-                         <button 
-                           onClick={() => handleOpenAddModal(cat)}
-                           className="px-4 py-2 bg-white dark:bg-gray-800 border dark:border-gray-600 text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-orange-500 hover:text-white transition-all shadow-sm flex items-center gap-2"
-                         >
-                           <Plus size={14} /> Add to {cat}
-                         </button>
-                       </div>
-                       <div className="p-4 overflow-x-auto hide-scrollbar flex gap-4">
-                          {itemsInCat.length === 0 ? (
-                            <div className="w-full py-12 flex flex-col items-center justify-center text-gray-400">
-                               <ImageIcon size={24} className="opacity-20 mb-2" />
-                               <p className="text-[10px] font-black uppercase tracking-widest italic">No items in this classification</p>
-                            </div>
-                          ) : (
-                            itemsInCat.map(item => (
-                              <div key={item.id} className="min-w-[180px] max-w-[180px] bg-white dark:bg-gray-900/50 rounded-2xl border dark:border-gray-700 overflow-hidden group">
-                                <div className="h-28 relative">
-                                   <img src={item.image} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
-                                   <button 
-                                      onClick={() => handleOpenEditModal(item)}
-                                      className="absolute top-2 right-2 p-1.5 bg-black/40 backdrop-blur-md text-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
-                                   >
-                                      <Edit3 size={12} />
-                                   </button>
-                                </div>
-                                <div className="p-3">
-                                   <p className="text-[11px] font-black dark:text-white uppercase tracking-tight truncate">{item.name}</p>
-                                   <p className="text-xs font-black text-orange-500 mt-1">RM{item.price.toFixed(2)}</p>
-                                </div>
-                              </div>
-                            ))
-                          )}
-                       </div>
-                     </div>
-                   );
-                 })}
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <button 
+                            onClick={() => { setRenamingClass(cat); setRenameValue(cat); }}
+                            className="flex items-center gap-2 px-3 py-1.5 bg-gray-50 dark:bg-gray-700 text-gray-400 hover:text-orange-500 rounded-lg transition-all text-[10px] font-black uppercase tracking-widest border dark:border-gray-600"
+                          >
+                             <Edit3 size={14} /> Rename
+                          </button>
+                          <button 
+                            onClick={() => handleOpenAddModal(cat)}
+                            className="flex items-center gap-2 px-3 py-1.5 bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 rounded-lg transition-all text-[10px] font-black uppercase tracking-widest"
+                          >
+                             <Plus size={14} /> Add Item
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             )}
           </div>
@@ -912,23 +968,58 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
 
       {/* Rejection Modal */}
       {rejectingOrderId && (
-        <div className="fixed inset-0 z-[100] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-3xl max-w-md w-full p-8 shadow-2xl relative animate-in fade-in zoom-in duration-300">
-            <button onClick={() => setRejectingOrderId(null)} className="absolute top-6 right-6 p-2 text-gray-400"><X size={20} /></button>
-            <div className="mb-6 text-center">
-              <div className="w-14 h-14 bg-red-100 dark:bg-red-900/20 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4"><Ban size={28} /></div>
-              <h2 className="text-2xl font-black uppercase tracking-tighter">Abort Fulfillment</h2>
-              <p className="text-gray-500 text-xs font-medium mt-1 uppercase tracking-widest">Select rejection code for Order #{rejectingOrderId}</p>
-            </div>
+        <div className="fixed inset-0 z-[100] bg-black/70 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-3xl max-w-md w-full p-8 shadow-2xl relative animate-in zoom-in fade-in duration-300">
+            <button onClick={() => setRejectingOrderId(null)} className="absolute top-6 right-6 p-2 text-gray-400 hover:text-red-500 transition-colors"><X size={20} /></button>
+            <h2 className="text-2xl font-black mb-6 dark:text-white uppercase tracking-tighter">Order Rejection</h2>
             <div className="space-y-4">
-              <select className="w-full p-3 bg-gray-50 dark:bg-gray-700 border-none rounded-xl text-xs font-black uppercase tracking-widest outline-none" value={rejectionReason} onChange={(e) => setRejectionReason(e.target.value)}>
-                {REJECTION_REASONS.map(reason => <option key={reason} value={reason}>{reason}</option>)}
-              </select>
-              <textarea className="w-full p-4 bg-gray-50 dark:bg-gray-700 border-none rounded-xl text-xs font-medium outline-none resize-none" placeholder="Internal memo / note..." rows={3} value={rejectionNote} onChange={(e) => setRejectionNote(e.target.value)} />
-              <div className="flex gap-3">
-                <button onClick={() => setRejectingOrderId(null)} className="flex-1 py-4 bg-gray-100 dark:bg-gray-700 rounded-2xl font-black uppercase text-[10px] tracking-widest">Cancel</button>
-                <button onClick={handleConfirmRejection} className="flex-1 py-4 bg-red-500 text-white rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl">Confirm Rejection</button>
+              <div>
+                <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Select Reason</label>
+                <select 
+                  className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none text-sm font-bold dark:text-white appearance-none cursor-pointer"
+                  value={rejectionReason}
+                  onChange={e => setRejectionReason(e.target.value)}
+                >
+                  {REJECTION_REASONS.map(r => <option key={r} value={r}>{r}</option>)}
+                </select>
               </div>
+              <div>
+                <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Internal Note (Optional)</label>
+                <textarea 
+                  className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none text-sm font-bold dark:text-white resize-none"
+                  rows={3}
+                  placeholder="Additional details..."
+                  value={rejectionNote}
+                  onChange={e => setRejectionNote(e.target.value)}
+                />
+              </div>
+              <div className="flex gap-4 pt-2">
+                <button onClick={() => setRejectingOrderId(null)} className="flex-1 py-3 bg-gray-100 dark:bg-gray-700 rounded-xl font-black uppercase text-[10px] tracking-widest text-gray-500">Cancel</button>
+                <button onClick={handleConfirmRejection} className="flex-1 py-3 bg-red-500 text-white rounded-xl font-black uppercase text-[10px] tracking-widest shadow-xl">Confirm Rejection</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Rename Classification Modal */}
+      {renamingClass && (
+        <div className="fixed inset-0 z-[110] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 no-print">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl max-w-sm w-full p-8 shadow-2xl relative animate-in zoom-in fade-in duration-300">
+            <button onClick={() => setRenamingClass(null)} className="absolute top-6 right-6 p-2 text-gray-400"><X size={20} /></button>
+            <h2 className="text-xl font-black dark:text-white uppercase tracking-tighter mb-4">Rename Class</h2>
+            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-4">Renaming "{renamingClass}" will update all associated dishes.</p>
+            <input 
+              autoFocus 
+              placeholder="e.g. Beverages, Hot Snacks..." 
+              className="w-full px-4 py-3.5 bg-gray-50 dark:bg-gray-700 border-none rounded-2xl outline-none text-sm font-bold dark:text-white mb-6" 
+              value={renameValue} 
+              onChange={e => setRenameValue(e.target.value)} 
+              onKeyDown={e => e.key === 'Enter' && handleRenameClassification(renamingClass, renameValue)} 
+            />
+            <div className="flex gap-3">
+              <button onClick={() => setRenamingClass(null)} className="flex-1 py-3.5 bg-gray-100 dark:bg-gray-700 text-gray-500 rounded-2xl font-black uppercase text-[10px] tracking-widest">Cancel</button>
+              <button onClick={() => handleRenameClassification(renamingClass, renameValue)} className="flex-1 py-3.5 bg-orange-500 text-white rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl">Update All</button>
             </div>
           </div>
         </div>
@@ -1103,7 +1194,7 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
       {/* Add Classification Modal */}
       {showAddClassModal && (
         <div className="fixed inset-0 z-[110] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 no-print">
-          <div className="bg-white dark:bg-gray-800 rounded-[2.5rem] max-w-sm w-full p-8 shadow-2xl relative animate-in zoom-in fade-in duration-300">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl max-w-sm w-full p-8 shadow-2xl relative animate-in zoom-in fade-in duration-300">
             <button onClick={() => setShowAddClassModal(false)} className="absolute top-6 right-6 p-2 text-gray-400"><X size={20} /></button>
             <h2 className="text-xl font-black dark:text-white uppercase tracking-tighter mb-4">New Classification</h2>
             <input autoFocus placeholder="e.g. Beverages, Hot Snacks..." className="w-full px-4 py-3.5 bg-gray-50 dark:bg-gray-700 border-none rounded-2xl outline-none text-sm font-bold dark:text-white mb-6" value={newClassName} onChange={e => setNewClassName(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleAddClassification()} />
