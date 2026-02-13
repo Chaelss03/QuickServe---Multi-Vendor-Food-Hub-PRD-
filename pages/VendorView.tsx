@@ -1,7 +1,7 @@
 
 import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { Restaurant, Order, OrderStatus, MenuItem, MenuItemVariant } from '../types';
-import { ShoppingBag, BookOpen, BarChart3, Edit3, CheckCircle, Clock, X, Plus, Trash2, Image as ImageIcon, Thermometer, LayoutGrid, List, Filter, Archive, RotateCcw, XCircle, Power, Eye, Upload, Hash, MessageSquare, Download, Calendar, Ban, ChevronLeft, ChevronRight, Bell, AlertTriangle, RefreshCw, Activity, Layers, Tag, Wifi, WifiOff, QrCode, Printer, ExternalLink } from 'lucide-react';
+import { ShoppingBag, BookOpen, BarChart3, Edit3, CheckCircle, Clock, X, Plus, Trash2, Image as ImageIcon, Thermometer, LayoutGrid, List, Filter, Archive, RotateCcw, XCircle, Power, Eye, Upload, Hash, MessageSquare, Download, Calendar, Ban, ChevronLeft, ChevronRight, Bell, AlertTriangle, RefreshCw, Activity, Layers, Tag, Wifi, WifiOff, QrCode, Printer, ExternalLink, ThermometerSun, Info } from 'lucide-react';
 
 interface Props {
   restaurant: Restaurant;
@@ -910,7 +910,6 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
         )}
       </main>
 
-      {/* Forms and Modals Keep Existing Logic */}
       {/* Rejection Modal */}
       {rejectingOrderId && (
         <div className="fixed inset-0 z-[100] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
@@ -947,7 +946,7 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
                 {editingItem ? 'Modify Menu' : 'Add New Item'}
               </h2>
             </div>
-            <form onSubmit={handleSaveItem} className="space-y-6">
+            <form onSubmit={handleSaveItem} className="space-y-8">
               <div className="grid grid-cols-1 md:grid-cols-12 gap-8">
                 <div className="md:col-span-5 space-y-3">
                   <div className="relative aspect-[4/3] bg-gray-800 rounded-2xl overflow-hidden border-2 border-dashed border-gray-700 group">
@@ -964,22 +963,137 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
                     </button>
                     <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleImageUpload} />
                   </div>
-                  <input placeholder="Or paste URL..." className="w-full bg-[#323644] border-none rounded-xl text-xs p-2.5 focus:ring-1 focus:ring-orange-500 outline-none" value={formItem.image} onChange={(e) => setFormItem({...formItem, image: e.target.value})} />
+                  <input placeholder="Or paste URL..." className="w-full bg-[#323644] border-none rounded-xl text-[10px] p-3 focus:ring-1 focus:ring-orange-500 outline-none" value={formItem.image} onChange={(e) => setFormItem({...formItem, image: e.target.value})} />
                 </div>
                 <div className="md:col-span-7 space-y-4">
-                  <input required className="w-full bg-[#323644] border-none rounded-xl text-base font-bold p-3.5 focus:ring-1 focus:ring-orange-500 outline-none" value={formItem.name} onChange={(e) => setFormItem({...formItem, name: e.target.value})} placeholder="Item Title" />
-                  <div className="grid grid-cols-2 gap-3">
-                    <select className="w-full bg-[#323644] border-none rounded-xl text-xs font-bold p-3.5 focus:ring-1 focus:ring-orange-500 outline-none" value={formItem.category} onChange={(e) => setFormItem({...formItem, category: e.target.value})}>
-                      {categories.filter(c => c !== 'All').map(c => <option key={c} value={c}>{c}</option>)}
-                    </select>
-                    <input required type="number" step="0.01" className="w-full bg-[#323644] border-none rounded-xl text-base font-bold p-3.5 focus:ring-1 focus:ring-orange-500 outline-none" value={formItem.price || ''} onChange={(e) => setFormItem({...formItem, price: Number(e.target.value)})} placeholder="Base Price" />
+                  <div>
+                    <label className="block text-[9px] font-black text-gray-500 uppercase tracking-widest mb-1.5 ml-1">Dish Title</label>
+                    <input required className="w-full bg-[#323644] border-none rounded-xl text-base font-bold p-3.5 focus:ring-1 focus:ring-orange-500 outline-none" value={formItem.name} onChange={(e) => setFormItem({...formItem, name: e.target.value})} placeholder="e.g. Signature Beef Noodle" />
                   </div>
-                  <textarea rows={2} className="w-full bg-[#323644] border-none rounded-xl text-xs p-3 focus:ring-1 focus:ring-orange-500 outline-none resize-none" value={formItem.description} onChange={(e) => setFormItem({...formItem, description: e.target.value})} placeholder="Description" />
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[9px] font-black text-gray-500 uppercase tracking-widest mb-1.5 ml-1">Category</label>
+                      <select className="w-full bg-[#323644] border-none rounded-xl text-xs font-bold p-3.5 focus:ring-1 focus:ring-orange-500 outline-none" value={formItem.category} onChange={(e) => setFormItem({...formItem, category: e.target.value})}>
+                        {categories.filter(c => c !== 'All').map(c => <option key={c} value={c}>{c}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-[9px] font-black text-gray-500 uppercase tracking-widest mb-1.5 ml-1">Base Price (RM)</label>
+                      <input required type="number" step="0.01" className="w-full bg-[#323644] border-none rounded-xl text-base font-bold p-3.5 focus:ring-1 focus:ring-orange-500 outline-none" value={formItem.price || ''} onChange={(e) => setFormItem({...formItem, price: Number(e.target.value)})} placeholder="0.00" />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-[9px] font-black text-gray-500 uppercase tracking-widest mb-1.5 ml-1">Description</label>
+                    <textarea rows={2} className="w-full bg-[#323644] border-none rounded-xl text-xs p-3 focus:ring-1 focus:ring-orange-500 outline-none resize-none" value={formItem.description} onChange={(e) => setFormItem({...formItem, description: e.target.value})} placeholder="Describe the ingredients or taste profile..." />
+                  </div>
                 </div>
               </div>
+
+              {/* Variants Section */}
+              <div className="pt-6 border-t border-gray-700 space-y-6">
+                <div className="flex items-center justify-between">
+                   <div className="flex items-center gap-2">
+                      <Tag size={16} className="text-orange-500" />
+                      <h3 className="text-sm font-black uppercase tracking-widest">Variants & Customizations</h3>
+                   </div>
+                   <button 
+                     type="button" 
+                     onClick={handleAddSize}
+                     className="px-4 py-1.5 bg-orange-500/10 text-orange-500 rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-orange-500 hover:text-white transition-all border border-orange-500/20"
+                   >
+                     + Add Portion Size
+                   </button>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  {/* Portion Sizes */}
+                  <div className="space-y-4">
+                    <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1">Available Portion Sizes</label>
+                    {formItem.sizes && formItem.sizes.length > 0 ? (
+                      <div className="space-y-3">
+                        {formItem.sizes.map((size, index) => (
+                          <div key={index} className="flex gap-2 items-center animate-in slide-in-from-left duration-300">
+                             <input 
+                               placeholder="Size Name (e.g. Large)" 
+                               className="flex-[2] bg-[#323644] border-none rounded-xl text-[10px] p-2.5 focus:ring-1 focus:ring-orange-500 outline-none font-bold"
+                               value={size.name}
+                               onChange={(e) => handleSizeChange(index, 'name', e.target.value)}
+                             />
+                             <div className="flex-1 relative">
+                                <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[9px] font-bold text-gray-500">+</span>
+                                <input 
+                                  type="number" 
+                                  placeholder="0.00" 
+                                  className="w-full bg-[#323644] border-none rounded-xl text-[10px] p-2.5 pl-5 focus:ring-1 focus:ring-orange-500 outline-none font-bold"
+                                  value={size.price || ''}
+                                  onChange={(e) => handleSizeChange(index, 'price', Number(e.target.value))}
+                                />
+                             </div>
+                             <button type="button" onClick={() => handleRemoveSize(index)} className="p-2 text-red-500 hover:bg-red-500/10 rounded-lg transition-colors"><Trash2 size={16} /></button>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="p-4 bg-gray-800/50 rounded-2xl border border-dashed border-gray-700 text-center">
+                        <p className="text-[9px] font-bold text-gray-500 uppercase italic">No portion variants added</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Temperature Options */}
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                       <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1">Temperature Options</label>
+                       <button 
+                         type="button"
+                         onClick={() => setFormItem({ ...formItem, tempOptions: { ...formItem.tempOptions!, enabled: !formItem.tempOptions?.enabled } })}
+                         className={`w-10 h-5 rounded-full relative transition-colors ${formItem.tempOptions?.enabled ? 'bg-orange-500' : 'bg-[#323644]'}`}
+                       >
+                         <div className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all ${formItem.tempOptions?.enabled ? 'left-6' : 'left-1'}`} />
+                       </button>
+                    </div>
+                    
+                    {formItem.tempOptions?.enabled ? (
+                      <div className="grid grid-cols-2 gap-3 animate-in fade-in zoom-in duration-300">
+                        <div className="p-3 bg-orange-500/5 border border-orange-500/20 rounded-2xl space-y-2">
+                           <div className="flex items-center gap-2">
+                              <ThermometerSun size={12} className="text-orange-500" />
+                              <span className="text-[9px] font-black uppercase text-gray-400">Hot Markup</span>
+                           </div>
+                           <input 
+                             type="number" 
+                             placeholder="0.00" 
+                             className="w-full bg-[#323644] border-none rounded-xl text-[10px] p-2 focus:ring-1 focus:ring-orange-500 outline-none font-bold"
+                             value={formItem.tempOptions.hot || ''}
+                             onChange={(e) => setFormItem({ ...formItem, tempOptions: { ...formItem.tempOptions!, hot: Number(e.target.value) } })}
+                           />
+                        </div>
+                        <div className="p-3 bg-blue-500/5 border border-blue-500/20 rounded-2xl space-y-2">
+                           <div className="flex items-center gap-2">
+                              <Info size={12} className="text-blue-500" />
+                              <span className="text-[9px] font-black uppercase text-gray-400">Cold Markup</span>
+                           </div>
+                           <input 
+                             type="number" 
+                             placeholder="0.00" 
+                             className="w-full bg-[#323644] border-none rounded-xl text-[10px] p-2 focus:ring-1 focus:ring-blue-500 outline-none font-bold"
+                             value={formItem.tempOptions.cold || ''}
+                             onChange={(e) => setFormItem({ ...formItem, tempOptions: { ...formItem.tempOptions!, cold: Number(e.target.value) } })}
+                           />
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="p-4 bg-gray-800/50 rounded-2xl border border-dashed border-gray-700 text-center">
+                        <p className="text-[9px] font-bold text-gray-500 uppercase italic">Temperature selection disabled</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
               <div className="flex gap-4 pt-6">
-                <button type="button" onClick={() => setIsFormModalOpen(false)} className="flex-1 py-3.5 bg-[#323644] text-gray-300 rounded-xl font-black text-xs">Cancel</button>
-                <button type="submit" className="flex-1 py-3.5 bg-orange-500 text-white rounded-xl font-black text-xs shadow-xl">Save Changes</button>
+                <button type="button" onClick={() => setIsFormModalOpen(false)} className="flex-1 py-4 bg-[#323644] text-gray-300 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-[#3e4354] transition-colors">Cancel</button>
+                <button type="submit" className="flex-[2] py-4 bg-orange-500 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-2xl shadow-orange-500/20 hover:bg-orange-600 transition-all active:scale-95">Save Menu Item</button>
               </div>
             </form>
           </div>
