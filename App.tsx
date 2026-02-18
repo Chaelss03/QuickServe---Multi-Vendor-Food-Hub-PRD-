@@ -93,9 +93,15 @@ const App: React.FC = () => {
 
   const parseTimestamp = (ts: any): number => {
     if (!ts) return Date.now();
-    const date = new Date(ts);
-    const time = date.getTime();
-    return isNaN(time) ? (typeof ts === 'number' ? ts : Date.now()) : time;
+    // If it's a string from ISO or DB, try parsing it
+    if (typeof ts === 'string') {
+      const date = new Date(ts);
+      const time = date.getTime();
+      return isNaN(time) ? Date.now() : time;
+    }
+    // If it's already a number (bigint returned as number)
+    if (typeof ts === 'number') return ts;
+    return Date.now();
   };
 
   const fetchUsers = useCallback(async () => {
@@ -295,7 +301,8 @@ const App: React.FC = () => {
         items: itemsForThisRestaurant,
         total: totalForThisRestaurant,
         status: OrderStatus.PENDING,
-        timestamp: new Date().toISOString(),
+        // Use Date.now() for bigint column compatibility
+        timestamp: Date.now(),
         customer_id: 'guest_user',
         restaurant_id: rid,
         table_number: sessionTable || 'N/A',

@@ -134,12 +134,24 @@ const CustomerView: React.FC<Props> = ({ restaurants, cart, orders, onAddToCart,
 
   // Only show notifications for THIS table and location
   const activeOrders = useMemo(() => {
-    return orders.filter(o => 
-      o.locationName === locationName && 
-      o.tableNumber === tableNo && 
-      o.status !== OrderStatus.COMPLETED && 
-      !dismissedOrders.includes(o.id)
-    );
+    const thirtyMinutesAgo = Date.now() - (30 * 60 * 1000);
+    return orders.filter(o => {
+      const isCurrentLocation = o.locationName === locationName && o.tableNumber === tableNo;
+      if (!isCurrentLocation) return false;
+      
+      const isDismissed = dismissedOrders.includes(o.id);
+      if (isDismissed) return false;
+
+      // Hide completed orders always
+      if (o.status === OrderStatus.COMPLETED) return false;
+
+      // Special handling for rejected orders: only show if they are recent (last 30 mins)
+      if (o.status === OrderStatus.CANCELLED) {
+         return o.timestamp > thirtyMinutesAgo;
+      }
+
+      return true;
+    });
   }, [orders, locationName, tableNo, dismissedOrders]);
 
   return (
