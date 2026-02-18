@@ -26,7 +26,12 @@ const CustomerView: React.FC<Props> = ({ restaurants, cart, orders, onAddToCart,
   const [selectedOtherVariant, setSelectedOtherVariant] = useState<string>('');
   const [gridColumns, setGridColumns] = useState<2 | 3>(3);
   const [orderRemark, setOrderRemark] = useState('');
-  const [dismissedOrders, setDismissedOrders] = useState<string[]>([]);
+  const [dismissedOrders, setDismissedOrders] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('qs_dismissed_orders');
+      return saved ? JSON.parse(saved) : [];
+    } catch { return []; }
+  });
   
   const sectionRefs = useRef<{ [key: string]: HTMLElement | null }>({});
 
@@ -122,10 +127,20 @@ const CustomerView: React.FC<Props> = ({ restaurants, cart, orders, onAddToCart,
   };
 
   const handleDismissOrder = (orderId: string) => {
-    setDismissedOrders(prev => [...prev, orderId]);
+    const updatedDismissed = [...dismissedOrders, orderId];
+    setDismissedOrders(updatedDismissed);
+    localStorage.setItem('qs_dismissed_orders', JSON.stringify(updatedDismissed));
   };
 
-  const activeOrders = orders.filter(o => o.status !== OrderStatus.COMPLETED && !dismissedOrders.includes(o.id));
+  // Only show notifications for THIS table and location
+  const activeOrders = useMemo(() => {
+    return orders.filter(o => 
+      o.locationName === locationName && 
+      o.tableNumber === tableNo && 
+      o.status !== OrderStatus.COMPLETED && 
+      !dismissedOrders.includes(o.id)
+    );
+  }, [orders, locationName, tableNo, dismissedOrders]);
 
   return (
     <div className="relative min-h-screen pb-28 bg-gray-50 dark:bg-gray-900 transition-colors">
@@ -214,7 +229,7 @@ const CustomerView: React.FC<Props> = ({ restaurants, cart, orders, onAddToCart,
                 {order.status === OrderStatus.CANCELLED && (
                   <div className="pl-4 border-l-2 border-red-200 dark:border-red-800">
                     <p className="text-[10px] font-bold text-red-800 dark:text-red-300">
-                      {order.rejectionReason}
+                      Reason: {order.rejectionReason}
                     </p>
                   </div>
                 )}
@@ -311,7 +326,9 @@ const CustomerView: React.FC<Props> = ({ restaurants, cart, orders, onAddToCart,
 
                 {selectedItemForVariants.item.otherVariantsEnabled && selectedItemForVariants.item.otherVariants && selectedItemForVariants.item.otherVariants.length > 0 && (
                   <div>
-                    <label className="block text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-3 ml-1">Additional Options</label>
+                    <label className="block text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-3 ml-1">
+                      {selectedItemForVariants.item.otherVariantName || "Additional Options"}
+                    </label>
                     <div className="grid grid-cols-2 gap-3">
                       <button
                         onClick={() => setSelectedOtherVariant('')}
@@ -408,7 +425,7 @@ const CustomerView: React.FC<Props> = ({ restaurants, cart, orders, onAddToCart,
                 </div>
               ))}
             </div>
-            <div className="p-8 border-t"><button onClick={() => onPlaceOrder(orderRemark)} className="w-full py-4 bg-orange-500 text-white rounded-2xl font-black uppercase tracking-widest">Place Order</button></div>
+            <div className="p-8 border-t"><button onClick={() => { onPlaceOrder(orderRemark); setShowCart(false); }} className="w-full py-4 bg-orange-500 text-white rounded-2xl font-black uppercase tracking-widest">Place Order</button></div>
           </div>
         </div>
       )}

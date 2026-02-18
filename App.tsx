@@ -136,6 +136,7 @@ const App: React.FC = () => {
           id: m.id, name: m.name, description: m.description, price: Number(m.price),
           image: m.image, category: m.category, isArchived: m.is_archived,
           sizes: m.sizes, tempOptions: m.temp_options,
+          otherVariantName: m.other_variant_name,
           otherVariants: m.other_variants, otherVariantsEnabled: m.other_variants_enabled
         }))
       }));
@@ -294,7 +295,7 @@ const App: React.FC = () => {
         items: itemsForThisRestaurant,
         total: totalForThisRestaurant,
         status: OrderStatus.PENDING,
-        timestamp: Date.now(),
+        timestamp: new Date().toISOString(),
         customer_id: 'guest_user',
         restaurant_id: rid,
         table_number: sessionTable || 'N/A',
@@ -404,7 +405,7 @@ const App: React.FC = () => {
   };
 
   const handleUpdateMenuItem = async (rid: string, item: MenuItem) => {
-    await supabase.from('menu_items').update({ 
+    const { error } = await supabase.from('menu_items').update({ 
       name: item.name, 
       description: item.description, 
       price: item.price, 
@@ -413,14 +414,16 @@ const App: React.FC = () => {
       is_archived: item.isArchived, 
       sizes: item.sizes, 
       temp_options: item.tempOptions,
+      other_variant_name: item.otherVariantName,
       other_variants: item.otherVariants,
       other_variants_enabled: item.otherVariantsEnabled
     }).eq('id', item.id);
+    if (error) console.error("Error updating menu item:", error);
     fetchRestaurants();
   };
 
   const handleAddMenuItem = async (rid: string, item: MenuItem) => {
-    await supabase.from('menu_items').insert([{ 
+    const { error } = await supabase.from('menu_items').insert([{ 
       restaurant_id: rid, 
       name: item.name, 
       description: item.description, 
@@ -429,9 +432,11 @@ const App: React.FC = () => {
       category: item.category, 
       sizes: item.sizes, 
       temp_options: item.tempOptions,
+      other_variant_name: item.otherVariantName,
       other_variants: item.otherVariants,
       other_variants_enabled: item.otherVariantsEnabled
     }]);
+    if (error) console.error("Error adding menu item:", error);
     fetchRestaurants();
   };
 

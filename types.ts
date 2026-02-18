@@ -22,6 +22,7 @@ export interface MenuItem {
   category: string;
   isArchived?: boolean;
   sizes?: MenuItemVariant[];
+  otherVariantName?: string;
   otherVariants?: MenuItemVariant[];
   otherVariantsEnabled?: boolean;
   tempOptions?: {
