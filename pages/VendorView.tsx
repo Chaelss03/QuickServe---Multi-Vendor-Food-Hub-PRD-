@@ -338,7 +338,14 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
     return `${baseUrl}?loc=${encodeURIComponent(hubName)}&table=${table}`;
   };
 
-  const handlePrintQr = () => window.print();
+  const handlePrintQr = () => {
+    // Defer the print call to prevent blocking the main thread during event handling, improving INP.
+    requestAnimationFrame(() => {
+      setTimeout(() => {
+        window.print();
+      }, 50);
+    });
+  };
 
   const isOnline = restaurant.isOnline !== false;
 
@@ -523,7 +530,6 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
 
           {activeTab === 'ORDERS' && (
             <div className="max-w-5xl mx-auto">
-              {/* Existing Orders logic */}
               <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
                 <div className="flex items-center gap-4">
                   <h1 className="text-2xl font-black dark:text-white uppercase tracking-tighter">kitchen order</h1>
@@ -541,7 +547,7 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
                   <button onClick={() => setOrderFilter('ALL')} className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${orderFilter === 'ALL' ? 'bg-orange-500 text-white shadow-md' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50'}`}>ALL ORDER</button>
                 </div>
               </div>
-              {/* Remaining orders code... */}
+
               <div className="space-y-4">
                 {filteredOrders.length === 0 ? (
                   <div className="bg-white dark:bg-gray-800 rounded-2xl p-20 text-center border border-dashed border-gray-300 dark:border-gray-700">
@@ -647,7 +653,7 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
                   </div>
                 )}
               </div>
-              {/* Menu subtabs... */}
+              
               {menuSubTab === 'KITCHEN' && (
                 <>
                   <div className="flex items-center gap-2 mb-8 bg-white dark:bg-gray-800 px-4 py-3 border dark:border-gray-700 rounded-2xl shadow-sm overflow-x-auto hide-scrollbar sticky top-[72px] lg:top-0 z-20">
@@ -656,7 +662,7 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
                       <button key={cat} onClick={() => setMenuCategoryFilter(cat)} className={`whitespace-nowrap px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${menuCategoryFilter === cat ? 'bg-orange-100 text-orange-600 shadow-sm' : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-200'}`}>{cat}</button>
                     ))}
                   </div>
-                  {/* Menu items display... */}
+                  
                   {currentMenu.length === 0 ? (
                     <div className="bg-white dark:bg-gray-800 rounded-3xl p-20 text-center border border-dashed border-gray-300 dark:border-gray-700">
                         <div className="w-16 h-16 bg-gray-50 dark:bg-gray-700 rounded-full flex items-center justify-center mx-auto mb-4 text-gray-300">
@@ -743,7 +749,7 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
                   )}
                 </>
               )}
-              {/* Classification... */}
+              
               {menuSubTab === 'CLASSIFICATION' && (
                 <div className="bg-white dark:bg-gray-800 rounded-2xl border dark:border-gray-700 shadow-sm overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-500">
                   <div className="p-4 bg-gray-50 dark:bg-gray-700/30 border-b dark:border-gray-700 flex justify-between items-center">
@@ -787,7 +793,7 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
               )}
             </div>
           )}
-          {/* Sales Report tab... */}
+
           {activeTab === 'REPORTS' && (
             <div className="max-w-6xl mx-auto animate-in fade-in duration-500">
               <h1 className="text-2xl font-black mb-1 dark:text-white uppercase tracking-tighter">Sales Report</h1>
@@ -889,7 +895,6 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
                 </div>
               </div>
 
-              {/* Portion Variants and Other Variants */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pt-6 border-t dark:border-gray-700">
                  <div>
                    <div className="flex items-center justify-between mb-4">
@@ -962,7 +967,7 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
           </div>
         </div>
       )}
-      {/* Classification modals... */}
+
       <style>{`
         @media print {
           .no-print { display: none !important; }

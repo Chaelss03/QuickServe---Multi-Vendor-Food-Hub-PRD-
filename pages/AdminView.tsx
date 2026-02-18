@@ -216,7 +216,13 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
     return `${baseUrl}?loc=${encodeURIComponent(hubName)}&table=${table}`;
   };
 
-  const handlePrintQr = () => window.print();
+  const handlePrintQr = () => {
+    requestAnimationFrame(() => {
+      setTimeout(() => {
+        window.print();
+      }, 50);
+    });
+  };
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-8">
@@ -318,7 +324,7 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
                     <button onClick={() => setIsHubSelectionModalOpen(true)} className="flex-1 sm:flex-none px-4 py-2.5 bg-white dark:bg-gray-900 text-orange-500 border-2 border-orange-500 rounded-xl font-black uppercase tracking-widest text-[9px] shadow-sm flex items-center justify-center gap-2 hover:bg-orange-500 hover:text-white transition-all">
                       <QrCode size={16} /> QR
                     </button>
-                    <button onClick={handleOpenHubAdd} className="flex-[2] sm:flex-none px-6 py-2.5 bg-orange-500 text-white rounded-xl font-black uppercase tracking-widest text-[10px] shadow-lg">+ Hub</button>
+                    <button onClick={handleOpenHubAdd} className="flex-[2] sm:flex-none px-6 py-2.5 bg-orange-500 text-white rounded-xl font-black uppercase tracking-widest text-[10px] shadow-lg">Register Hub</button>
                 </div>
               </div>
             </div>
@@ -471,29 +477,6 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
             <form onSubmit={handleSubmitVendor} className="grid grid-cols-1 md:grid-cols-2 gap-6">
                <div className="space-y-4">
                   <div>
-                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Vendor Username</label>
-                    <input required type="text" className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none font-bold dark:text-white text-sm" value={formVendor.username} onChange={e => setFormVendor({...formVendor, username: e.target.value})} />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Secret Key (Password)</label>
-                    <div className="relative">
-                      <input required type={showPassword ? "text" : "password"} className="w-full pl-4 pr-11 py-3 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none font-bold dark:text-white text-sm" value={formVendor.password} onChange={e => setFormVendor({...formVendor, password: e.target.value})} />
-                      <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">{showPassword ? <EyeOff size={18} /> : <Eye size={18} />}</button>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-1 gap-4">
-                    <div>
-                      <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Contact Email</label>
-                      <input type="email" className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none font-bold dark:text-white text-sm" value={formVendor.email} onChange={e => setFormVendor({...formVendor, email: e.target.value})} />
-                    </div>
-                    <div>
-                      <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Contact Phone No.</label>
-                      <input type="tel" className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none font-bold dark:text-white text-sm" value={formVendor.phone} onChange={e => setFormVendor({...formVendor, phone: e.target.value})} />
-                    </div>
-                  </div>
-               </div>
-               <div className="space-y-4">
-                  <div>
                     <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Kitchen Name</label>
                     <input required type="text" className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none font-bold dark:text-white text-sm" value={formVendor.restaurantName} onChange={e => setFormVendor({...formVendor, restaurantName: e.target.value})} />
                   </div>
@@ -508,6 +491,27 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
                     <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Logo URL (Optional)</label>
                     <input type="text" className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none font-bold dark:text-white text-sm" value={formVendor.logo} onChange={e => setFormVendor({...formVendor, logo: e.target.value})} />
                   </div>
+                  <div>
+                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Contact Phone No.</label>
+                    <input type="tel" className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none font-bold dark:text-white text-sm" value={formVendor.phone} onChange={e => setFormVendor({...formVendor, phone: e.target.value})} />
+                  </div>
+               </div>
+               <div className="space-y-4">
+                  <div>
+                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Contact Email</label>
+                    <input type="email" className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none font-bold dark:text-white text-sm" value={formVendor.email} onChange={e => setFormVendor({...formVendor, email: e.target.value})} />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Vendor Username</label>
+                    <input required type="text" className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none font-bold dark:text-white text-sm" value={formVendor.username} onChange={e => setFormVendor({...formVendor, username: e.target.value})} />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Secret Key (Password)</label>
+                    <div className="relative">
+                      <input required type={showPassword ? "text" : "password"} className="w-full pl-4 pr-11 py-3 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none font-bold dark:text-white text-sm" value={formVendor.password} onChange={e => setFormVendor({...formVendor, password: e.target.value})} />
+                      <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">{showPassword ? <EyeOff size={18} /> : <Eye size={18} />}</button>
+                    </div>
+                  </div>
                </div>
                <div className="md:col-span-2 pt-4">
                   <button type="submit" className="w-full py-4 bg-orange-500 text-white rounded-2xl font-black uppercase tracking-widest text-xs shadow-xl hover:bg-orange-600 transition-all active:scale-95">Save Changes</button>
@@ -520,12 +524,12 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
       {/* Hub Add/Edit Modal */}
       {isAreaModalOpen && (
         <div className="fixed inset-0 z-[100] bg-black/70 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-3xl max-w-md w-full p-8 shadow-2xl relative animate-in zoom-in fade-in duration-300">
+          <div className="bg-white dark:bg-gray-800 rounded-3xl max-md w-full p-8 shadow-2xl relative animate-in zoom-in fade-in duration-300">
              <button onClick={() => setIsAreaModalOpen(false)} className="absolute top-6 right-6 p-2 text-gray-400 hover:text-red-500 transition-colors"><X size={24} /></button>
-             <h2 className="text-2xl font-black mb-8 dark:text-white uppercase tracking-tighter">{editingArea ? 'Modify Hub' : 'Establish New Hub'}</h2>
+             <h2 className="text-2xl font-black mb-8 dark:text-white uppercase tracking-tighter">{editingArea ? 'Modify Hub' : 'Register New Hub'}</h2>
              <form onSubmit={handleHubSubmit} className="space-y-4">
                 <div>
-                   <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Hub Alias (Unique Name)</label>
+                   <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Hub Name</label>
                    <input required type="text" className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none font-bold dark:text-white text-sm" value={formArea.name} onChange={e => setFormArea({...formArea, name: e.target.value})} />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
@@ -534,7 +538,7 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
                       <input required type="text" className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none font-bold dark:text-white text-sm" value={formArea.city} onChange={e => setFormArea({...formArea, city: e.target.value})} />
                    </div>
                    <div>
-                      <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">State Details</label>
+                      <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">State</label>
                       <input required type="text" className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none font-bold dark:text-white text-sm" value={formArea.state} onChange={e => setFormArea({...formArea, state: e.target.value})} />
                    </div>
                 </div>
@@ -544,7 +548,7 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
                       <input required type="text" maxLength={3} placeholder="e.g. SF" className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none font-bold dark:text-white text-sm uppercase" value={formArea.code} onChange={e => setFormArea({...formArea, code: e.target.value.toUpperCase()})} />
                    </div>
                    <div>
-                      <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Hub Logic</label>
+                      <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Hub Type</label>
                       <div className="flex bg-gray-50 dark:bg-gray-700 p-1 rounded-xl">
                         <button type="button" onClick={() => setFormArea({...formArea, type: 'MULTI'})} className={`flex-1 py-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${formArea.type === 'MULTI' ? 'bg-white dark:bg-gray-600 shadow-sm text-orange-500' : 'text-gray-400'}`}>Multi</button>
                         <button type="button" onClick={() => setFormArea({...formArea, type: 'SINGLE'})} className={`flex-1 py-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${formArea.type === 'SINGLE' ? 'bg-white dark:bg-gray-600 shadow-sm text-orange-500' : 'text-gray-400'}`}>Single</button>
@@ -608,7 +612,6 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
                </div>
              </div>
 
-             {/* Print View Output (Hidden in Screen) */}
              <div className="hidden print:block bg-white text-black p-0">
                {qrMode === 'SINGLE' ? (
                  <div className="flex flex-col items-center justify-center h-screen">
@@ -641,7 +644,6 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
         </div>
       )}
 
-      {/* Global Hub Selection for QR */}
       {isHubSelectionModalOpen && (
         <div className="fixed inset-0 z-[120] bg-black/70 backdrop-blur-md flex items-center justify-center p-4">
            <div className="bg-white dark:bg-gray-800 rounded-3xl max-w-lg w-full p-8 shadow-2xl relative">
