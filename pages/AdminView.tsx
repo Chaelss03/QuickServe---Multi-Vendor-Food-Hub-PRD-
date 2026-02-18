@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { User, Restaurant, Order, Area, OrderStatus } from '../types';
-import { Users, Store, TrendingUp, Settings, ShieldCheck, Mail, Search, Filter, X, Plus, MapPin, Power, CheckCircle2, AlertCircle, LogIn, Trash2, LayoutGrid, List, ChevronRight, Eye, EyeOff, Globe, Phone, ShoppingBag, Edit3, Hash, Download, Calendar, ChevronLeft, Database, Image as ImageIcon, Key, QrCode, Printer, Layers, Info, ExternalLink, XCircle, Upload, Link } from 'lucide-react';
+import { Users, Store, TrendingUp, Settings, ShieldCheck, Mail, Search, Filter, X, Plus, MapPin, Power, CheckCircle2, AlertCircle, LogIn, Trash2, LayoutGrid, List, ChevronRight, Eye, EyeOff, Globe, Phone, ShoppingBag, Edit3, Hash, Download, Calendar, ChevronLeft, Database, Image as ImageIcon, Key, QrCode, Printer, Layers, Info, ExternalLink, XCircle, Upload, Link, ChevronLast, ChevronFirst } from 'lucide-react';
 
 interface Props {
   vendors: User[];
@@ -61,6 +61,8 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
   // Reports State
   const [reportSearchQuery, setReportSearchQuery] = useState('');
   const [reportStatus, setReportStatus] = useState<'ALL' | OrderStatus>('ALL');
+  const [reportVendor, setReportVendor] = useState<string>('ALL');
+  const [reportHub, setReportHub] = useState<string>('ALL');
   const [reportStart, setReportStart] = useState<string>(() => {
     const d = new Date();
     d.setDate(1); 
@@ -97,15 +99,17 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
       } catch { return false; }
       const matchesDate = orderDate >= reportStart && orderDate <= reportEnd;
       const matchesStatus = reportStatus === 'ALL' || o.status === reportStatus;
+      const matchesVendor = reportVendor === 'ALL' || o.restaurantId === reportVendor;
+      const matchesHub = reportHub === 'ALL' || o.locationName === reportHub;
       
       const res = restaurants.find(r => r.id === o.restaurantId);
       const searchLower = reportSearchQuery.toLowerCase();
       const matchesSearch = o.id.toLowerCase().includes(searchLower) || 
                            (res?.name.toLowerCase().includes(searchLower) || false);
       
-      return matchesDate && matchesStatus && matchesSearch;
+      return matchesDate && matchesStatus && matchesSearch && matchesVendor && matchesHub;
     });
-  }, [orders, reportStart, reportEnd, reportStatus, reportSearchQuery, restaurants]);
+  }, [orders, reportStart, reportEnd, reportStatus, reportSearchQuery, restaurants, reportVendor, reportHub]);
 
   const totalPages = Math.ceil(filteredReports.length / entriesPerPage);
 
@@ -116,10 +120,10 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
 
   const handleDownloadReport = () => {
     if (filteredReports.length === 0) return;
-    const headers = ['Order ID', 'Kitchen', 'Time', 'Status', 'Menu Order', 'Total Bill'];
+    const headers = ['Order ID', 'Kitchen', 'Hub', 'Time', 'Status', 'Menu Order', 'Total Bill'];
     const rows = filteredReports.map(o => {
       const res = restaurants.find(r => r.id === o.restaurantId);
-      return [o.id, res?.name || 'Unknown', new Date(o.timestamp).toLocaleString(), o.status, o.items.map(i => `${i.name} (x${i.quantity})`).join('; '), o.total.toFixed(2)];
+      return [o.id, res?.name || 'Unknown', o.locationName || 'Unknown', new Date(o.timestamp).toLocaleString(), o.status, o.items.map(i => `${i.name} (x${i.quantity})`).join('; '), o.total.toFixed(2)];
     });
     const csvContent = [headers, ...rows].map(e => e.join(',')).join('\n');
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -406,19 +410,76 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
             </div>
             
             <div className="p-4 md:p-8">
-              <div className="bg-gray-50 dark:bg-gray-900/50 p-4 rounded-xl border dark:border-gray-700 flex flex-col md:flex-row items-center gap-6 mb-8">
-                <div className="flex-1 flex flex-col sm:flex-row gap-4 w-full">
-                  <div className="flex-1">
-                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 ml-1">Period Selection</label>
-                    <div className="flex items-center gap-2">
+              <div className="bg-gray-50 dark:bg-gray-900/50 p-6 rounded-2xl border dark:border-gray-700 mb-8 space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                  {/* Period selection */}
+                  <div className="space-y-1.5">
+                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Period Selection</label>
+                    <div className="flex items-center gap-2 bg-white dark:bg-gray-800 p-2 rounded-xl border dark:border-gray-600">
                       <Calendar size={14} className="text-orange-500 shrink-0" />
-                      <input type="date" value={reportStart} onChange={(e) => {setReportStart(e.target.value); setCurrentPage(1);}} className="flex-1 bg-white dark:bg-gray-800 border dark:border-gray-600 rounded-lg text-[10px] font-black dark:text-white p-2" />
-                      <span className="text-gray-400 font-black">to</span>
-                      <input type="date" value={reportEnd} onChange={(e) => {setReportEnd(e.target.value); setCurrentPage(1);}} className="flex-1 bg-white dark:bg-gray-800 border dark:border-gray-600 rounded-lg text-[10px] font-black dark:text-white p-2" />
+                      <input type="date" value={reportStart} onChange={(e) => {setReportStart(e.target.value); setCurrentPage(1);}} className="flex-1 bg-transparent border-none text-[10px] font-black dark:text-white p-0 outline-none" />
+                      <span className="text-gray-400 font-black">-</span>
+                      <input type="date" value={reportEnd} onChange={(e) => {setReportEnd(e.target.value); setCurrentPage(1);}} className="flex-1 bg-transparent border-none text-[10px] font-black dark:text-white p-0 outline-none" />
+                    </div>
+                  </div>
+
+                  {/* Vendor Filter */}
+                  <div className="space-y-1.5">
+                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Filter by Kitchen</label>
+                    <div className="relative">
+                      <Store size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                      <select 
+                        value={reportVendor} 
+                        onChange={(e) => {setReportVendor(e.target.value); setCurrentPage(1);}}
+                        className="w-full pl-9 pr-4 py-2.5 bg-white dark:bg-gray-800 border dark:border-gray-600 rounded-xl text-[10px] font-black dark:text-white appearance-none cursor-pointer outline-none"
+                      >
+                        <option value="ALL">All Kitchens</option>
+                        {restaurants.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Hub Filter */}
+                  <div className="space-y-1.5">
+                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Filter by Hub</label>
+                    <div className="relative">
+                      <MapPin size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                      <select 
+                        value={reportHub} 
+                        onChange={(e) => {setReportHub(e.target.value); setCurrentPage(1);}}
+                        className="w-full pl-9 pr-4 py-2.5 bg-white dark:bg-gray-800 border dark:border-gray-600 rounded-xl text-[10px] font-black dark:text-white appearance-none cursor-pointer outline-none"
+                      >
+                        <option value="ALL">All Hubs</option>
+                        {locations.map(l => <option key={l.id} value={l.name}>{l.name}</option>)}
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Status Filter */}
+                  <div className="space-y-1.5">
+                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Order Outcome</label>
+                    <div className="relative">
+                      <Filter size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                      <select 
+                        value={reportStatus} 
+                        onChange={(e) => {setReportStatus(e.target.value as any); setCurrentPage(1);}}
+                        className="w-full pl-9 pr-4 py-2.5 bg-white dark:bg-gray-800 border dark:border-gray-600 rounded-xl text-[10px] font-black dark:text-white appearance-none cursor-pointer outline-none"
+                      >
+                        <option value="ALL">All Outcomes</option>
+                        <option value={OrderStatus.COMPLETED}>Served</option>
+                        <option value={OrderStatus.PENDING}>Pending</option>
+                        <option value={OrderStatus.ONGOING}>Ongoing</option>
+                        <option value={OrderStatus.CANCELLED}>Rejected</option>
+                      </select>
                     </div>
                   </div>
                 </div>
-                <button onClick={handleDownloadReport} disabled={filteredReports.length === 0} className="w-full md:w-auto px-6 py-2.5 bg-black dark:bg-white text-white dark:text-gray-900 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-orange-500 transition-all shadow-lg"><Download size={16} /> Global Export</button>
+
+                <div className="flex justify-end pt-2">
+                  <button onClick={handleDownloadReport} disabled={filteredReports.length === 0} className="px-6 py-2.5 bg-black dark:bg-white text-white dark:text-gray-900 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center gap-2 hover:bg-orange-500 hover:text-white transition-all shadow-lg">
+                    <Download size={16} /> Global Export
+                  </button>
+                </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 md:gap-6 mb-8">
@@ -429,7 +490,7 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
                   </p>
                 </div>
                 <div className="bg-white dark:bg-gray-800 p-4 md:p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
-                  <p className="text-gray-400 dark:text-gray-500 text-[8px] md:text-[9px] font-black mb-1 uppercase tracking-widest">Global Orders</p>
+                  <p className="text-gray-400 dark:text-gray-500 text-[8px] md:text-[9px] font-black mb-1 uppercase tracking-widest">Filtered Orders</p>
                   <p className="text-xl md:text-2xl font-black text-gray-900 dark:text-white tracking-tighter leading-none">{filteredReports.length}</p>
                 </div>
                 <div className="bg-white dark:bg-gray-800 p-4 md:p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
@@ -447,6 +508,7 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
                         <tr>
                           <th className="px-8 py-3 text-left">ID</th>
                           <th className="px-8 py-3 text-left">Kitchen</th>
+                          <th className="px-8 py-3 text-left">Hub</th>
                           <th className="px-8 py-3 text-left">Time</th>
                           <th className="px-8 py-3 text-right">Total Bill</th>
                         </tr>
@@ -463,6 +525,7 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
                                    <span className="text-[10px] font-black dark:text-white uppercase tracking-tight truncate max-w-[80px]">{res?.name}</span>
                                  </div>
                               </td>
+                              <td className="px-8 py-2.5 text-[10px] font-black text-gray-400 uppercase tracking-widest">{report.locationName}</td>
                               <td className="px-8 py-2.5">
                                 <span className="text-[10px] font-black text-gray-700 dark:text-gray-300 uppercase tracking-tighter">{new Date(report.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                               </td>
@@ -470,10 +533,74 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
                             </tr>
                           );
                         })}
+                        {paginatedReports.length === 0 && (
+                          <tr>
+                            <td colSpan={5} className="py-20 text-center text-[10px] font-black text-gray-400 uppercase tracking-widest">No matching records found.</td>
+                          </tr>
+                        )}
                       </tbody>
                     </table>
                 </div>
               </div>
+
+              {/* Pagination Controls */}
+              {totalPages > 1 && (
+                <div className="mt-8 flex items-center justify-center gap-2 overflow-x-auto py-2 no-print">
+                  <button 
+                    onClick={() => setCurrentPage(1)} 
+                    disabled={currentPage === 1}
+                    className="p-2 bg-gray-100 dark:bg-gray-800 rounded-lg text-gray-400 hover:text-orange-500 disabled:opacity-30 transition-all"
+                  >
+                    <ChevronFirst size={16} />
+                  </button>
+                  <button 
+                    onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))} 
+                    disabled={currentPage === 1}
+                    className="p-2 bg-gray-100 dark:bg-gray-800 rounded-lg text-gray-400 hover:text-orange-500 disabled:opacity-30 transition-all"
+                  >
+                    <ChevronLeft size={16} />
+                  </button>
+                  
+                  <div className="flex items-center gap-1">
+                    {Array.from({ length: totalPages }, (_, i) => i + 1)
+                      .filter(p => p === 1 || p === totalPages || (p >= currentPage - 2 && p <= currentPage + 2))
+                      .map((p, i, arr) => {
+                        const showEllipsis = i > 0 && p !== arr[i-1] + 1;
+                        return (
+                          <React.Fragment key={p}>
+                            {showEllipsis && <span className="text-gray-400 px-1">...</span>}
+                            <button
+                              onClick={() => setCurrentPage(p)}
+                              className={`w-8 h-8 rounded-lg text-[10px] font-black transition-all ${
+                                currentPage === p 
+                                ? 'bg-orange-500 text-white shadow-lg' 
+                                : 'bg-gray-100 dark:bg-gray-800 text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-700'
+                              }`}
+                            >
+                              {p}
+                            </button>
+                          </React.Fragment>
+                        );
+                      })
+                    }
+                  </div>
+
+                  <button 
+                    onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))} 
+                    disabled={currentPage === totalPages}
+                    className="p-2 bg-gray-100 dark:bg-gray-800 rounded-lg text-gray-400 hover:text-orange-500 disabled:opacity-30 transition-all"
+                  >
+                    <ChevronRight size={16} />
+                  </button>
+                  <button 
+                    onClick={() => setCurrentPage(totalPages)} 
+                    disabled={currentPage === totalPages}
+                    className="p-2 bg-gray-100 dark:bg-gray-800 rounded-lg text-gray-400 hover:text-orange-500 disabled:opacity-30 transition-all"
+                  >
+                    <ChevronLast size={16} />
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -675,7 +802,7 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
 
       {isHubSelectionModalOpen && (
         <div className="fixed inset-0 z-[120] bg-black/70 backdrop-blur-md flex items-center justify-center p-4">
-           <div className="bg-white dark:bg-gray-800 rounded-3xl max-w-lg w-full p-8 shadow-2xl relative">
+           <div className="bg-white dark:bg-gray-800 rounded-3xl max-lg w-full p-8 shadow-2xl relative">
               <button onClick={() => setIsHubSelectionModalOpen(false)} className="absolute top-6 right-6 p-2 text-gray-400 hover:text-red-500 transition-colors"><X size={24} /></button>
               <h2 className="text-2xl font-black mb-6 dark:text-white uppercase tracking-tighter">Select Hub to Generate</h2>
               <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-2 custom-scrollbar">
