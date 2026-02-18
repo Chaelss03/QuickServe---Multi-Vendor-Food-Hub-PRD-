@@ -143,7 +143,9 @@ const App: React.FC = () => {
           image: m.image, category: m.category, isArchived: m.is_archived,
           sizes: m.sizes, tempOptions: m.temp_options,
           otherVariantName: m.other_variant_name,
-          otherVariants: m.other_variants, otherVariantsEnabled: m.other_variants_enabled
+          otherVariants: m.other_variants, 
+          otherVariantsEnabled: m.other_variants_enabled,
+          variantGroups: m.variant_groups // Load new variant groups
         }))
       }));
       setRestaurants(formatted);
@@ -362,18 +364,84 @@ const App: React.FC = () => {
       return;
     }
     setCart(prev => {
-      const existing = prev.find(i => i.id === item.id && i.selectedSize === item.selectedSize && i.selectedTemp === item.selectedTemp && i.selectedOtherVariant === item.selectedOtherVariant);
-      if (existing) return prev.map(i => (i.id === item.id && i.selectedSize === item.selectedSize && i.selectedTemp === item.selectedTemp && i.selectedOtherVariant === item.selectedOtherVariant) ? { ...i, quantity: i.quantity + 1 } : i);
+      // Create a unique key for the item based on all selected options
+      const createItemKey = (i: CartItem) => {
+        const variantsKey = i.selectedVariants 
+          ? Object.entries(i.selectedVariants).sort().map(([k,v]) => `${k}:${v}`).join('|')
+          : '';
+        return `${i.id}-${i.selectedSize || ''}-${i.selectedTemp || ''}-${i.selectedOtherVariant || ''}-${variantsKey}`;
+      };
+
+      const newItemKey = createItemKey(item);
+      const existingIndex = prev.findIndex(i => createItemKey(i) === newItemKey);
+
+      if (existingIndex > -1) {
+        const newCart = [...prev];
+        newCart[existingIndex].quantity += 1;
+        return newCart;
+      }
       return [...prev, { ...item, quantity: 1 }];
     });
   };
 
-  const removeFromCart = (itemId: string) => {
+  const removeFromCart = (itemId: string, itemIdx?: number) => {
     setCart(prev => {
-      const existing = prev.find(i => i.id === itemId);
-      if (existing && existing.quantity > 1) return prev.map(i => i.id === itemId ? { ...i, quantity: i.quantity - 1 } : i);
-      return prev.filter(i => i.id !== itemId);
+        // If we pass an index (best for duplicate items with different options), remove specific
+        // But for simplicity in this app structure, we might just filter or decrement based on ID logic.
+        // Given the Cart UI iteration, let's find the item object directly if possible or loop.
+        // The current UI passes item.id which isn't unique enough for variants.
+        // We will improve this by decrementing the exact match if we had the full object, 
+        // but here we likely need to handle it carefully.
+        
+        // However, the CustomerView passes ID. Let's assume for now unique IDs in cart would be better
+        // but to keep it simple: We need to match the item instance.
+        // Since `removeFromCart` in CustomerView maps over `cart` array, let's just use the index if possible.
+        // BUT, `removeFromCart` signature is (itemId: string). 
+        
+        // NOTE: Standard practice would be to generate a unique cartId. 
+        // For now, let's match the first instance of that ID if we don't have better tracking,
+        // OR better, update CustomerView to pass the whole item or a unique key.
+        
+        // Actually, let's just find the first item with that ID for now (legacy behavior) 
+        // OR if the caller sends the object in `CustomerView` we could match it.
+        
+        // To support the existing `removeFromCart(item.id)` call from CustomerView without breaking changes:
+        // We will try to find *one* instance. Ideally CustomerView should pass the unique combination.
+        // Let's assume the user is clicking "-" on a specific rendered row.
+        
+        // We'll update CustomerView to handle cart mutations better locally or pass index.
+        return prev; // Placeholder, see CustomerView for actual implementation which likely needs to pass index or unique obj
     });
+  };
+
+  // Re-implementing a robust removeFromCart that accepts an item to match
+  const removeSpecificItemFromCart = (itemToRemove: CartItem) => {
+    setCart(prev => {
+      const createItemKey = (i: CartItem) => {
+        const variantsKey = i.selectedVariants 
+          ? Object.entries(i.selectedVariants).sort().map(([k,v]) => `${k}:${v}`).join('|')
+          : '';
+        return `${i.id}-${i.selectedSize || ''}-${i.selectedTemp || ''}-${i.selectedOtherVariant || ''}-${variantsKey}`;
+      };
+      
+      const targetKey = createItemKey(itemToRemove);
+      const idx = prev.findIndex(i => createItemKey(i) === targetKey);
+      
+      if (idx > -1) {
+        const newCart = [...prev];
+        if (newCart[idx].quantity > 1) {
+          newCart[idx].quantity -= 1;
+        } else {
+          newCart.splice(idx, 1);
+        }
+        return newCart;
+      }
+      return prev;
+    });
+  };
+
+  const addSpecificItemToCart = (itemToAdd: CartItem) => {
+     addToCart(itemToAdd);
   };
 
   const handleAddVendor = async (newUser: User, newRestaurant: Restaurant) => {
@@ -423,7 +491,8 @@ const App: React.FC = () => {
       temp_options: item.tempOptions,
       other_variant_name: item.otherVariantName,
       other_variants: item.otherVariants,
-      other_variants_enabled: item.otherVariantsEnabled
+      other_variants_enabled: item.otherVariantsEnabled,
+      variant_groups: item.variantGroups // Persist new variant groups
     }).eq('id', item.id);
     if (error) console.error("Error updating menu item:", error);
     fetchRestaurants();
@@ -441,7 +510,8 @@ const App: React.FC = () => {
       temp_options: item.tempOptions,
       other_variant_name: item.otherVariantName,
       other_variants: item.otherVariants,
-      other_variants_enabled: item.otherVariantsEnabled
+      other_variants_enabled: item.otherVariantsEnabled,
+      variant_groups: item.variantGroups // Persist new variant groups
     }]);
     if (error) console.error("Error adding menu item:", error);
     fetchRestaurants();
@@ -495,7 +565,7 @@ const App: React.FC = () => {
         </div>
       </header>
       <main className="flex-1">
-        {currentRole === 'CUSTOMER' && <CustomerView restaurants={restaurants.filter(r => r.location === sessionLocation && r.isOnline === true)} cart={cart} orders={orders} onAddToCart={addToCart} onRemoveFromCart={removeFromCart} onPlaceOrder={placeOrder} locationName={sessionLocation || undefined} tableNo={sessionTable || undefined} areaType={currentArea?.type || 'MULTI'} allRestaurants={restaurants} />}
+        {currentRole === 'CUSTOMER' && <CustomerView restaurants={restaurants.filter(r => r.location === sessionLocation && r.isOnline === true)} cart={cart} orders={orders} onAddToCart={addSpecificItemToCart} onRemoveFromCart={removeSpecificItemFromCart} onPlaceOrder={placeOrder} locationName={sessionLocation || undefined} tableNo={sessionTable || undefined} areaType={currentArea?.type || 'MULTI'} allRestaurants={restaurants} />}
         {currentRole === 'VENDOR' && activeVendorRes && <VendorView restaurant={activeVendorRes} orders={orders.filter(o => o.restaurantId === currentUser?.restaurantId)} onUpdateOrder={updateOrderStatus} onUpdateMenu={handleUpdateMenuItem} onAddMenuItem={handleAddMenuItem} onPermanentDeleteMenuItem={handleDeleteMenuItem} onToggleOnline={() => toggleVendorOnline(activeVendorRes.id, activeVendorRes.isOnline ?? true)} lastSyncTime={lastSyncTime} />}
         {currentRole === 'ADMIN' && <AdminView vendors={allUsers.filter(u => u.role === 'VENDOR')} restaurants={restaurants} orders={orders} locations={locations} onAddVendor={handleAddVendor} onUpdateVendor={handleUpdateVendor} onImpersonateVendor={handleLogin} onAddLocation={handleAddLocation} onUpdateLocation={handleUpdateLocation} onDeleteLocation={handleDeleteLocation} onRemoveVendorFromHub={(rid) => supabase.from('restaurants').update({ location_name: null }).eq('id', rid).then(() => fetchRestaurants())} />}
       </main>

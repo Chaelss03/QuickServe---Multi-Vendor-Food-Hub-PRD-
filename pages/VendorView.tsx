@@ -1,6 +1,6 @@
 
 import React, { useState, useRef, useMemo, useEffect } from 'react';
-import { Restaurant, Order, OrderStatus, MenuItem, MenuItemVariant } from '../types';
+import { Restaurant, Order, OrderStatus, MenuItem, MenuItemVariant, VariantGroup } from '../types';
 import { ShoppingBag, BookOpen, BarChart3, Edit3, CheckCircle, Clock, X, Plus, Trash2, Image as ImageIcon, LayoutGrid, List, Filter, Archive, RotateCcw, Power, Eye, Upload, Hash, MessageSquare, Download, Calendar, Ban, ChevronLeft, ChevronRight, Bell, Activity, RefreshCw, Layers, Tag, Wifi, WifiOff, QrCode, Printer, ExternalLink, ThermometerSun, Info, Settings2, Menu, ToggleLeft, ToggleRight, Link, Search } from 'lucide-react';
 
 interface Props {
@@ -114,10 +114,8 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
     image: '',
     category: 'Main Dish',
     sizes: [],
-    otherVariantName: '',
-    otherVariants: [],
-    otherVariantsEnabled: false,
-    tempOptions: { enabled: false, hot: 0, cold: 0 }
+    tempOptions: { enabled: false, hot: 0, cold: 0 },
+    variantGroups: []
   });
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -201,23 +199,29 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
       image: '',
       category: initialCategory || 'Main Dish',
       sizes: [],
-      otherVariantName: '',
-      otherVariants: [],
-      otherVariantsEnabled: false,
-      tempOptions: { enabled: false, hot: 0, cold: 0 }
+      tempOptions: { enabled: false, hot: 0, cold: 0 },
+      variantGroups: []
     });
     setIsFormModalOpen(true);
   };
 
   const handleOpenEditModal = (item: MenuItem) => {
     setEditingItem(item);
+    
+    // Convert legacy otherVariants to variantGroups if variantGroups is empty/undefined
+    let groups = item.variantGroups ? [...item.variantGroups] : [];
+    if (groups.length === 0 && item.otherVariants && item.otherVariants.length > 0) {
+       groups.push({
+         name: item.otherVariantName || 'Options',
+         options: item.otherVariants
+       });
+    }
+
     setFormItem({
       ...item,
       sizes: item.sizes ? [...item.sizes] : [],
-      otherVariantName: item.otherVariantName || '',
-      otherVariants: item.otherVariants ? [...item.otherVariants] : [],
-      otherVariantsEnabled: !!item.otherVariantsEnabled,
-      tempOptions: item.tempOptions ? { ...item.tempOptions } : { enabled: false, hot: 0, cold: 0 }
+      tempOptions: item.tempOptions ? { ...item.tempOptions } : { enabled: false, hot: 0, cold: 0 },
+      variantGroups: groups
     });
     setIsFormModalOpen(true);
   };
@@ -242,24 +246,49 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
     setFormItem({ ...formItem, sizes: updatedSizes });
   };
 
-  const handleAddOtherVariant = () => {
+  // --- Variant Group Handlers ---
+  const handleAddVariantGroup = () => {
+    if ((formItem.variantGroups?.length || 0) >= 10) return; // Limit to 10 groups
     setFormItem({
       ...formItem,
-      otherVariants: [...(formItem.otherVariants || []), { name: '', price: 0 }]
+      variantGroups: [...(formItem.variantGroups || []), { name: '', options: [] }]
     });
   };
 
-  const handleRemoveOtherVariant = (index: number) => {
+  const handleRemoveVariantGroup = (index: number) => {
     setFormItem({
       ...formItem,
-      otherVariants: formItem.otherVariants?.filter((_, i) => i !== index)
+      variantGroups: formItem.variantGroups?.filter((_, i) => i !== index)
     });
   };
 
-  const handleOtherVariantChange = (index: number, field: 'name' | 'price', value: string | number) => {
-    const updated = [...(formItem.otherVariants || [])];
-    updated[index] = { ...updated[index], [field]: value };
-    setFormItem({ ...formItem, otherVariants: updated });
+  const handleVariantGroupNameChange = (index: number, value: string) => {
+    const newGroups = [...(formItem.variantGroups || [])];
+    newGroups[index] = { ...newGroups[index], name: value };
+    setFormItem({ ...formItem, variantGroups: newGroups });
+  };
+
+  const handleAddOptionToGroup = (groupIndex: number) => {
+    const newGroups = [...(formItem.variantGroups || [])];
+    const group = newGroups[groupIndex];
+    group.options = [...group.options, { name: '', price: 0 }];
+    setFormItem({ ...formItem, variantGroups: newGroups });
+  };
+
+  const handleRemoveOptionFromGroup = (groupIndex: number, optionIndex: number) => {
+    const newGroups = [...(formItem.variantGroups || [])];
+    const group = newGroups[groupIndex];
+    group.options = group.options.filter((_, i) => i !== optionIndex);
+    setFormItem({ ...formItem, variantGroups: newGroups });
+  };
+
+  const handleOptionChange = (groupIndex: number, optionIndex: number, field: 'name' | 'price', value: string | number) => {
+    const newGroups = [...(formItem.variantGroups || [])];
+    const group = newGroups[groupIndex];
+    const newOptions = [...group.options];
+    newOptions[optionIndex] = { ...newOptions[optionIndex], [field]: value };
+    group.options = newOptions;
+    setFormItem({ ...formItem, variantGroups: newGroups });
   };
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -286,10 +315,11 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
       category: formItem.category || 'Main Dish',
       isArchived: editingItem ? editingItem.isArchived : false,
       sizes: formItem.sizes,
-      otherVariantName: formItem.otherVariantName,
-      otherVariants: formItem.otherVariants,
-      otherVariantsEnabled: formItem.otherVariantsEnabled,
-      tempOptions: formItem.tempOptions?.enabled ? formItem.tempOptions : undefined
+      tempOptions: formItem.tempOptions?.enabled ? formItem.tempOptions : undefined,
+      variantGroups: formItem.variantGroups,
+      // Clear legacy fields to prefer variantGroups
+      otherVariants: [],
+      otherVariantsEnabled: false
     };
 
     if (editingItem) {
@@ -347,7 +377,6 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
   };
 
   const handlePrintQr = () => {
-    // Defer the print call to prevent blocking the main thread during event handling, improving INP.
     requestAnimationFrame(() => {
       setTimeout(() => {
         window.print();
@@ -441,6 +470,7 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
       </aside>
 
       <main className="flex-1 overflow-y-auto bg-gray-50 dark:bg-gray-900 transition-all">
+        {/* ... Header for mobile ... */}
         <div className="lg:hidden flex items-center p-4 bg-white dark:bg-gray-800 border-b dark:border-gray-700 sticky top-0 z-30 no-print">
           <button 
             onClick={() => setIsMobileMenuOpen(true)}
@@ -587,9 +617,15 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
                             <div key={idx} className="flex justify-between items-start text-sm border-l-2 border-gray-100 dark:border-gray-700 pl-3">
                               <div>
                                   <p className="font-bold text-gray-900 dark:text-white">x{item.quantity} {item.name}</p>
-                                  <div className="flex flex-wrap gap-2 mt-1">
-                                      {item.selectedSize && <span className="text-[9px] font-black px-1.5 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-500 rounded uppercase tracking-tighter">Size: {item.selectedSize}</span>}
-                                      {item.selectedTemp && <span className={`text-[9px] font-black px-1.5 py-0.5 rounded uppercase tracking-tighter ${item.selectedTemp === 'Hot' ? 'bg-orange-50 text-orange-600' : 'bg-blue-50 text-blue-600'}`}>Temp: {item.selectedTemp}</span>}
+                                  <div className="flex flex-col gap-1 mt-1">
+                                      {item.selectedSize && <span className="text-[9px] font-black px-1.5 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-500 rounded uppercase tracking-tighter w-fit">Size: {item.selectedSize}</span>}
+                                      {item.selectedTemp && <span className={`text-[9px] font-black px-1.5 py-0.5 rounded uppercase tracking-tighter w-fit ${item.selectedTemp === 'Hot' ? 'bg-orange-50 text-orange-600' : 'bg-blue-50 text-blue-600'}`}>Temp: {item.selectedTemp}</span>}
+                                      {/* New Support */}
+                                      {item.selectedVariants && Object.entries(item.selectedVariants).map(([grp, opt]) => (
+                                         <span key={grp} className="text-[9px] font-black px-1.5 py-0.5 bg-purple-50 text-purple-600 rounded uppercase tracking-tighter w-fit">{grp}: {opt}</span>
+                                      ))}
+                                      {/* Legacy Support (fallback display) */}
+                                      {!item.selectedVariants && item.selectedOtherVariant && <span className="text-[9px] font-black px-1.5 py-0.5 bg-purple-50 text-purple-600 rounded uppercase tracking-tighter w-fit">{item.selectedOtherVariant}</span>}
                                   </div>
                               </div>
                               <span className="text-gray-500 dark:text-gray-400 font-bold">RM{(item.price * item.quantity).toFixed(2)}</span>
@@ -816,9 +852,9 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
               )}
             </div>
           )}
-
+          
           {activeTab === 'REPORTS' && (
-            <div className="max-w-6xl mx-auto animate-in fade-in duration-500">
+             <div className="max-w-6xl mx-auto animate-in fade-in duration-500">
               <h1 className="text-2xl font-black mb-1 dark:text-white uppercase tracking-tighter">Sales Report</h1>
               <p className="text-xs text-gray-500 dark:text-gray-400 font-medium mb-8 uppercase tracking-widest">Financial performance and order history.</p>
               
@@ -879,7 +915,7 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
                   </table>
                 </div>
               </div>
-            </div>
+             </div>
           )}
         </div>
       </main>
@@ -913,7 +949,7 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
         </div>
       )}
 
-      {/* Menu Item Form Modal */}
+      {/* Menu Item Form Modal - RESTRUCTURED */}
       {isFormModalOpen && (
         <div className="fixed inset-0 z-[100] bg-black/70 backdrop-blur-md flex items-center justify-center p-4">
           <div className="bg-white dark:bg-gray-800 rounded-3xl max-w-2xl w-full p-8 shadow-2xl relative animate-in zoom-in fade-in duration-300 max-h-[90vh] overflow-y-auto custom-scrollbar">
@@ -921,6 +957,7 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
             <h2 className="text-2xl font-black mb-8 dark:text-white uppercase tracking-tighter">{editingItem ? 'Edit Menu Details' : 'New Dish Broadcast'}</h2>
             
             <form onSubmit={handleSaveItem} className="space-y-8">
+              {/* Basic Info */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 <div className="space-y-6">
                   <div>
@@ -967,96 +1004,111 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pt-6 border-t dark:border-gray-700">
+              {/* SPECIFIC ARRANGEMENT REQUEST: 
+                  Line 1: Thermal
+                  Line 2: Size
+                  Line 3: Variant Groups
+              */}
+              <div className="space-y-6 pt-6 border-t dark:border-gray-700">
+                 
+                 {/* LINE 1: THERMAL OPTIONS */}
+                 <div>
+                    <div className="flex items-center justify-between mb-4">
+                       <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Line 1: Thermal Options</label>
+                       <button type="button" onClick={() => setFormItem({...formItem, tempOptions: {...formItem.tempOptions!, enabled: !formItem.tempOptions?.enabled}})} className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${formItem.tempOptions?.enabled ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-400'}`}>
+                         {formItem.tempOptions?.enabled ? 'Enabled' : 'Disabled'}
+                       </button>
+                    </div>
+                    {formItem.tempOptions?.enabled && (
+                      <div className="grid grid-cols-2 gap-4 animate-in fade-in zoom-in-95 duration-300">
+                         <div className="space-y-2">
+                            <div className="flex items-center gap-2 text-orange-500"><ThermometerSun size={14} /><span className="text-[9px] font-black uppercase tracking-widest">Hot Surcharge</span></div>
+                            <input type="number" step="0.01" className="w-full px-3 py-2 bg-orange-50 dark:bg-orange-900/10 border-none rounded-lg text-xs font-bold dark:text-white" value={formItem.tempOptions.hot} onChange={e => setFormItem({...formItem, tempOptions: {...formItem.tempOptions!, hot: Number(e.target.value)}})} />
+                         </div>
+                         <div className="space-y-2">
+                            <div className="flex items-center gap-2 text-blue-500"><Info size={14} /><span className="text-[9px] font-black uppercase tracking-widest">Cold Surcharge</span></div>
+                            <input type="number" step="0.01" className="w-full px-3 py-2 bg-blue-50 dark:bg-blue-900/10 border-none rounded-lg text-xs font-bold dark:text-white" value={formItem.tempOptions.cold} onChange={e => setFormItem({...formItem, tempOptions: {...formItem.tempOptions!, cold: Number(e.target.value)}})} />
+                         </div>
+                      </div>
+                    )}
+                 </div>
+
+                 {/* LINE 2: SIZE OPTION */}
                  <div>
                    <div className="flex items-center justify-between mb-4">
-                      <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Portion Variants</label>
-                      <button type="button" onClick={handleAddSize} className="p-1.5 text-orange-500 bg-orange-50 dark:bg-orange-900/20 rounded-lg"><Plus size={16} /></button>
+                      <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Line 2: Size Option</label>
+                      <button type="button" onClick={handleAddSize} className="p-1.5 text-orange-500 bg-orange-50 dark:bg-orange-900/20 rounded-lg flex items-center gap-1">
+                        <Plus size={14} /> <span className="text-[9px] font-black uppercase tracking-widest">Add Size</span>
+                      </button>
                    </div>
                    <div className="space-y-3">
                       {formItem.sizes?.map((size, idx) => (
                         <div key={idx} className="flex gap-2 animate-in slide-in-from-right-2 duration-300">
-                          <input type="text" className="flex-1 px-3 py-2 bg-gray-50 dark:bg-gray-700 border-none rounded-lg text-xs font-bold dark:text-white" placeholder="Portion Name" value={size.name} onChange={e => handleSizeChange(idx, 'name', e.target.value)} />
+                          <input type="text" className="flex-1 px-3 py-2 bg-gray-50 dark:bg-gray-700 border-none rounded-lg text-xs font-bold dark:text-white" placeholder="Size Name (e.g. Large)" value={size.name} onChange={e => handleSizeChange(idx, 'name', e.target.value)} />
                           <input type="number" step="0.01" className="w-24 px-3 py-2 bg-gray-50 dark:bg-gray-700 border-none rounded-lg text-xs font-bold dark:text-white" placeholder="+Price" value={size.price} onChange={e => handleSizeChange(idx, 'price', Number(e.target.value))} />
                           <button type="button" onClick={() => handleRemoveSize(idx)} className="p-2 text-red-400 hover:bg-red-50 rounded-lg"><Trash2 size={14} /></button>
                         </div>
                       ))}
-                      {(!formItem.sizes || formItem.sizes.length === 0) && <p className="text-[9px] text-gray-400 italic">No variants established yet.</p>}
+                      {(!formItem.sizes || formItem.sizes.length === 0) && <p className="text-[9px] text-gray-400 italic">No sizes configured.</p>}
                    </div>
                  </div>
 
-                 <div className="space-y-6">
-                   <div>
-                     <div className="flex items-center justify-between mb-4">
-                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Other Variant Group</label>
-                        <button type="button" onClick={() => setFormItem({...formItem, otherVariantsEnabled: !formItem.otherVariantsEnabled})} className={`p-1 text-orange-500 rounded-lg transition-all ${formItem.otherVariantsEnabled ? 'bg-orange-500 text-white shadow-md' : 'bg-gray-100 dark:bg-gray-700 text-gray-400'}`}>
-                          {formItem.otherVariantsEnabled ? <ToggleRight size={24} /> : <ToggleLeft size={24} />}
-                        </button>
-                     </div>
-                     {formItem.otherVariantsEnabled && (
-                       <div className="space-y-4 animate-in fade-in zoom-in-95 duration-300">
-                         <div>
-                            <label className="block text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Variant Title (e.g. Toppings)</label>
-                            <input type="text" className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none font-bold dark:text-white text-xs" value={formItem.otherVariantName} onChange={e => setFormItem({...formItem, otherVariantName: e.target.value})} placeholder="Milk Choice, Toppings, etc." />
-                         </div>
-                         <div className="space-y-3">
-                           <div className="flex justify-between items-center mb-2">
-                             <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1">Options</label>
-                             <button type="button" onClick={handleAddOtherVariant} className="px-2 py-1 bg-gray-900 dark:bg-white text-white dark:text-gray-900 rounded-lg text-[9px] font-black uppercase tracking-widest flex items-center gap-1">Add Option</button>
-                           </div>
-                           {formItem.otherVariants?.map((variant, idx) => (
-                             <div key={idx} className="flex gap-2 animate-in slide-in-from-right-2 duration-300">
-                               <input type="text" className="flex-1 px-3 py-2 bg-gray-50 dark:bg-gray-700 border-none rounded-lg text-xs font-bold dark:text-white" placeholder="Option Name" value={variant.name} onChange={e => handleOtherVariantChange(idx, 'name', e.target.value)} />
-                               <input type="number" step="0.01" className="w-24 px-3 py-2 bg-gray-50 dark:bg-gray-700 border-none rounded-lg text-xs font-bold dark:text-white" placeholder="+Price" value={variant.price} onChange={e => handleOtherVariantChange(idx, 'price', Number(e.target.value))} />
-                               <button type="button" onClick={() => handleRemoveOtherVariant(idx)} className="p-2 text-red-400 hover:bg-red-50 rounded-lg"><Trash2 size={14} /></button>
-                             </div>
-                           ))}
-                         </div>
-                       </div>
-                     )}
+                 {/* LINE 3: OTHER VARIANT GROUPS */}
+                 <div>
+                   <div className="flex items-center justify-between mb-4">
+                      <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Line 3: Other Variant Groups</label>
+                      <button 
+                        type="button" 
+                        onClick={handleAddVariantGroup} 
+                        disabled={(formItem.variantGroups?.length || 0) >= 10}
+                        className={`p-1.5 rounded-lg flex items-center gap-1 transition-all ${(formItem.variantGroups?.length || 0) >= 10 ? 'bg-gray-100 text-gray-400' : 'text-orange-500 bg-orange-50 dark:bg-orange-900/20'}`}
+                      >
+                        <Plus size={14} /> <span className="text-[9px] font-black uppercase tracking-widest">Add Group</span>
+                      </button>
                    </div>
-
-                   <div>
-                     <div className="flex items-center justify-between mb-4">
-                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Thermal Options</label>
-                        <button type="button" onClick={() => setFormItem({...formItem, tempOptions: {...formItem.tempOptions!, enabled: !formItem.tempOptions?.enabled}})} className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${formItem.tempOptions?.enabled ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-400'}`}>
-                          {formItem.tempOptions?.enabled ? 'Activated' : 'Disabled'}
-                        </button>
-                     </div>
-                     {formItem.tempOptions?.enabled && (
-                       <div className="grid grid-cols-2 gap-4 animate-in fade-in zoom-in-95 duration-300">
-                          <div className="space-y-2">
-                             <div className="flex items-center gap-2 text-orange-500"><ThermometerSun size={14} /><span className="text-[9px] font-black uppercase tracking-widest">Hot Surcharge</span></div>
-                             <input type="number" step="0.01" className="w-full px-3 py-2 bg-orange-50 dark:bg-orange-900/10 border-none rounded-lg text-xs font-bold dark:text-white" value={formItem.tempOptions.hot} onChange={e => setFormItem({...formItem, tempOptions: {...formItem.tempOptions!, hot: Number(e.target.value)}})} />
+                   
+                   <div className="space-y-6">
+                     {formItem.variantGroups?.map((group, gIdx) => (
+                       <div key={gIdx} className="p-4 rounded-xl border border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/50 animate-in slide-in-from-right-2 duration-300">
+                          <div className="flex items-center gap-2 mb-3">
+                            <span className="w-6 h-6 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center text-[10px] font-black text-gray-500">{gIdx + 1}</span>
+                            <input 
+                              type="text" 
+                              className="flex-1 bg-transparent border-none text-sm font-black dark:text-white placeholder-gray-400 focus:ring-0 p-0" 
+                              placeholder="Group Name (e.g. Flavour, Topping)" 
+                              value={group.name} 
+                              onChange={e => handleVariantGroupNameChange(gIdx, e.target.value)}
+                            />
+                            <button type="button" onClick={() => handleRemoveVariantGroup(gIdx)} className="text-red-400 hover:text-red-500"><X size={16} /></button>
                           </div>
-                          <div className="space-y-2">
-                             <div className="flex items-center gap-2 text-blue-500"><Info size={14} /><span className="text-[9px] font-black uppercase tracking-widest">Cold Surcharge</span></div>
-                             <input type="number" step="0.01" className="w-full px-3 py-2 bg-blue-50 dark:bg-blue-900/10 border-none rounded-lg text-xs font-bold dark:text-white" value={formItem.tempOptions.cold} onChange={e => setFormItem({...formItem, tempOptions: {...formItem.tempOptions!, cold: Number(e.target.value)}})} />
+                          
+                          <div className="pl-8 space-y-2">
+                            {group.options.map((option, oIdx) => (
+                               <div key={oIdx} className="flex gap-2">
+                                  <input type="text" className="flex-1 px-3 py-1.5 bg-white dark:bg-gray-700 border dark:border-gray-600 rounded-lg text-xs font-bold dark:text-white" placeholder="Option Name" value={option.name} onChange={e => handleOptionChange(gIdx, oIdx, 'name', e.target.value)} />
+                                  <input type="number" step="0.01" className="w-20 px-3 py-1.5 bg-white dark:bg-gray-700 border dark:border-gray-600 rounded-lg text-xs font-bold dark:text-white" placeholder="+Price" value={option.price} onChange={e => handleOptionChange(gIdx, oIdx, 'price', Number(e.target.value))} />
+                                  <button type="button" onClick={() => handleRemoveOptionFromGroup(gIdx, oIdx)} className="p-1.5 text-gray-400 hover:text-red-500"><X size={14} /></button>
+                               </div>
+                            ))}
+                            <button type="button" onClick={() => handleAddOptionToGroup(gIdx)} className="text-[10px] font-black text-orange-500 uppercase tracking-widest flex items-center gap-1 mt-2 hover:underline">
+                               <Plus size={12} /> Add Option to '{group.name || 'Group'}'
+                            </button>
                           </div>
                        </div>
-                     )}
+                     ))}
+                     {(!formItem.variantGroups || formItem.variantGroups.length === 0) && <p className="text-[9px] text-gray-400 italic">No variant groups configured.</p>}
                    </div>
                  </div>
               </div>
 
-              <div className="pt-8 border-t dark:border-gray-700">
-                <button type="submit" className="w-full py-5 bg-orange-500 text-white rounded-[2rem] font-black uppercase tracking-[0.2em] text-xs shadow-xl shadow-orange-100 dark:shadow-none hover:bg-orange-600 transition-all active:scale-95">Confirm Dish Broadcast</button>
+              <div className="pt-4 flex gap-4">
+                <button type="button" onClick={() => setIsFormModalOpen(false)} className="flex-1 py-4 bg-gray-100 dark:bg-gray-700 rounded-2xl font-black uppercase tracking-widest text-xs text-gray-500">Cancel</button>
+                <button type="submit" className="flex-1 py-4 bg-orange-500 text-white rounded-2xl font-black uppercase tracking-widest text-xs shadow-xl hover:bg-orange-600 transition-all">Save To Menu</button>
               </div>
             </form>
           </div>
         </div>
       )}
-
-      <style>{`
-        @media print {
-          .no-print { display: none !important; }
-          body { background: white !important; }
-          .page-break-inside-avoid { page-break-inside: avoid; }
-        }
-        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
-        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #e5e7eb; border-radius: 10px; }
-      `}</style>
     </div>
   );
 };
