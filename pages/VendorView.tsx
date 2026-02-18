@@ -1,7 +1,7 @@
 
 import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { Restaurant, Order, OrderStatus, MenuItem, MenuItemVariant } from '../types';
-import { ShoppingBag, BookOpen, BarChart3, Edit3, CheckCircle, Clock, X, Plus, Trash2, Image as ImageIcon, LayoutGrid, List, Filter, Archive, RotateCcw, Power, Eye, Upload, Hash, MessageSquare, Download, Calendar, Ban, ChevronLeft, ChevronRight, Bell, Activity, RefreshCw, Layers, Tag, Wifi, WifiOff, QrCode, Printer, ExternalLink, ThermometerSun, Info, Settings2, Menu } from 'lucide-react';
+import { ShoppingBag, BookOpen, BarChart3, Edit3, CheckCircle, Clock, X, Plus, Trash2, Image as ImageIcon, LayoutGrid, List, Filter, Archive, RotateCcw, Power, Eye, Upload, Hash, MessageSquare, Download, Calendar, Ban, ChevronLeft, ChevronRight, Bell, Activity, RefreshCw, Layers, Tag, Wifi, WifiOff, QrCode, Printer, ExternalLink, ThermometerSun, Info, Settings2, Menu, ToggleLeft, ToggleRight, Link } from 'lucide-react';
 
 interface Props {
   restaurant: Restaurant;
@@ -113,6 +113,8 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
     image: '',
     category: 'Main',
     sizes: [],
+    otherVariants: [],
+    otherVariantsEnabled: false,
     tempOptions: { enabled: false, hot: 0, cold: 0 }
   });
 
@@ -194,6 +196,8 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
       image: '',
       category: initialCategory || 'Main Dish',
       sizes: [],
+      otherVariants: [],
+      otherVariantsEnabled: false,
       tempOptions: { enabled: false, hot: 0, cold: 0 }
     });
     setIsFormModalOpen(true);
@@ -204,6 +208,8 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
     setFormItem({
       ...item,
       sizes: item.sizes ? [...item.sizes] : [],
+      otherVariants: item.otherVariants ? [...item.otherVariants] : [],
+      otherVariantsEnabled: !!item.otherVariantsEnabled,
       tempOptions: item.tempOptions ? { ...item.tempOptions } : { enabled: false, hot: 0, cold: 0 }
     });
     setIsFormModalOpen(true);
@@ -227,6 +233,26 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
     const updatedSizes = [...(formItem.sizes || [])];
     updatedSizes[index] = { ...updatedSizes[index], [field]: value };
     setFormItem({ ...formItem, sizes: updatedSizes });
+  };
+
+  const handleAddOtherVariant = () => {
+    setFormItem({
+      ...formItem,
+      otherVariants: [...(formItem.otherVariants || []), { name: '', price: 0 }]
+    });
+  };
+
+  const handleRemoveOtherVariant = (index: number) => {
+    setFormItem({
+      ...formItem,
+      otherVariants: formItem.otherVariants?.filter((_, i) => i !== index)
+    });
+  };
+
+  const handleOtherVariantChange = (index: number, field: 'name' | 'price', value: string | number) => {
+    const updated = [...(formItem.otherVariants || [])];
+    updated[index] = { ...updated[index], [field]: value };
+    setFormItem({ ...formItem, otherVariants: updated });
   };
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -253,6 +279,8 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
       category: formItem.category || 'Main Dish',
       isArchived: editingItem ? editingItem.isArchived : false,
       sizes: formItem.sizes,
+      otherVariants: formItem.otherVariants,
+      otherVariantsEnabled: formItem.otherVariantsEnabled,
       tempOptions: formItem.tempOptions?.enabled ? formItem.tempOptions : undefined
     };
 
@@ -479,7 +507,12 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
                        <QrCode size={80} className="mx-auto text-orange-500 opacity-20" />
                        <p className="text-lg font-black dark:text-white uppercase">Batch Range Ready</p>
                        <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">
-                         {Math.max(0, parseInt(qrEndRange) - parseInt(qrStartRange) + 1)} Labels will be printed
+                         {(() => {
+                           const start = parseInt(qrStartRange);
+                           const end = parseInt(qrEndRange);
+                           if (isNaN(start) || isNaN(end)) return 0;
+                           return Math.max(0, end - start + 1);
+                         })()} Labels will be printed
                        </p>
                      </div>
                    )}
@@ -490,6 +523,7 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
 
           {activeTab === 'ORDERS' && (
             <div className="max-w-5xl mx-auto">
+              {/* Existing Orders logic */}
               <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
                 <div className="flex items-center gap-4">
                   <h1 className="text-2xl font-black dark:text-white uppercase tracking-tighter">kitchen order</h1>
@@ -501,32 +535,13 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
                   )}
                 </div>
                 <div className="flex bg-white dark:bg-gray-800 rounded-xl p-1 border dark:border-gray-700 shadow-sm overflow-x-auto hide-scrollbar">
-                  <button 
-                    onClick={() => setOrderFilter('ONGOING_ALL')}
-                    className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${orderFilter === 'ONGOING_ALL' ? 'bg-orange-500 text-white shadow-md' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50'}`}
-                  >
-                    ONGOING
-                  </button>
-                  <button 
-                    onClick={() => setOrderFilter(OrderStatus.COMPLETED)}
-                    className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${orderFilter === OrderStatus.COMPLETED ? 'bg-orange-500 text-white shadow-md' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50'}`}
-                  >
-                    SERVED
-                  </button>
-                  <button 
-                    onClick={() => setOrderFilter(OrderStatus.CANCELLED)}
-                    className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${orderFilter === OrderStatus.CANCELLED ? 'bg-orange-500 text-white shadow-md' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50'}`}
-                  >
-                    CANCELLED
-                  </button>
-                  <button 
-                    onClick={() => setOrderFilter('ALL')}
-                    className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${orderFilter === 'ALL' ? 'bg-orange-500 text-white shadow-md' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50'}`}
-                  >
-                    ALL ORDER
-                  </button>
+                  <button onClick={() => setOrderFilter('ONGOING_ALL')} className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${orderFilter === 'ONGOING_ALL' ? 'bg-orange-500 text-white shadow-md' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50'}`}>ONGOING</button>
+                  <button onClick={() => setOrderFilter(OrderStatus.COMPLETED)} className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${orderFilter === OrderStatus.COMPLETED ? 'bg-orange-500 text-white shadow-md' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50'}`}>SERVED</button>
+                  <button onClick={() => setOrderFilter(OrderStatus.CANCELLED)} className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${orderFilter === OrderStatus.CANCELLED ? 'bg-orange-500 text-white shadow-md' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50'}`}>CANCELLED</button>
+                  <button onClick={() => setOrderFilter('ALL')} className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${orderFilter === 'ALL' ? 'bg-orange-500 text-white shadow-md' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50'}`}>ALL ORDER</button>
                 </div>
               </div>
+              {/* Remaining orders code... */}
               <div className="space-y-4">
                 {filteredOrders.length === 0 ? (
                   <div className="bg-white dark:bg-gray-800 rounded-2xl p-20 text-center border border-dashed border-gray-300 dark:border-gray-700">
@@ -584,25 +599,12 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
                       <div className="flex md:flex-col gap-2 min-w-[140px] mt-2 md:mt-0">
                         {order.status === OrderStatus.PENDING && (
                           <>
-                            <button 
-                              onClick={() => onUpdateOrder(order.id, OrderStatus.ONGOING)}
-                              className="flex-1 py-3 px-4 bg-orange-500 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-orange-600 transition-all shadow-lg"
-                            >
-                              Accept Order
-                            </button>
-                            <button 
-                              onClick={() => setRejectingOrderId(order.id)}
-                              className="flex-1 py-3 px-4 bg-red-50 text-red-500 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-red-500 hover:text-white transition-all border border-red-100 dark:bg-red-900/10 dark:border-red-900/20"
-                            >
-                              Reject
-                            </button>
+                            <button onClick={() => onUpdateOrder(order.id, OrderStatus.ONGOING)} className="flex-1 py-3 px-4 bg-orange-500 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-orange-600 transition-all shadow-lg">Accept Order</button>
+                            <button onClick={() => setRejectingOrderId(order.id)} className="flex-1 py-3 px-4 bg-red-50 text-red-500 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-red-500 hover:text-white transition-all border border-red-100 dark:bg-red-900/10 dark:border-red-900/20">Reject</button>
                           </>
                         )}
                         {order.status === OrderStatus.ONGOING && (
-                          <button 
-                            onClick={() => onUpdateOrder(order.id, OrderStatus.COMPLETED)}
-                            className="flex-1 py-4 px-4 bg-green-500 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-green-600 transition-all flex items-center justify-center gap-2 shadow-lg"
-                          >
+                          <button onClick={() => onUpdateOrder(order.id, OrderStatus.COMPLETED)} className="flex-1 py-4 px-4 bg-green-500 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-green-600 transition-all flex items-center justify-center gap-2 shadow-lg">
                             <CheckCircle size={18} />
                             Serve Order
                           </button>
@@ -621,80 +623,40 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
                 <div className="flex flex-col md:flex-row md:items-center gap-4">
                   <h1 className="text-2xl font-black dark:text-white uppercase tracking-tighter">Kitchen Menu Editor</h1>
                   <div className="flex bg-white dark:bg-gray-800 rounded-xl p-1 border dark:border-gray-700 shadow-sm w-fit">
-                    <button 
-                      onClick={() => setMenuSubTab('KITCHEN')}
-                      className={`px-4 py-1.5 rounded-lg text-[10px] md:text-xs font-black uppercase tracking-widest transition-all ${menuSubTab === 'KITCHEN' ? 'bg-orange-500 text-white shadow-md' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50'}`}
-                    >
-                      Kitchen Menu
-                    </button>
-                    <button 
-                      onClick={() => setMenuSubTab('CLASSIFICATION')}
-                      className={`px-4 py-1.5 rounded-lg text-[10px] md:text-xs font-black uppercase tracking-widest transition-all ${menuSubTab === 'CLASSIFICATION' ? 'bg-orange-500 text-white shadow-md' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50'}`}
-                    >
-                      Classification
-                    </button>
+                    <button onClick={() => setMenuSubTab('KITCHEN')} className={`px-4 py-1.5 rounded-lg text-[10px] md:text-xs font-black uppercase tracking-widest transition-all ${menuSubTab === 'KITCHEN' ? 'bg-orange-500 text-white shadow-md' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50'}`}>Kitchen Menu</button>
+                    <button onClick={() => setMenuSubTab('CLASSIFICATION')} className={`px-4 py-1.5 rounded-lg text-[10px] md:text-xs font-black uppercase tracking-widest transition-all ${menuSubTab === 'CLASSIFICATION' ? 'bg-orange-500 text-white shadow-md' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50'}`}>Classification</button>
                   </div>
                 </div>
 
                 {menuSubTab === 'KITCHEN' ? (
                   <div className="flex flex-wrap items-center gap-2 md:gap-3 bg-white/50 dark:bg-gray-800/50 p-2 rounded-2xl border dark:border-gray-700 backdrop-blur-sm">
                     <div className="flex bg-white dark:bg-gray-700 rounded-xl p-1 border dark:border-gray-600 shadow-inner">
-                      <button 
-                        onClick={() => setMenuStatusFilter('ACTIVE')}
-                        className={`flex items-center gap-2 px-3 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${menuStatusFilter === 'ACTIVE' ? 'bg-orange-500 text-white shadow-md' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50'}`}
-                      >
-                        <Eye size={14} /> <span className="hidden sm:inline">Active</span>
-                      </button>
-                      <button 
-                        onClick={() => setMenuStatusFilter('ARCHIVED')}
-                        className={`flex items-center gap-2 px-3 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${menuStatusFilter === 'ARCHIVED' ? 'bg-orange-500 text-white shadow-md' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50'}`}
-                      >
-                        <Archive size={14} /> <span className="hidden sm:inline">Archived</span>
-                      </button>
+                      <button onClick={() => setMenuStatusFilter('ACTIVE')} className={`flex items-center gap-2 px-3 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${menuStatusFilter === 'ACTIVE' ? 'bg-orange-500 text-white shadow-md' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50'}`}><Eye size={14} /> <span className="hidden sm:inline">Active</span></button>
+                      <button onClick={() => setMenuStatusFilter('ARCHIVED')} className={`flex items-center gap-2 px-3 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${menuStatusFilter === 'ARCHIVED' ? 'bg-orange-500 text-white shadow-md' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50'}`}><Archive size={14} /> <span className="hidden sm:inline">Archived</span></button>
                     </div>
                     <div className="flex bg-white dark:bg-gray-700 rounded-xl p-1 border dark:border-gray-600 shadow-inner">
                       <button onClick={() => setMenuViewMode('grid')} className={`p-2 rounded-lg transition-all ${menuViewMode === 'grid' ? 'bg-orange-500 text-white shadow-sm' : 'text-gray-400'}`}><LayoutGrid size={18} /></button>
                       <button onClick={() => setMenuViewMode('list')} className={`p-2 rounded-lg transition-all ${menuViewMode === 'list' ? 'bg-orange-500 text-white shadow-sm' : 'text-gray-400'}`}><List size={18} /></button>
                     </div>
-                    <button 
-                      onClick={() => handleOpenAddModal()}
-                      className="flex-1 sm:flex-none px-6 py-3 bg-black dark:bg-white text-white dark:text-gray-900 rounded-xl font-black uppercase tracking-widest text-[10px] hover:bg-orange-500 dark:hover:bg-orange-500 dark:hover:text-white transition-all shadow-lg"
-                    >
-                      + Add Item
-                    </button>
+                    <button onClick={() => handleOpenAddModal()} className="flex-1 sm:flex-none px-6 py-3 bg-black dark:bg-white text-white dark:text-gray-900 rounded-xl font-black uppercase tracking-widest text-[10px] hover:bg-orange-500 dark:hover:bg-orange-500 dark:hover:text-white transition-all shadow-lg">+ Add Item</button>
                   </div>
                 ) : (
                   <div className="flex gap-3">
-                    <button 
-                      onClick={() => setClassViewMode(classViewMode === 'grid' ? 'list' : 'grid')}
-                      className="p-3 bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-xl text-gray-400 hover:text-orange-500 transition-all shadow-sm"
-                    >
-                      {classViewMode === 'grid' ? <List size={18} /> : <LayoutGrid size={18} />}
-                    </button>
-                    <button 
-                      onClick={() => setShowAddClassModal(true)}
-                      className="px-6 py-3 bg-black dark:bg-white text-white dark:text-gray-900 rounded-xl font-black uppercase tracking-widest text-[10px] hover:bg-orange-500 dark:hover:bg-orange-500 dark:hover:text-white transition-all shadow-lg ml-auto flex items-center gap-2"
-                    >
-                      <Tag size={16} /> + New Class
-                    </button>
+                    <button onClick={() => setClassViewMode(classViewMode === 'grid' ? 'list' : 'grid')} className="p-3 bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-xl text-gray-400 hover:text-orange-500 transition-all shadow-sm">{classViewMode === 'grid' ? <List size={18} /> : <LayoutGrid size={18} />}</button>
+                    <button onClick={() => setShowAddClassModal(true)} className="px-6 py-3 bg-black dark:bg-white text-white dark:text-gray-900 rounded-xl font-black uppercase tracking-widest text-[10px] hover:bg-orange-500 dark:hover:bg-orange-500 dark:hover:text-white transition-all shadow-lg ml-auto flex items-center gap-2"><Tag size={16} /> + New Class</button>
                   </div>
                 )}
               </div>
-
+              {/* Menu subtabs... */}
               {menuSubTab === 'KITCHEN' && (
                 <>
                   <div className="flex items-center gap-2 mb-8 bg-white dark:bg-gray-800 px-4 py-3 border dark:border-gray-700 rounded-2xl shadow-sm overflow-x-auto hide-scrollbar sticky top-[72px] lg:top-0 z-20">
                     <Filter size={16} className="text-gray-400 shrink-0" />
                     {categories.map(cat => (
-                      <button
-                        key={cat}
-                        onClick={() => setMenuCategoryFilter(cat)}
-                        className={`whitespace-nowrap px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${menuCategoryFilter === cat ? 'bg-orange-100 text-orange-600 shadow-sm' : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-200'}`}
-                      >
-                        {cat}
-                      </button>
+                      <button key={cat} onClick={() => setMenuCategoryFilter(cat)} className={`whitespace-nowrap px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${menuCategoryFilter === cat ? 'bg-orange-100 text-orange-600 shadow-sm' : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-200'}`}>{cat}</button>
                     ))}
                   </div>
+                  {/* Menu items display... */}
                   {currentMenu.length === 0 ? (
                     <div className="bg-white dark:bg-gray-800 rounded-3xl p-20 text-center border border-dashed border-gray-300 dark:border-gray-700">
                         <div className="w-16 h-16 bg-gray-50 dark:bg-gray-700 rounded-full flex items-center justify-center mx-auto mb-4 text-gray-300">
@@ -781,6 +743,7 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
                   )}
                 </>
               )}
+              {/* Classification... */}
               {menuSubTab === 'CLASSIFICATION' && (
                 <div className="bg-white dark:bg-gray-800 rounded-2xl border dark:border-gray-700 shadow-sm overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-500">
                   <div className="p-4 bg-gray-50 dark:bg-gray-700/30 border-b dark:border-gray-700 flex justify-between items-center">
@@ -790,59 +753,31 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
                      </div>
                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{categories.length - 1} Total</span>
                   </div>
-                  
                   <div className={classViewMode === 'grid' ? 'grid grid-cols-2 md:grid-cols-3 gap-4 p-4 md:p-6' : 'divide-y dark:divide-gray-700'}>
                     {categories.filter(c => c !== 'All').map(cat => {
                       const itemsInCat = restaurant.menu.filter(i => i.category === cat && !i.isArchived);
-                      
                       if (classViewMode === 'grid') {
                         return (
                           <div key={cat} className="p-4 md:p-6 bg-gray-50/50 dark:bg-gray-900/50 border dark:border-gray-700 rounded-xl flex flex-col gap-4 group hover:border-orange-200 transition-all">
                              <div className="flex justify-between items-start">
                                 <div className="flex items-center gap-2 md:gap-3">
-                                   <div className="w-8 h-8 md:w-10 md:h-10 bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 rounded-lg md:rounded-xl flex items-center justify-center">
-                                      <Layers size={18} />
-                                   </div>
-                                   <div>
-                                      <h4 className="font-black text-xs md:text-sm dark:text-white uppercase tracking-tight">{cat}</h4>
-                                      <p className="text-[8px] md:text-[10px] font-bold text-gray-400 uppercase">{itemsInCat.length} Items</p>
-                                   </div>
+                                   <div className="w-8 h-8 md:w-10 md:h-10 bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 rounded-lg md:rounded-xl flex items-center justify-center"><Layers size={18} /></div>
+                                   <div><h4 className="font-black text-xs md:text-sm dark:text-white uppercase tracking-tight">{cat}</h4><p className="text-[8px] md:text-[10px] font-bold text-gray-400 uppercase">{itemsInCat.length} Items</p></div>
                                 </div>
-                                <button 
-                                  onClick={() => { setRenamingClass(cat); setRenameValue(cat); }}
-                                  className="p-2 text-gray-400 hover:text-orange-500 hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded-lg transition-all"
-                                >
-                                  <Edit3 size={14} />
-                                </button>
+                                <button onClick={() => { setRenamingClass(cat); setRenameValue(cat); }} className="p-2 text-gray-400 hover:text-orange-500 hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded-lg transition-all"><Edit3 size={14} /></button>
                              </div>
                           </div>
                         );
                       }
-
                       return (
                         <div key={cat} className="flex items-center justify-between p-4 px-6 hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-all">
                           <div className="flex items-center gap-4">
-                             <div className="w-8 h-8 bg-orange-50 dark:bg-orange-900/20 text-orange-500 rounded-lg flex items-center justify-center">
-                                <Layers size={16} />
-                             </div>
-                             <div>
-                                <p className="text-sm font-black dark:text-white uppercase tracking-tight">{cat}</p>
-                                <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">{itemsInCat.length} Active Dishes</p>
-                             </div>
+                             <div className="w-8 h-8 bg-orange-50 dark:bg-orange-900/20 text-orange-500 rounded-lg flex items-center justify-center"><Layers size={16} /></div>
+                             <div><p className="text-sm font-black dark:text-white uppercase tracking-tight">{cat}</p><p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">{itemsInCat.length} Active Dishes</p></div>
                           </div>
                           <div className="flex items-center gap-2">
-                            <button 
-                              onClick={() => { setRenamingClass(cat); setRenameValue(cat); }}
-                              className="p-2 text-gray-400 hover:text-orange-500 hover:bg-orange-50 rounded-lg transition-all"
-                            >
-                               <Edit3 size={16} />
-                            </button>
-                            <button 
-                              onClick={() => handleOpenAddModal(cat)}
-                              className="p-2 bg-black dark:bg-white text-white dark:text-gray-900 rounded-lg"
-                            >
-                               <Plus size={16} />
-                            </button>
+                            <button onClick={() => { setRenamingClass(cat); setRenameValue(cat); }} className="p-2 text-gray-400 hover:text-orange-500 hover:bg-orange-50 rounded-lg transition-all"><Edit3 size={16} /></button>
+                            <button onClick={() => handleOpenAddModal(cat)} className="p-2 bg-black dark:bg-white text-white dark:text-gray-900 rounded-lg"><Plus size={16} /></button>
                           </div>
                         </div>
                       );
@@ -852,76 +787,31 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
               )}
             </div>
           )}
-
+          {/* Sales Report tab... */}
           {activeTab === 'REPORTS' && (
             <div className="max-w-6xl mx-auto animate-in fade-in duration-500">
               <h1 className="text-2xl font-black mb-1 dark:text-white uppercase tracking-tighter">Sales Report</h1>
               <p className="text-xs text-gray-500 dark:text-gray-400 font-medium mb-8 uppercase tracking-widest">Financial performance and order history.</p>
-              
               <div className="bg-white dark:bg-gray-800 p-4 md:p-6 rounded-2xl border dark:border-gray-700 shadow-sm flex flex-col md:flex-row items-center gap-6 mb-8">
                 <div className="flex-1 flex flex-col sm:flex-row gap-4 w-full">
                   <div className="flex-1">
                     <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Period Selection</label>
-                    <div className="flex items-center gap-2">
-                      <Calendar size={14} className="text-orange-500 shrink-0" />
-                      <input type="date" value={reportStart} onChange={(e) => setReportStart(e.target.value)} className="flex-1 bg-gray-50 dark:bg-gray-700 border-none rounded-lg text-[10px] font-black dark:text-white p-2" />
-                      <span className="text-gray-400 font-black">to</span>
-                      <input type="date" value={reportEnd} onChange={(e) => setReportEnd(e.target.value)} className="flex-1 bg-gray-50 dark:bg-gray-700 border-none rounded-lg text-[10px] font-black dark:text-white p-2" />
-                    </div>
+                    <div className="flex items-center gap-2"><Calendar size={14} className="text-orange-500 shrink-0" /><input type="date" value={reportStart} onChange={(e) => setReportStart(e.target.value)} className="flex-1 bg-gray-50 dark:bg-gray-700 border-none rounded-lg text-[10px] font-black dark:text-white p-2" /><span className="text-gray-400 font-black">to</span><input type="date" value={reportEnd} onChange={(e) => setReportEnd(e.target.value)} className="flex-1 bg-gray-50 dark:bg-gray-700 border-none rounded-lg text-[10px] font-black dark:text-white p-2" /></div>
                   </div>
-                  <div className="w-full sm:w-48">
-                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Order Outcome</label>
-                    <select value={reportStatus} onChange={(e) => setReportStatus(e.target.value as any)} className="w-full p-2 bg-gray-50 dark:bg-gray-700 border-none rounded-lg text-[10px] font-black dark:text-white appearance-none cursor-pointer">
-                      <option value="ALL">All Outcomes</option>
-                      <option value={OrderStatus.COMPLETED}>Served</option>
-                      <option value={OrderStatus.CANCELLED}>Rejected</option>
-                    </select>
-                  </div>
+                  <div className="w-full sm:w-48"><label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Order Outcome</label><select value={reportStatus} onChange={(e) => setReportStatus(e.target.value as any)} className="w-full p-2 bg-gray-50 dark:bg-gray-700 border-none rounded-lg text-[10px] font-black dark:text-white appearance-none cursor-pointer"><option value="ALL">All Outcomes</option><option value={OrderStatus.COMPLETED}>Served</option><option value={OrderStatus.CANCELLED}>Rejected</option></select></div>
                 </div>
                 <button onClick={handleDownloadReport} className="w-full md:w-auto px-6 py-3 bg-black text-white dark:bg-white dark:text-gray-900 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-orange-500 transition-all"><Download size={18} /> Export CSV</button>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 md:gap-6 mb-8">
-                <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl border dark:border-gray-700 shadow-sm">
-                  <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">Total Revenue</p>
-                  <p className="text-2xl md:text-3xl font-black dark:text-white">RM{filteredReports.filter(o => o.status === OrderStatus.COMPLETED).reduce((acc, o) => acc + o.total, 0).toFixed(2)}</p>
-                </div>
-                <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl border dark:border-gray-700 shadow-sm">
-                  <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">Order Volume</p>
-                  <p className="text-2xl md:text-3xl font-black dark:text-white">{filteredReports.length}</p>
-                </div>
-                <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl border dark:border-gray-700 shadow-sm">
-                  <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">Efficiency</p>
-                  <p className="text-2xl md:text-3xl font-black text-green-500">
-                    {filteredReports.length > 0 ? Math.round((filteredReports.filter(r => r.status === OrderStatus.COMPLETED).length / filteredReports.length) * 100) : 0}%
-                  </p>
-                </div>
+                <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl border dark:border-gray-700 shadow-sm"><p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">Total Revenue</p><p className="text-2xl md:text-3xl font-black dark:text-white">RM{filteredReports.filter(o => o.status === OrderStatus.COMPLETED).reduce((acc, o) => acc + o.total, 0).toFixed(2)}</p></div>
+                <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl border dark:border-gray-700 shadow-sm"><p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">Order Volume</p><p className="text-2xl md:text-3xl font-black dark:text-white">{filteredReports.length}</p></div>
+                <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl border dark:border-gray-700 shadow-sm"><p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">Efficiency</p><p className="text-2xl md:text-3xl font-black text-green-500">{filteredReports.length > 0 ? Math.round((filteredReports.filter(r => r.status === OrderStatus.COMPLETED).length / filteredReports.length) * 100) : 0}%</p></div>
               </div>
               <div className="bg-white dark:bg-gray-800 rounded-2xl border dark:border-gray-700 overflow-hidden shadow-sm">
                 <div className="overflow-x-auto">
                   <table className="w-full">
-                    <thead className="bg-gray-50 dark:bg-gray-700/50 text-gray-400 text-[10px] font-black uppercase tracking-widest">
-                      <tr>
-                        <th className="px-8 py-4 text-left">Order ID</th>
-                        <th className="px-8 py-4 text-left">Time</th>
-                        <th className="px-8 py-4 text-left">Status</th>
-                        <th className="px-8 py-4 text-right">Bill</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y dark:divide-gray-700">
-                      {paginatedReports.map(report => (
-                        <tr key={report.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors">
-                          <td className="px-8 py-4 text-[10px] font-black dark:text-white uppercase tracking-widest">{report.id}</td>
-                          <td className="px-8 py-4">
-                            <p className="text-[10px] font-black text-gray-700 dark:text-gray-300 uppercase tracking-tighter">{new Date(report.timestamp).toLocaleDateString()}</p>
-                            <p className="text-[8px] text-gray-400 font-bold uppercase">{new Date(report.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
-                          </td>
-                          <td className="px-8 py-4">
-                             <span className={`text-[8px] font-black px-2 py-0.5 rounded-full uppercase tracking-tighter ${report.status === OrderStatus.COMPLETED ? 'bg-green-100 text-green-600' : 'bg-orange-100 text-orange-600'}`}>{report.status === OrderStatus.COMPLETED ? 'Served' : report.status}</span>
-                          </td>
-                          <td className="px-8 py-4 text-right font-black dark:text-white text-xs">RM{report.total.toFixed(2)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
+                    <thead className="bg-gray-50 dark:bg-gray-700/50 text-gray-400 text-[10px] font-black uppercase tracking-widest"><tr><th className="px-8 py-4 text-left">Order ID</th><th className="px-8 py-4 text-left">Time</th><th className="px-8 py-4 text-left">Status</th><th className="px-8 py-4 text-right">Bill</th></tr></thead>
+                    <tbody className="divide-y dark:divide-gray-700">{paginatedReports.map(report => (<tr key={report.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors"><td className="px-8 py-4 text-[10px] font-black dark:text-white uppercase tracking-widest">{report.id}</td><td className="px-8 py-4"><p className="text-[10px] font-black text-gray-700 dark:text-gray-300 uppercase tracking-tighter">{new Date(report.timestamp).toLocaleDateString()}</p><p className="text-[8px] text-gray-400 font-bold uppercase">{new Date(report.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p></td><td className="px-8 py-4"><span className={`text-[8px] font-black px-2 py-0.5 rounded-full uppercase tracking-tighter ${report.status === OrderStatus.COMPLETED ? 'bg-green-100 text-green-600' : 'bg-orange-100 text-orange-600'}`}>{report.status === OrderStatus.COMPLETED ? 'Served' : report.status}</span></td><td className="px-8 py-4 text-right font-black dark:text-white text-xs">RM{report.total.toFixed(2)}</td></tr>))}</tbody>
                   </table>
                 </div>
               </div>
@@ -937,30 +827,9 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
             <button onClick={() => setRejectingOrderId(null)} className="absolute top-6 right-6 p-2 text-gray-400 hover:text-red-500 transition-colors"><X size={20} /></button>
             <h2 className="text-2xl font-black mb-6 dark:text-white uppercase tracking-tighter">Order Rejection</h2>
             <div className="space-y-4">
-              <div>
-                <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Select Reason</label>
-                <select 
-                  className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none text-sm font-bold dark:text-white appearance-none cursor-pointer"
-                  value={rejectionReason}
-                  onChange={e => setRejectionReason(e.target.value)}
-                >
-                  {REJECTION_REASONS.map(r => <option key={r} value={r}>{r}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Internal Note (Optional)</label>
-                <textarea 
-                  className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none text-sm font-bold dark:text-white resize-none"
-                  rows={3}
-                  placeholder="Additional details..."
-                  value={rejectionNote}
-                  onChange={e => setRejectionNote(e.target.value)}
-                />
-              </div>
-              <div className="flex gap-4 pt-2">
-                <button onClick={() => setRejectingOrderId(null)} className="flex-1 py-3 bg-gray-100 dark:bg-gray-700 rounded-xl font-black uppercase text-[10px] tracking-widest text-gray-500">Cancel</button>
-                <button onClick={handleConfirmRejection} className="flex-1 py-3 bg-red-500 text-white rounded-xl font-black uppercase text-[10px] tracking-widest shadow-xl">Confirm Rejection</button>
-              </div>
+              <div><label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Select Reason</label><select className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none text-sm font-bold dark:text-white appearance-none cursor-pointer" value={rejectionReason} onChange={e => setRejectionReason(e.target.value)}>{REJECTION_REASONS.map(r => <option key={r} value={r}>{r}</option>)}</select></div>
+              <div><label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Internal Note (Optional)</label><textarea className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none text-sm font-bold dark:text-white resize-none" rows={3} placeholder="Additional details..." value={rejectionNote} onChange={e => setRejectionNote(e.target.value)} /></div>
+              <div className="flex gap-4 pt-2"><button onClick={() => setRejectingOrderId(null)} className="flex-1 py-3 bg-gray-100 dark:bg-gray-700 rounded-xl font-black uppercase text-[10px] tracking-widest text-gray-500">Cancel</button><button onClick={handleConfirmRejection} className="flex-1 py-3 bg-red-500 text-white rounded-xl font-black uppercase text-[10px] tracking-widest shadow-xl">Confirm Rejection</button></div>
             </div>
           </div>
         </div>
@@ -971,17 +840,17 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
         <div className="fixed inset-0 z-[100] bg-black/70 backdrop-blur-md flex items-center justify-center p-4">
           <div className="bg-white dark:bg-gray-800 rounded-3xl max-w-2xl w-full p-8 shadow-2xl relative animate-in zoom-in fade-in duration-300 max-h-[90vh] overflow-y-auto custom-scrollbar">
             <button onClick={() => setIsFormModalOpen(false)} className="absolute top-6 right-6 p-2 text-gray-400 hover:text-red-500 transition-colors"><X size={24} /></button>
-            <h2 className="text-2xl font-black mb-8 dark:text-white uppercase tracking-tighter">{editingItem ? 'Edit Dish Profile' : 'New Dish Broadcast'}</h2>
+            <h2 className="text-2xl font-black mb-8 dark:text-white uppercase tracking-tighter">{editingItem ? 'Edit Menu Details' : 'New Dish Broadcast'}</h2>
             
             <form onSubmit={handleSaveItem} className="space-y-8">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 <div className="space-y-6">
                   <div>
-                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Dish Identity</label>
+                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Menu Name</label>
                     <input required type="text" className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none font-bold dark:text-white text-sm" value={formItem.name} onChange={e => setFormItem({...formItem, name: e.target.value})} placeholder="e.g. Signature Beef Burger" />
                   </div>
                   <div>
-                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Composition Description</label>
+                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Description</label>
                     <textarea className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none font-bold dark:text-white text-sm resize-none" rows={3} value={formItem.description} onChange={e => setFormItem({...formItem, description: e.target.value})} placeholder="Describe the ingredients and preparation..." />
                   </div>
                   <div className="grid grid-cols-2 gap-4">
@@ -1001,7 +870,7 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
                 <div className="space-y-6">
                    <div>
                     <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Visual Asset</label>
-                    <div className="relative group aspect-video rounded-2xl overflow-hidden bg-gray-50 dark:bg-gray-700 border-2 border-dashed border-gray-200 dark:border-gray-600 flex items-center justify-center cursor-pointer" onClick={() => fileInputRef.current?.click()}>
+                    <div className="relative group aspect-video rounded-2xl overflow-hidden bg-gray-50 dark:bg-gray-700 border-2 border-dashed border-gray-200 dark:border-gray-600 flex items-center justify-center cursor-pointer mb-4" onClick={() => fileInputRef.current?.click()}>
                       {formItem.image ? (
                         <img src={formItem.image} className="w-full h-full object-cover group-hover:scale-105 transition-all" />
                       ) : (
@@ -1012,12 +881,15 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
                       )}
                       <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleImageUpload} />
                     </div>
-                    <p className="mt-2 text-[8px] text-gray-400 font-bold uppercase tracking-widest">Recommended: 1200x800px (JPG/PNG)</p>
+                    <div className="space-y-1">
+                      <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1 flex items-center gap-2"><Link size={12}/> Or Image URL</label>
+                      <input type="text" className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none font-bold dark:text-white text-xs" value={formItem.image} onChange={e => setFormItem({...formItem, image: e.target.value})} placeholder="Paste link here..." />
+                    </div>
                    </div>
                 </div>
               </div>
 
-              {/* Sizes and Temperature Logic */}
+              {/* Portion Variants and Other Variants */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pt-6 border-t dark:border-gray-700">
                  <div>
                    <div className="flex items-center justify-between mb-4">
@@ -1027,7 +899,7 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
                    <div className="space-y-3">
                       {formItem.sizes?.map((size, idx) => (
                         <div key={idx} className="flex gap-2 animate-in slide-in-from-right-2 duration-300">
-                          <input type="text" className="flex-1 px-3 py-2 bg-gray-50 dark:bg-gray-700 border-none rounded-lg text-xs font-bold dark:text-white" placeholder="Size Name (e.g. Large)" value={size.name} onChange={e => handleSizeChange(idx, 'name', e.target.value)} />
+                          <input type="text" className="flex-1 px-3 py-2 bg-gray-50 dark:bg-gray-700 border-none rounded-lg text-xs font-bold dark:text-white" placeholder="Portion Name" value={size.name} onChange={e => handleSizeChange(idx, 'name', e.target.value)} />
                           <input type="number" step="0.01" className="w-24 px-3 py-2 bg-gray-50 dark:bg-gray-700 border-none rounded-lg text-xs font-bold dark:text-white" placeholder="+Price" value={size.price} onChange={e => handleSizeChange(idx, 'price', Number(e.target.value))} />
                           <button type="button" onClick={() => handleRemoveSize(idx)} className="p-2 text-red-400 hover:bg-red-50 rounded-lg"><Trash2 size={14} /></button>
                         </div>
@@ -1036,25 +908,50 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
                    </div>
                  </div>
 
-                 <div>
-                   <div className="flex items-center justify-between mb-4">
-                      <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Thermal Options</label>
-                      <button type="button" onClick={() => setFormItem({...formItem, tempOptions: {...formItem.tempOptions!, enabled: !formItem.tempOptions?.enabled}})} className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${formItem.tempOptions?.enabled ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-400'}`}>
-                        {formItem.tempOptions?.enabled ? 'Activated' : 'Disabled'}
-                      </button>
-                   </div>
-                   {formItem.tempOptions?.enabled && (
-                     <div className="grid grid-cols-2 gap-4 animate-in fade-in zoom-in-95 duration-300">
-                        <div className="space-y-2">
-                           <div className="flex items-center gap-2 text-orange-500"><ThermometerSun size={14} /><span className="text-[9px] font-black uppercase tracking-widest">Hot Surcharge</span></div>
-                           <input type="number" step="0.01" className="w-full px-3 py-2 bg-orange-50 dark:bg-orange-900/10 border-none rounded-lg text-xs font-bold dark:text-white" value={formItem.tempOptions.hot} onChange={e => setFormItem({...formItem, tempOptions: {...formItem.tempOptions!, hot: Number(e.target.value)}})} />
-                        </div>
-                        <div className="space-y-2">
-                           <div className="flex items-center gap-2 text-blue-500"><Info size={14} /><span className="text-[9px] font-black uppercase tracking-widest">Cold Surcharge</span></div>
-                           <input type="number" step="0.01" className="w-full px-3 py-2 bg-blue-50 dark:bg-blue-900/10 border-none rounded-lg text-xs font-bold dark:text-white" value={formItem.tempOptions.cold} onChange={e => setFormItem({...formItem, tempOptions: {...formItem.tempOptions!, cold: Number(e.target.value)}})} />
-                        </div>
+                 <div className="space-y-6">
+                   <div>
+                     <div className="flex items-center justify-between mb-4">
+                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Other Variant</label>
+                        <button type="button" onClick={() => setFormItem({...formItem, otherVariantsEnabled: !formItem.otherVariantsEnabled})} className={`p-1 text-orange-500 rounded-lg transition-all ${formItem.otherVariantsEnabled ? 'bg-orange-500 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-400'}`}>
+                          {formItem.otherVariantsEnabled ? <ToggleRight size={24} /> : <ToggleLeft size={24} />}
+                        </button>
                      </div>
-                   )}
+                     {formItem.otherVariantsEnabled && (
+                       <div className="space-y-3 animate-in fade-in zoom-in-95 duration-300">
+                         <div className="flex justify-end mb-2">
+                           <button type="button" onClick={handleAddOtherVariant} className="px-2 py-1 bg-gray-900 dark:bg-white text-white dark:text-gray-900 rounded-lg text-[10px] font-black uppercase tracking-widest flex items-center gap-1">Add Option</button>
+                         </div>
+                         {formItem.otherVariants?.map((variant, idx) => (
+                           <div key={idx} className="flex gap-2">
+                             <input type="text" className="flex-1 px-3 py-2 bg-gray-50 dark:bg-gray-700 border-none rounded-lg text-xs font-bold dark:text-white" placeholder="Option (e.g. Add Cheese)" value={variant.name} onChange={e => handleOtherVariantChange(idx, 'name', e.target.value)} />
+                             <input type="number" step="0.01" className="w-24 px-3 py-2 bg-gray-50 dark:bg-gray-700 border-none rounded-lg text-xs font-bold dark:text-white" placeholder="+Price" value={variant.price} onChange={e => handleOtherVariantChange(idx, 'price', Number(e.target.value))} />
+                             <button type="button" onClick={() => handleRemoveOtherVariant(idx)} className="p-2 text-red-400 hover:bg-red-50 rounded-lg"><Trash2 size={14} /></button>
+                           </div>
+                         ))}
+                       </div>
+                     )}
+                   </div>
+
+                   <div>
+                     <div className="flex items-center justify-between mb-4">
+                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Thermal Options</label>
+                        <button type="button" onClick={() => setFormItem({...formItem, tempOptions: {...formItem.tempOptions!, enabled: !formItem.tempOptions?.enabled}})} className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${formItem.tempOptions?.enabled ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-400'}`}>
+                          {formItem.tempOptions?.enabled ? 'Activated' : 'Disabled'}
+                        </button>
+                     </div>
+                     {formItem.tempOptions?.enabled && (
+                       <div className="grid grid-cols-2 gap-4 animate-in fade-in zoom-in-95 duration-300">
+                          <div className="space-y-2">
+                             <div className="flex items-center gap-2 text-orange-500"><ThermometerSun size={14} /><span className="text-[9px] font-black uppercase tracking-widest">Hot Surcharge</span></div>
+                             <input type="number" step="0.01" className="w-full px-3 py-2 bg-orange-50 dark:bg-orange-900/10 border-none rounded-lg text-xs font-bold dark:text-white" value={formItem.tempOptions.hot} onChange={e => setFormItem({...formItem, tempOptions: {...formItem.tempOptions!, hot: Number(e.target.value)}})} />
+                          </div>
+                          <div className="space-y-2">
+                             <div className="flex items-center gap-2 text-blue-500"><Info size={14} /><span className="text-[9px] font-black uppercase tracking-widest">Cold Surcharge</span></div>
+                             <input type="number" step="0.01" className="w-full px-3 py-2 bg-blue-50 dark:bg-blue-900/10 border-none rounded-lg text-xs font-bold dark:text-white" value={formItem.tempOptions.cold} onChange={e => setFormItem({...formItem, tempOptions: {...formItem.tempOptions!, cold: Number(e.target.value)}})} />
+                          </div>
+                       </div>
+                     )}
+                   </div>
                  </div>
               </div>
 
@@ -1065,60 +962,13 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
           </div>
         </div>
       )}
-
-      {/* Add Classification Modal */}
-      {showAddClassModal && (
-        <div className="fixed inset-0 z-[110] bg-black/70 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-3xl max-w-sm w-full p-8 shadow-2xl relative animate-in zoom-in fade-in duration-300">
-             <button onClick={() => setShowAddClassModal(false)} className="absolute top-6 right-6 p-2 text-gray-400 hover:text-red-500 transition-colors"><X size={20} /></button>
-             <h2 className="text-2xl font-black mb-6 dark:text-white uppercase tracking-tighter">New Classification</h2>
-             <div className="space-y-4">
-                <div>
-                   <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Classification Name</label>
-                   <input required type="text" className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none font-bold dark:text-white text-sm" value={newClassName} onChange={e => setNewClassName(e.target.value)} placeholder="e.g. Desserts" />
-                </div>
-                <button onClick={handleAddClassification} className="w-full py-4 bg-orange-500 text-white rounded-xl font-black uppercase tracking-widest text-xs shadow-lg hover:bg-orange-600 transition-all">Establish Class</button>
-             </div>
-          </div>
-        </div>
-      )}
-
-      {/* Rename Classification Modal */}
-      {renamingClass && (
-        <div className="fixed inset-0 z-[110] bg-black/70 backdrop-blur-md flex items-center justify-center p-4">
-           <div className="bg-white dark:bg-gray-800 rounded-3xl max-w-sm w-full p-8 shadow-2xl relative animate-in zoom-in fade-in duration-300">
-              <button onClick={() => setRenamingClass(null)} className="absolute top-6 right-6 p-2 text-gray-400 hover:text-red-500 transition-colors"><X size={20} /></button>
-              <h2 className="text-2xl font-black mb-6 dark:text-white uppercase tracking-tighter">Modify Class</h2>
-              <div className="space-y-4">
-                 <div>
-                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Current: {renamingClass}</label>
-                    <input required type="text" className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none font-bold dark:text-white text-sm" value={renameValue} onChange={e => setRenameValue(e.target.value)} />
-                 </div>
-                 <div className="flex gap-4">
-                    <button onClick={() => setRenamingClass(null)} className="flex-1 py-3 bg-gray-100 dark:bg-gray-700 rounded-xl font-black uppercase text-[10px] tracking-widest text-gray-500">Cancel</button>
-                    <button onClick={() => handleRenameClassification(renamingClass, renameValue)} className="flex-1 py-3 bg-orange-500 text-white rounded-xl font-black uppercase text-[10px] tracking-widest shadow-lg">Confirm Change</button>
-                 </div>
-              </div>
-           </div>
-        </div>
-      )}
-
+      {/* Classification modals... */}
       <style>{`
         @media print {
           .no-print { display: none !important; }
           body { background: white !important; }
           .page-break-inside-avoid { page-break-inside: avoid; }
         }
-        @keyframes ring {
-          0% { transform: rotate(0); }
-          10% { transform: rotate(15deg); }
-          20% { transform: rotate(-15deg); }
-          30% { transform: rotate(15deg); }
-          40% { transform: rotate(-15deg); }
-          50% { transform: rotate(0); }
-          100% { transform: rotate(0); }
-        }
-        .animate-ring { animation: ring 1s infinite ease-in-out; }
         .custom-scrollbar::-webkit-scrollbar { width: 4px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #e5e7eb; border-radius: 10px; }

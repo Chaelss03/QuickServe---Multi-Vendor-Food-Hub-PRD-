@@ -340,7 +340,7 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
                           <div className="w-10 h-10 bg-orange-50 dark:bg-orange-900/30 text-orange-500 rounded-xl flex items-center justify-center shadow-inner group-hover:bg-orange-500 group-hover:text-white transition-all"><MapPin size={20} /></div>
                           <div>
                             <span className="font-black dark:text-white text-sm block uppercase tracking-tight">{loc.name}</span>
-                            <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{loc.code}</span>
+                            <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{loc.code} | {loc.state}</span>
                           </div>
                         </div>
                       </td>
@@ -481,9 +481,15 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
                       <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">{showPassword ? <EyeOff size={18} /> : <Eye size={18} />}</button>
                     </div>
                   </div>
-                  <div>
-                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Contact Email</label>
-                    <input type="email" className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none font-bold dark:text-white text-sm" value={formVendor.email} onChange={e => setFormVendor({...formVendor, email: e.target.value})} />
+                  <div className="grid grid-cols-1 gap-4">
+                    <div>
+                      <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Contact Email</label>
+                      <input type="email" className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none font-bold dark:text-white text-sm" value={formVendor.email} onChange={e => setFormVendor({...formVendor, email: e.target.value})} />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Contact Phone No.</label>
+                      <input type="tel" className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none font-bold dark:text-white text-sm" value={formVendor.phone} onChange={e => setFormVendor({...formVendor, phone: e.target.value})} />
+                    </div>
                   </div>
                </div>
                <div className="space-y-4">
@@ -504,7 +510,7 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
                   </div>
                </div>
                <div className="md:col-span-2 pt-4">
-                  <button type="submit" className="w-full py-4 bg-orange-500 text-white rounded-2xl font-black uppercase tracking-widest text-xs shadow-xl hover:bg-orange-600 transition-all active:scale-95">Deploy Vendor Signal</button>
+                  <button type="submit" className="w-full py-4 bg-orange-500 text-white rounded-2xl font-black uppercase tracking-widest text-xs shadow-xl hover:bg-orange-600 transition-all active:scale-95">Save Changes</button>
                </div>
             </form>
           </div>
@@ -528,15 +534,21 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
                       <input required type="text" className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none font-bold dark:text-white text-sm" value={formArea.city} onChange={e => setFormArea({...formArea, city: e.target.value})} />
                    </div>
                    <div>
+                      <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">State Details</label>
+                      <input required type="text" className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none font-bold dark:text-white text-sm" value={formArea.state} onChange={e => setFormArea({...formArea, state: e.target.value})} />
+                   </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                   <div>
                       <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Short Code</label>
                       <input required type="text" maxLength={3} placeholder="e.g. SF" className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none font-bold dark:text-white text-sm uppercase" value={formArea.code} onChange={e => setFormArea({...formArea, code: e.target.value.toUpperCase()})} />
                    </div>
-                </div>
-                <div>
-                   <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Hub Logic</label>
-                   <div className="flex bg-gray-50 dark:bg-gray-700 p-1 rounded-xl">
-                      <button type="button" onClick={() => setFormArea({...formArea, type: 'MULTI'})} className={`flex-1 py-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${formArea.type === 'MULTI' ? 'bg-white dark:bg-gray-600 shadow-sm text-orange-500' : 'text-gray-400'}`}>Multi-Vendor</button>
-                      <button type="button" onClick={() => setFormArea({...formArea, type: 'SINGLE'})} className={`flex-1 py-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${formArea.type === 'SINGLE' ? 'bg-white dark:bg-gray-600 shadow-sm text-orange-500' : 'text-gray-400'}`}>Standalone</button>
+                   <div>
+                      <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Hub Logic</label>
+                      <div className="flex bg-gray-50 dark:bg-gray-700 p-1 rounded-xl">
+                        <button type="button" onClick={() => setFormArea({...formArea, type: 'MULTI'})} className={`flex-1 py-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${formArea.type === 'MULTI' ? 'bg-white dark:bg-gray-600 shadow-sm text-orange-500' : 'text-gray-400'}`}>Multi</button>
+                        <button type="button" onClick={() => setFormArea({...formArea, type: 'SINGLE'})} className={`flex-1 py-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${formArea.type === 'SINGLE' ? 'bg-white dark:bg-gray-600 shadow-sm text-orange-500' : 'text-gray-400'}`}>Single</button>
+                      </div>
                    </div>
                 </div>
                 <div className="pt-4 flex gap-4">
@@ -606,16 +618,22 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
                  </div>
                ) : (
                  <div className="grid grid-cols-2 gap-8 p-8">
-                    {Array.from({ length: Math.max(0, parseInt(qrEndRange) - parseInt(qrStartRange) + 1) }).map((_, i) => {
-                       const num = parseInt(qrStartRange) + i;
-                       return (
-                         <div key={num} className="page-break-inside-avoid border-2 border-gray-200 p-8 flex flex-col items-center rounded-[2rem]">
-                            <img src={`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(getQrUrl(generatingQrHub.name, String(num)))}`} className="w-48 h-48 mb-4" />
-                            <p className="text-xs font-bold uppercase tracking-widest mb-1 text-gray-500">{generatingQrHub.name}</p>
-                            <p className="text-2xl font-black uppercase">TABLE {num}</p>
-                         </div>
-                       );
-                    })}
+                    {(() => {
+                      const start = parseInt(qrStartRange);
+                      const end = parseInt(qrEndRange);
+                      if (isNaN(start) || isNaN(end)) return null;
+                      const length = Math.max(0, end - start + 1);
+                      return Array.from({ length }).map((_, i) => {
+                         const num = start + i;
+                         return (
+                           <div key={num} className="page-break-inside-avoid border-2 border-gray-200 p-8 flex flex-col items-center rounded-[2rem]">
+                              <img src={`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(getQrUrl(generatingQrHub.name, String(num)))}`} className="w-48 h-48 mb-4" />
+                              <p className="text-xs font-bold uppercase tracking-widest mb-1 text-gray-500">{generatingQrHub.name}</p>
+                              <p className="text-2xl font-black uppercase">TABLE {num}</p>
+                           </div>
+                         );
+                      });
+                    })()}
                  </div>
                )}
              </div>

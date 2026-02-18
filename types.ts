@@ -22,6 +22,8 @@ export interface MenuItem {
   category: string;
   isArchived?: boolean;
   sizes?: MenuItemVariant[];
+  otherVariants?: MenuItemVariant[];
+  otherVariantsEnabled?: boolean;
   tempOptions?: {
     hot?: number;
     cold?: number;
@@ -55,6 +57,7 @@ export interface CartItem extends MenuItem {
   restaurantId: string;
   selectedSize?: string;
   selectedTemp?: 'Hot' | 'Cold';
+  selectedOtherVariant?: string;
   tableNumber?: string;
   remark?: string;
 }

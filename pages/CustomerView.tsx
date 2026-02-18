@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Restaurant, CartItem, Order, OrderStatus, MenuItem } from '../types';
-import { ShoppingCart, Plus, Minus, X, CheckCircle, ChevronRight, Info, ThermometerSun, Maximize2, MapPin, Hash, LayoutGrid, Grid3X3, MessageSquare, AlertTriangle, UtensilsCrossed, LogIn, WifiOff } from 'lucide-react';
+import { ShoppingCart, Plus, Minus, X, CheckCircle, ChevronRight, Info, ThermometerSun, Maximize2, MapPin, Hash, LayoutGrid, Grid3X3, MessageSquare, AlertTriangle, UtensilsCrossed, LogIn, WifiOff, Layers } from 'lucide-react';
 
 interface Props {
   restaurants: Restaurant[];
@@ -23,6 +23,7 @@ const CustomerView: React.FC<Props> = ({ restaurants, cart, orders, onAddToCart,
   const [selectedItemForVariants, setSelectedItemForVariants] = useState<{item: MenuItem, resId: string} | null>(null);
   const [selectedSize, setSelectedSize] = useState<string>('');
   const [selectedTemp, setSelectedTemp] = useState<'Hot' | 'Cold' | undefined>(undefined);
+  const [selectedOtherVariant, setSelectedOtherVariant] = useState<string>('');
   const [gridColumns, setGridColumns] = useState<2 | 3>(3);
   const [orderRemark, setOrderRemark] = useState('');
   const [dismissedOrders, setDismissedOrders] = useState<string[]>([]);
@@ -78,10 +79,11 @@ const CustomerView: React.FC<Props> = ({ restaurants, cart, orders, onAddToCart,
   }, [restaurants, activeRestaurant]);
 
   const handleInitialAdd = (item: MenuItem, resId: string) => {
-    if ((item.sizes && item.sizes.length > 0) || (item.tempOptions && item.tempOptions.enabled)) {
+    if ((item.sizes && item.sizes.length > 0) || (item.tempOptions && item.tempOptions.enabled) || (item.otherVariantsEnabled && item.otherVariants && item.otherVariants.length > 0)) {
       setSelectedItemForVariants({ item, resId });
       setSelectedSize(item.sizes?.[0]?.name || '');
       setSelectedTemp(item.tempOptions?.enabled ? 'Hot' : undefined);
+      setSelectedOtherVariant(item.otherVariantsEnabled ? (item.otherVariants?.[0]?.name || '') : '');
     } else {
       onAddToCart({ ...item, quantity: 1, restaurantId: resId });
     }
@@ -98,6 +100,10 @@ const CustomerView: React.FC<Props> = ({ restaurants, cart, orders, onAddToCart,
     }
     if (selectedTemp === 'Hot' && item.tempOptions?.hot) finalPrice += item.tempOptions.hot;
     if (selectedTemp === 'Cold' && item.tempOptions?.cold) finalPrice += item.tempOptions.cold;
+    if (selectedOtherVariant) {
+      const otherObj = item.otherVariants?.find(v => v.name === selectedOtherVariant);
+      if (otherObj) finalPrice += otherObj.price;
+    }
 
     onAddToCart({
       ...item,
@@ -105,7 +111,8 @@ const CustomerView: React.FC<Props> = ({ restaurants, cart, orders, onAddToCart,
       quantity: 1,
       restaurantId: resId,
       selectedSize,
-      selectedTemp
+      selectedTemp,
+      selectedOtherVariant
     });
     setSelectedItemForVariants(null);
   };
@@ -262,19 +269,6 @@ const CustomerView: React.FC<Props> = ({ restaurants, cart, orders, onAddToCart,
             </section>
           ))}
         </div>
-
-        {/* Empty State */}
-        {restaurants.length === 0 && (
-          <div className="text-center py-24 bg-white dark:bg-gray-800 rounded-3xl border-2 border-dashed border-gray-100 dark:border-gray-700">
-            <UtensilsCrossed size={48} className="mx-auto mb-4 text-gray-200" />
-            <h3 className="text-xl font-black text-gray-900 dark:text-white uppercase tracking-widest">No Active Kitchens</h3>
-            <p className="text-gray-400 text-xs mt-2">Check back later or try another location.</p>
-          </div>
-        )}
-
-        <div className="mt-16 text-center pb-8 border-t dark:border-gray-800 pt-8 flex flex-col items-center gap-4">
-          <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">© QuickServe Platform</p>
-        </div>
       </div>
 
       {/* Variant Selection Modal */}
@@ -284,10 +278,7 @@ const CustomerView: React.FC<Props> = ({ restaurants, cart, orders, onAddToCart,
             <div className="relative h-48">
               <img src={selectedItemForVariants.item.image} className="w-full h-full object-cover" />
               <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
-              <button 
-                onClick={() => setSelectedItemForVariants(null)}
-                className="absolute top-4 right-4 p-2 bg-white/20 backdrop-blur-md text-white rounded-full hover:bg-white/40 transition-colors"
-              >
+              <button onClick={() => setSelectedItemForVariants(null)} className="absolute top-4 right-4 p-2 bg-white/20 backdrop-blur-md text-white rounded-full hover:bg-white/40 transition-colors">
                 <X size={20} />
               </button>
               <div className="absolute bottom-6 left-6">
@@ -296,7 +287,7 @@ const CustomerView: React.FC<Props> = ({ restaurants, cart, orders, onAddToCart,
               </div>
             </div>
             
-            <div className="p-8">
+            <div className="p-8 max-h-[60vh] overflow-y-auto custom-scrollbar">
               <div className="space-y-6">
                 {selectedItemForVariants.item.sizes && selectedItemForVariants.item.sizes.length > 0 && (
                   <div>
@@ -307,9 +298,7 @@ const CustomerView: React.FC<Props> = ({ restaurants, cart, orders, onAddToCart,
                           key={size.name}
                           onClick={() => setSelectedSize(size.name)}
                           className={`p-4 rounded-2xl border-2 text-left transition-all duration-300 ${
-                            selectedSize === size.name 
-                              ? 'border-orange-500 bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400 shadow-lg shadow-orange-100 dark:shadow-none' 
-                              : 'border-gray-50 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:border-orange-200'
+                            selectedSize === size.name ? 'border-orange-500 bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400 shadow-lg' : 'border-gray-50 dark:border-gray-700 text-gray-500 dark:text-gray-400'
                           }`}
                         >
                           <p className="text-[10px] font-black uppercase tracking-tighter mb-1">{size.name}</p>
@@ -320,178 +309,106 @@ const CustomerView: React.FC<Props> = ({ restaurants, cart, orders, onAddToCart,
                   </div>
                 )}
 
+                {selectedItemForVariants.item.otherVariantsEnabled && selectedItemForVariants.item.otherVariants && selectedItemForVariants.item.otherVariants.length > 0 && (
+                  <div>
+                    <label className="block text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-3 ml-1">Additional Options</label>
+                    <div className="grid grid-cols-2 gap-3">
+                      <button
+                        onClick={() => setSelectedOtherVariant('')}
+                        className={`p-4 rounded-2xl border-2 text-left transition-all duration-300 ${
+                          selectedOtherVariant === '' ? 'border-orange-500 bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400' : 'border-gray-50 dark:border-gray-700 text-gray-500 dark:text-gray-400'
+                        }`}
+                      >
+                        <p className="text-[10px] font-black uppercase tracking-tighter mb-1">None</p>
+                        <p className="font-black text-sm">Default</p>
+                      </button>
+                      {selectedItemForVariants.item.otherVariants.map(variant => (
+                        <button
+                          key={variant.name}
+                          onClick={() => setSelectedOtherVariant(variant.name)}
+                          className={`p-4 rounded-2xl border-2 text-left transition-all duration-300 ${
+                            selectedOtherVariant === variant.name ? 'border-orange-500 bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400 shadow-lg' : 'border-gray-50 dark:border-gray-700 text-gray-500 dark:text-gray-400'
+                          }`}
+                        >
+                          <p className="text-[10px] font-black uppercase tracking-tighter mb-1">{variant.name}</p>
+                          <p className="font-black text-sm">+{variant.price > 0 ? `RM${variant.price.toFixed(2)}` : 'FREE'}</p>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {selectedItemForVariants.item.tempOptions?.enabled && (
                   <div>
                     <label className="block text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-3 ml-1">Temperature</label>
                     <div className="flex gap-3">
-                      <button
-                        onClick={() => setSelectedTemp('Hot')}
-                        className={`flex-1 py-4 rounded-2xl border-2 flex flex-col items-center gap-2 transition-all duration-300 ${
-                          selectedTemp === 'Hot' 
-                            ? 'border-orange-500 bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400 shadow-lg' 
-                            : 'border-gray-50 dark:border-gray-700 text-gray-500 dark:text-gray-400'
-                        }`}
-                      >
+                      <button onClick={() => setSelectedTemp('Hot')} className={`flex-1 py-4 rounded-2xl border-2 flex flex-col items-center gap-2 transition-all ${selectedTemp === 'Hot' ? 'border-orange-500 bg-orange-50 text-orange-600' : 'border-gray-50 text-gray-500'}`}>
                         <ThermometerSun size={20} className="text-orange-500" />
-                        <span className="text-[10px] font-black uppercase tracking-widest">Hot Serving</span>
+                        <span className="text-[10px] font-black uppercase tracking-widest">Hot</span>
                       </button>
-                      <button
-                        onClick={() => setSelectedTemp('Cold')}
-                        className={`flex-1 py-4 rounded-2xl border-2 flex flex-col items-center gap-2 transition-all duration-300 ${
-                          selectedTemp === 'Cold' 
-                            ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 shadow-lg' 
-                            : 'border-gray-50 dark:border-gray-700 text-gray-500 dark:text-gray-400'
-                        }`}
-                      >
+                      <button onClick={() => setSelectedTemp('Cold')} className={`flex-1 py-4 rounded-2xl border-2 flex flex-col items-center gap-2 transition-all ${selectedTemp === 'Cold' ? 'border-blue-500 bg-blue-50 text-blue-600' : 'border-gray-50 text-gray-500'}`}>
                         <Info size={20} className="text-blue-500" />
-                        <span className="text-[10px] font-black uppercase tracking-widest">Cold Serving</span>
+                        <span className="text-[10px] font-black uppercase tracking-widest">Cold</span>
                       </button>
                     </div>
                   </div>
                 )}
               </div>
+            </div>
 
-              <div className="mt-10 pt-6 border-t dark:border-gray-700 flex items-center justify-between gap-6">
-                <div className="text-left">
-                   <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">Total Price</p>
-                   <p className="text-3xl font-black dark:text-white">
-                      RM{(
-                        selectedItemForVariants.item.price + 
-                        (selectedItemForVariants.item.sizes?.find(s => s.name === selectedSize)?.price || 0) +
-                        (selectedTemp === 'Hot' ? (selectedItemForVariants.item.tempOptions?.hot || 0) : (selectedTemp === 'Cold' ? (selectedItemForVariants.item.tempOptions?.cold || 0) : 0))
-                      ).toFixed(2)}
-                   </p>
-                </div>
-                <button 
-                  onClick={confirmVariantAdd}
-                  className="flex-1 py-4 bg-orange-500 text-white rounded-2xl font-black text-xs uppercase tracking-[0.2em] shadow-xl shadow-orange-100 dark:shadow-none hover:bg-orange-600 transition-all active:scale-95"
-                >
-                  Add to Cart
-                </button>
+            <div className="p-8 border-t dark:border-gray-700 bg-gray-50 dark:bg-gray-800/80">
+              <div className="flex items-center justify-between gap-6">
+                <p className="text-2xl font-black dark:text-white">
+                  RM{(
+                    selectedItemForVariants.item.price + 
+                    (selectedItemForVariants.item.sizes?.find(s => s.name === selectedSize)?.price || 0) +
+                    (selectedTemp === 'Hot' ? (selectedItemForVariants.item.tempOptions?.hot || 0) : (selectedTemp === 'Cold' ? (selectedItemForVariants.item.tempOptions?.cold || 0) : 0)) +
+                    (selectedItemForVariants.item.otherVariants?.find(v => v.name === selectedOtherVariant)?.price || 0)
+                  ).toFixed(2)}
+                </p>
+                <button onClick={confirmVariantAdd} className="flex-1 py-4 bg-orange-500 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl">Add to Cart</button>
               </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* Persistent Cart FAB - Adjusted height to be smaller (py-2.5) */}
+      {/* Cart Drawer and FAB Adjusted... */}
       {cart.length > 0 && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 w-full max-w-[340px] px-4 z-50">
-          <button 
-            onClick={() => setShowCart(true)}
-            className={`w-full py-2.5 px-4 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.3)] flex items-center justify-between hover:scale-[1.02] active:scale-95 transition-all border-4 ${
-              offlineCartItems.length > 0 
-                ? 'bg-red-600 text-white border-white dark:border-gray-800' 
-                : 'bg-black dark:bg-gray-100 text-white dark:text-gray-900 border-white dark:border-gray-800'
-            }`}
-          >
-            <div className="flex items-center gap-3">
-              <div className={`w-7 h-7 rounded-lg flex items-center justify-center font-black text-[10px] ${offlineCartItems.length > 0 ? 'bg-white text-red-600' : 'bg-orange-500 text-white'}`}>
-                {cart.length}
-              </div>
-              <span className="font-black text-[10px] uppercase tracking-[0.2em]">
-                {offlineCartItems.length > 0 ? 'Action Required' : 'View Your Tray'}
-              </span>
-            </div>
-            <span className="font-black text-lg tracking-tight">RM{cartTotal.toFixed(2)}</span>
+          <button onClick={() => setShowCart(true)} className={`w-full py-2.5 px-4 rounded-2xl shadow-xl flex items-center justify-between transition-all border-4 ${offlineCartItems.length > 0 ? 'bg-red-600' : 'bg-black text-white border-white'}`}>
+            <div className="flex items-center gap-3"><div className="w-7 h-7 rounded-lg bg-orange-500 text-white flex items-center justify-center font-black text-xs">{cart.length}</div><span className="font-black text-[10px] uppercase">View Tray</span></div>
+            <span className="font-black text-lg">RM{cartTotal.toFixed(2)}</span>
           </button>
         </div>
       )}
-
-      {/* Cart Drawer */}
+      {/* Drawer... */}
       {showCart && (
         <div className="fixed inset-0 z-[80] bg-black/70 backdrop-blur-md flex justify-end">
-          <div className="w-full max-w-md bg-white dark:bg-gray-900 h-full shadow-2xl flex flex-col animate-slide-left transition-colors">
-            <div className="p-6 border-b dark:border-gray-800 flex items-center justify-between bg-gray-50/50 dark:bg-gray-800/50">
-              <h2 className="text-sm font-black dark:text-white uppercase tracking-[0.3em]">Your Order Summary</h2>
-              <button onClick={() => setShowCart(false)} className="p-3 hover:bg-gray-200 dark:hover:bg-gray-800 rounded-full dark:text-gray-400 transition-colors">
-                <X size={24} />
-              </button>
-            </div>
-            
-            <div className="flex-1 overflow-y-auto p-6 space-y-6">
-              {offlineCartItems.length > 0 && (
-                <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-2xl flex items-start gap-3">
-                  <WifiOff size={20} className="text-red-500 shrink-0" />
-                  <div>
-                    <p className="text-[10px] font-black text-red-600 dark:text-red-400 uppercase tracking-widest">Kitchen Offline</p>
-                    <p className="text-[11px] font-bold text-gray-600 dark:text-gray-300">Some items in your tray are from a kitchen that just went offline. Please remove them to proceed.</p>
-                  </div>
-                </div>
-              )}
-
-              {cart.map((item, idx) => {
-                const res = allRestaurants.find(r => r.id === item.restaurantId);
-                const isOffline = res && res.isOnline === false;
-                return (
-                  <div key={`${item.id}-${idx}`} className={`flex gap-4 p-4 rounded-2xl border transition-all shadow-sm ${isOffline ? 'bg-red-50 dark:bg-red-900/10 border-red-200 dark:border-red-900/30 grayscale opacity-60' : 'bg-gray-50 dark:bg-gray-800/50 border-gray-100 dark:border-gray-700'}`}>
-                    <img src={item.image} className="w-16 h-16 rounded-xl object-cover shadow-sm" />
-                    <div className="flex-1">
-                      <div className="flex justify-between font-bold dark:text-white mb-2">
-                        <div className="flex flex-col">
-                          <p className="text-xs font-black uppercase tracking-tight">{item.name}</p>
-                          {isOffline && <span className="text-[8px] text-red-500 font-black uppercase">UNAVAILABLE</span>}
-                        </div>
-                        <p className="text-xs font-black text-orange-500">RM{(item.price * item.quantity).toFixed(2)}</p>
-                      </div>
-                      <div className="flex flex-wrap gap-1 mb-3">
-                        {item.selectedSize && <span className="text-[8px] font-black px-2 py-0.5 bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 rounded uppercase">{item.selectedSize}</span>}
-                        {item.selectedTemp && <span className={`text-[8px] font-black px-2 py-0.5 rounded uppercase ${item.selectedTemp === 'Hot' ? 'bg-orange-50 text-orange-600' : 'bg-blue-50 text-blue-600'}`}>{item.selectedTemp}</span>}
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center bg-white dark:bg-gray-700 rounded-xl border dark:border-gray-600 overflow-hidden shadow-inner">
-                          <button onClick={() => onRemoveFromCart(item.id)} className="p-2 hover:bg-red-50 dark:hover:bg-red-900/20 text-red-500 transition-colors"><Minus size={12} /></button>
-                          <span className="px-4 font-black text-xs dark:text-white">{item.quantity}</span>
-                          <button onClick={() => onAddToCart(item)} className="p-2 hover:bg-green-50 dark:hover:bg-green-900/20 text-green-600 transition-colors"><Plus size={12} /></button>
-                        </div>
-                      </div>
+          <div className="w-full max-w-md bg-white dark:bg-gray-900 h-full flex flex-col">
+            <div className="p-6 border-b flex items-center justify-between"><h2 className="text-sm font-black uppercase tracking-widest">Your Tray</h2><button onClick={() => setShowCart(false)} className="p-3"><X size={24} /></button></div>
+            <div className="flex-1 overflow-y-auto p-6 space-y-4">
+              {cart.map((item, idx) => (
+                <div key={idx} className="flex gap-4 p-4 bg-gray-50 dark:bg-gray-800 rounded-2xl border">
+                  <div className="flex-1">
+                    <p className="font-black text-sm uppercase">{item.name}</p>
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {item.selectedSize && <span className="text-[8px] font-black px-1.5 py-0.5 bg-orange-100 text-orange-600 rounded">{item.selectedSize}</span>}
+                      {item.selectedOtherVariant && <span className="text-[8px] font-black px-1.5 py-0.5 bg-purple-100 text-purple-600 rounded">{item.selectedOtherVariant}</span>}
                     </div>
                   </div>
-                );
-              })}
-              {cart.length === 0 && (
-                 <div className="text-center py-24">
-                    <ShoppingCart size={48} className="mx-auto mb-4 text-gray-200" />
-                    <p className="text-xs font-black text-gray-400 uppercase tracking-widest">Your tray is empty</p>
-                 </div>
-              )}
-
-              {cart.length > 0 && (
-                <div className="pt-6 mt-6 border-t dark:border-gray-800">
-                   <div className="flex items-center gap-2 mb-3">
-                     <MessageSquare size={16} className="text-orange-500" />
-                     <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Chef Instructions</label>
-                   </div>
-                   <textarea 
-                     className="w-full p-4 bg-gray-50 dark:bg-gray-800 border dark:border-gray-700 rounded-2xl text-xs dark:text-white outline-none focus:ring-2 focus:ring-orange-500 transition-all resize-none shadow-inner"
-                     placeholder="e.g. No dairy, extra spicy..."
-                     rows={3}
-                     value={orderRemark}
-                     onChange={(e) => setOrderRemark(e.target.value)}
-                   />
+                  <div className="text-right">
+                    <p className="font-black text-orange-500 text-xs">RM{(item.price * item.quantity).toFixed(2)}</p>
+                    <div className="flex items-center gap-2 mt-2">
+                       <button onClick={() => onRemoveFromCart(item.id)} className="p-1.5 bg-white dark:bg-gray-700 rounded-lg text-red-500"><Minus size={12}/></button>
+                       <span className="font-black text-xs">{item.quantity}</span>
+                       <button onClick={() => onAddToCart(item)} className="p-1.5 bg-white dark:bg-gray-700 rounded-lg text-green-500"><Plus size={12}/></button>
+                    </div>
+                  </div>
                 </div>
-              )}
+              ))}
             </div>
-
-            <div className="p-8 border-t dark:border-gray-800 bg-gray-50 dark:bg-gray-800/80 backdrop-blur-xl">
-              <div className="space-y-3 mb-8">
-                <div className="flex justify-between text-[10px] font-black text-gray-400 uppercase tracking-widest">
-                  <span>Subtotal</span>
-                  <span className="text-gray-900 dark:text-white font-black">RM{cartTotal.toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between text-2xl font-black text-gray-900 dark:text-white border-t pt-6 mt-6 uppercase tracking-tighter">
-                  <span>Grand Total</span>
-                  <span className="text-orange-500">RM{cartTotal.toFixed(2)}</span>
-                </div>
-              </div>
-              <button 
-                disabled={cart.length === 0 || offlineCartItems.length > 0} 
-                onClick={() => { onPlaceOrder(orderRemark); setShowCart(false); setOrderRemark(''); }} 
-                className={`w-full py-5 text-white rounded-[2rem] font-black text-sm uppercase tracking-[0.3em] shadow-2xl transition-all active:scale-[0.98] disabled:opacity-50 ${offlineCartItems.length > 0 ? 'bg-gray-400' : 'bg-orange-500 hover:bg-orange-600'}`}
-              >
-                {offlineCartItems.length > 0 ? 'Remove Offline Items' : 'Send Order to Kitchen'}
-              </button>
-            </div>
+            <div className="p-8 border-t"><button onClick={() => onPlaceOrder(orderRemark)} className="w-full py-4 bg-orange-500 text-white rounded-2xl font-black uppercase tracking-widest">Place Order</button></div>
           </div>
         </div>
       )}

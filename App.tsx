@@ -135,7 +135,8 @@ const App: React.FC = () => {
         menu: menuData.filter(m => m.restaurant_id === res.id).map(m => ({
           id: m.id, name: m.name, description: m.description, price: Number(m.price),
           image: m.image, category: m.category, isArchived: m.is_archived,
-          sizes: m.sizes, tempOptions: m.temp_options
+          sizes: m.sizes, tempOptions: m.temp_options,
+          otherVariants: m.other_variants, otherVariantsEnabled: m.other_variants_enabled
         }))
       }));
       setRestaurants(formatted);
@@ -353,8 +354,8 @@ const App: React.FC = () => {
       return;
     }
     setCart(prev => {
-      const existing = prev.find(i => i.id === item.id && i.selectedSize === item.selectedSize && i.selectedTemp === item.selectedTemp);
-      if (existing) return prev.map(i => (i.id === item.id && i.selectedSize === item.selectedSize && i.selectedTemp === item.selectedTemp) ? { ...i, quantity: i.quantity + 1 } : i);
+      const existing = prev.find(i => i.id === item.id && i.selectedSize === item.selectedSize && i.selectedTemp === item.selectedTemp && i.selectedOtherVariant === item.selectedOtherVariant);
+      if (existing) return prev.map(i => (i.id === item.id && i.selectedSize === item.selectedSize && i.selectedTemp === item.selectedTemp && i.selectedOtherVariant === item.selectedOtherVariant) ? { ...i, quantity: i.quantity + 1 } : i);
       return [...prev, { ...item, quantity: 1 }];
     });
   };
@@ -403,12 +404,34 @@ const App: React.FC = () => {
   };
 
   const handleUpdateMenuItem = async (rid: string, item: MenuItem) => {
-    await supabase.from('menu_items').update({ name: item.name, description: item.description, price: item.price, image: item.image, category: item.category, is_archived: item.isArchived, sizes: item.sizes, temp_options: item.tempOptions }).eq('id', item.id);
+    await supabase.from('menu_items').update({ 
+      name: item.name, 
+      description: item.description, 
+      price: item.price, 
+      image: item.image, 
+      category: item.category, 
+      is_archived: item.isArchived, 
+      sizes: item.sizes, 
+      temp_options: item.tempOptions,
+      other_variants: item.otherVariants,
+      other_variants_enabled: item.otherVariantsEnabled
+    }).eq('id', item.id);
     fetchRestaurants();
   };
 
   const handleAddMenuItem = async (rid: string, item: MenuItem) => {
-    await supabase.from('menu_items').insert([{ restaurant_id: rid, name: item.name, description: item.description, price: item.price, image: item.image, category: item.category, sizes: item.sizes, temp_options: item.tempOptions }]);
+    await supabase.from('menu_items').insert([{ 
+      restaurant_id: rid, 
+      name: item.name, 
+      description: item.description, 
+      price: item.price, 
+      image: item.image, 
+      category: item.category, 
+      sizes: item.sizes, 
+      temp_options: item.tempOptions,
+      other_variants: item.otherVariants,
+      other_variants_enabled: item.otherVariantsEnabled
+    }]);
     fetchRestaurants();
   };
 
