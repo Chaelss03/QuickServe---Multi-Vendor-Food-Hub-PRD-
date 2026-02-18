@@ -304,7 +304,8 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
 
   const handleSaveItem = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formItem.name || !formItem.price) return;
+    // Allow price to be 0
+    if (!formItem.name || formItem.price === undefined || formItem.price === null) return;
 
     const itemToSave: MenuItem = {
       id: editingItem ? editingItem.id : `m_${Date.now()}`,
