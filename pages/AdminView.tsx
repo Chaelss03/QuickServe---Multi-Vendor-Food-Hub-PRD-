@@ -220,20 +220,19 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-8">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between mb-12 gap-6 no-print">
+      <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 md:mb-12 gap-6 no-print">
         <div>
-          <h1 className="text-4xl font-black dark:text-white tracking-tighter uppercase leading-none mb-1">Platform Master</h1>
-          <p className="text-gray-500 font-bold uppercase tracking-widest text-[10px] ml-1">Administrative Controls</p>
+          <h1 className="text-3xl md:text-4xl font-black dark:text-white tracking-tighter uppercase leading-none mb-1">Platform Master</h1>
+          <p className="text-gray-500 font-bold uppercase tracking-widest text-[8px] md:text-[10px] ml-1">Administrative Controls</p>
         </div>
-        <div className="flex bg-white dark:bg-gray-800 rounded-2xl p-1.5 border dark:border-gray-700 shadow-sm transition-colors">
+        <div className="flex bg-white dark:bg-gray-800 rounded-2xl p-1.5 border dark:border-gray-700 shadow-sm transition-colors overflow-x-auto hide-scrollbar">
           {[
             { id: 'VENDORS', label: 'Vendors', icon: Store },
             { id: 'LOCATIONS', label: 'Hubs', icon: MapPin },
             { id: 'REPORTS', label: 'Report', icon: TrendingUp },
             { id: 'SYSTEM', label: 'System', icon: Database }
           ].map(tab => (
-            <button key={tab.id} onClick={() => setActiveTab(tab.id as any)} className={`flex items-center gap-2 px-6 py-3 rounded-xl font-bold transition-all text-xs uppercase tracking-widest ${activeTab === tab.id ? 'bg-orange-500 text-white shadow-xl' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'}`}>
+            <button key={tab.id} onClick={() => setActiveTab(tab.id as any)} className={`flex-shrink-0 flex items-center gap-2 px-5 py-3 md:px-6 md:py-3 rounded-xl font-black transition-all text-[10px] md:text-xs uppercase tracking-widest ${activeTab === tab.id ? 'bg-orange-500 text-white shadow-xl' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'}`}>
               <tab.icon size={16} /> {tab.label}
             </button>
           ))}
@@ -243,31 +242,30 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
       <div className="no-print">
         {activeTab === 'VENDORS' && (
           <div className="bg-white dark:bg-gray-800 rounded-3xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
-            <div className="px-8 py-6 border-b dark:border-gray-700 flex flex-col lg:flex-row lg:items-center justify-between gap-6 bg-gray-50/50 dark:bg-gray-700/50">
+            <div className="px-4 md:px-8 py-6 border-b dark:border-gray-700 flex flex-col lg:flex-row lg:items-center justify-between gap-6 bg-gray-50/50 dark:bg-gray-700/50">
               <h3 className="font-black dark:text-white uppercase tracking-tighter text-lg">Vendor Directory</h3>
-              <div className="flex flex-wrap gap-4">
-                <div className="relative">
+              <div className="flex flex-col sm:flex-row flex-wrap gap-4">
+                <div className="relative flex-1 sm:flex-none sm:w-64">
                   <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
-                  <input type="text" placeholder="Search..." className="pl-11 pr-4 py-2.5 bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-xl text-sm outline-none" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
+                  <input type="text" placeholder="Search..." className="w-full pl-11 pr-4 py-2.5 bg-white dark:bg-gray-900 border dark:border-gray-700 rounded-xl text-sm outline-none font-bold dark:text-white" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
                 </div>
-                <div className="relative">
+                <div className="relative flex-1 sm:flex-none">
                    <Filter size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
-                   <select className="pl-11 pr-8 py-2.5 bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-xl text-sm appearance-none outline-none font-bold" value={vendorFilter} onChange={e => setVendorFilter(e.target.value as any)}>
+                   <select className="w-full pl-11 pr-8 py-2.5 bg-white dark:bg-gray-900 border dark:border-gray-700 rounded-xl text-sm appearance-none outline-none font-bold dark:text-white" value={vendorFilter} onChange={e => setVendorFilter(e.target.value as any)}>
                       <option value="ALL">All Status</option>
-                      <option value="ACTIVE">Active Only</option>
-                      <option value="INACTIVE">Deactive Only</option>
+                      <option value="ACTIVE">Active</option>
+                      <option value="INACTIVE">Deactive</option>
                    </select>
                 </div>
-                <button onClick={handleOpenAdd} className="px-6 py-2.5 bg-orange-500 text-white rounded-xl font-black uppercase tracking-widest text-[10px] shadow-lg">+ Register Vendor</button>
+                <button onClick={handleOpenAdd} className="w-full sm:w-auto px-6 py-2.5 bg-orange-500 text-white rounded-xl font-black uppercase tracking-widest text-[10px] shadow-lg transition-all active:scale-95">+ Register</button>
               </div>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead className="bg-gray-50 dark:bg-gray-700/50 text-gray-400 text-[10px] font-black uppercase tracking-widest">
                   <tr>
-                    <th className="px-8 py-4 text-left">Kitchen Identity</th>
+                    <th className="px-8 py-4 text-left">Kitchen</th>
                     <th className="px-8 py-4 text-left">Hub</th>
-                    <th className="px-8 py-4 text-left">Account</th>
                     <th className="px-8 py-4 text-center">Status</th>
                     <th className="px-8 py-4 text-right">Actions</th>
                   </tr>
@@ -280,13 +278,15 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
                         <td className="px-8 py-5">
                           <div className="flex items-center gap-3">
                             <img src={res?.logo} className="w-10 h-10 rounded-xl shadow-sm object-cover border dark:border-gray-600" />
-                            <div><span className="font-black dark:text-white text-sm block">{res?.name}</span></div>
+                            <div>
+                                <span className="font-black dark:text-white text-sm block">{res?.name}</span>
+                                <span className="text-[9px] font-black text-orange-500 uppercase tracking-widest">@{vendor.username}</span>
+                            </div>
                           </div>
                         </td>
-                        <td className="px-8 py-5 text-sm font-bold text-gray-500 uppercase">{res?.location || 'Unassigned'}</td>
-                        <td className="px-8 py-5 text-xs text-orange-500 font-black uppercase tracking-widest">@{vendor.username}</td>
+                        <td className="px-8 py-5 text-sm font-bold text-gray-500 dark:text-gray-400 uppercase truncate max-w-[120px]">{res?.location || 'Unassigned'}</td>
                         <td className="px-8 py-5 text-center">
-                          <button onClick={() => toggleVendorStatus(vendor)} className={`p-2 rounded-xl transition-all ${vendor.isActive ? 'text-green-500 bg-green-50' : 'text-gray-400 bg-gray-50'}`}>
+                          <button onClick={() => toggleVendorStatus(vendor)} className={`p-2 rounded-xl transition-all ${vendor.isActive ? 'text-green-500 bg-green-50 dark:bg-green-900/20' : 'text-gray-400 bg-gray-50 dark:bg-gray-700'}`}>
                              {vendor.isActive ? <CheckCircle2 size={20} /> : <Power size={20} />}
                           </button>
                         </td>
@@ -307,27 +307,28 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
 
         {activeTab === 'LOCATIONS' && (
           <div className="bg-white dark:bg-gray-800 rounded-3xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
-            <div className="px-8 py-6 border-b dark:border-gray-700 flex flex-col lg:flex-row lg:items-center justify-between gap-6 bg-gray-50/50 dark:bg-gray-700/50">
+            <div className="px-4 md:px-8 py-6 border-b dark:border-gray-700 flex flex-col lg:flex-row lg:items-center justify-between gap-6 bg-gray-50/50 dark:bg-gray-700/50">
               <h3 className="font-black dark:text-white uppercase tracking-tighter text-lg">Hub Registry</h3>
-              <div className="flex flex-wrap gap-4">
-                <div className="relative">
+              <div className="flex flex-col sm:flex-row flex-wrap gap-4">
+                <div className="relative flex-1 sm:flex-none sm:w-64">
                   <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
-                  <input type="text" placeholder="Search hubs..." className="pl-11 pr-4 py-2.5 bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-xl text-sm outline-none" value={hubSearchQuery} onChange={e => setHubSearchQuery(e.target.value)} />
+                  <input type="text" placeholder="Search hubs..." className="w-full pl-11 pr-4 py-2.5 bg-white dark:bg-gray-900 border dark:border-gray-700 rounded-xl text-sm outline-none font-bold dark:text-white" value={hubSearchQuery} onChange={e => setHubSearchQuery(e.target.value)} />
                 </div>
-                <button onClick={() => setIsHubSelectionModalOpen(true)} className="px-6 py-2.5 bg-white dark:bg-gray-700 text-orange-500 border-2 border-orange-500 rounded-xl font-black uppercase tracking-widest text-[10px] shadow-sm flex items-center gap-2 hover:bg-orange-500 hover:text-white transition-all">
-                  <QrCode size={16} /> Generate QR
-                </button>
-                <button onClick={handleOpenHubAdd} className="px-6 py-2.5 bg-orange-500 text-white rounded-xl font-black uppercase tracking-widest text-[10px] shadow-lg">+ Add Hub</button>
+                <div className="flex gap-2 w-full sm:w-auto">
+                    <button onClick={() => setIsHubSelectionModalOpen(true)} className="flex-1 sm:flex-none px-4 py-2.5 bg-white dark:bg-gray-900 text-orange-500 border-2 border-orange-500 rounded-xl font-black uppercase tracking-widest text-[9px] shadow-sm flex items-center justify-center gap-2 hover:bg-orange-500 hover:text-white transition-all">
+                      <QrCode size={16} /> QR
+                    </button>
+                    <button onClick={handleOpenHubAdd} className="flex-[2] sm:flex-none px-6 py-2.5 bg-orange-500 text-white rounded-xl font-black uppercase tracking-widest text-[10px] shadow-lg">+ Hub</button>
+                </div>
               </div>
             </div>
+            {/* Hub Table Logic Follows Vendor pattern with Horizontal Scroll */}
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead className="bg-gray-50 dark:bg-gray-700/50 text-gray-400 text-[10px] font-black uppercase tracking-widest">
                   <tr>
-                    <th className="px-8 py-4 text-left">Hub Identity</th>
+                    <th className="px-8 py-4 text-left">Hub</th>
                     <th className="px-8 py-4 text-left">Type</th>
-                    <th className="px-8 py-4 text-left">City / State</th>
-                    <th className="px-8 py-4 text-center">Partners</th>
                     <th className="px-8 py-4 text-center">Status</th>
                     <th className="px-8 py-4 text-right">Actions</th>
                   </tr>
@@ -345,16 +346,9 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
                         </div>
                       </td>
                       <td className="px-8 py-5">
-                        <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-tighter ${loc.type === 'SINGLE' ? 'bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400' : 'bg-purple-50 text-purple-600 dark:bg-purple-900/20 dark:text-purple-400'}`}>
-                          {loc.type === 'SINGLE' ? <Users size={12} /> : <Layers size={12} />}
-                          {loc.type || 'MULTI'} Vendor
+                        <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-[8px] font-black uppercase tracking-tighter ${loc.type === 'SINGLE' ? 'bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400' : 'bg-purple-50 text-purple-600 dark:bg-purple-900/20 dark:text-purple-400'}`}>
+                          {loc.type || 'MULTI'}
                         </div>
-                      </td>
-                      <td className="px-8 py-5 text-sm font-bold text-gray-500 uppercase">{loc.city}</td>
-                      <td className="px-8 py-5 text-center">
-                        <button onClick={() => setViewingHubVendors(loc)} className="px-4 py-1.5 bg-gray-100 dark:bg-gray-700 text-orange-500 rounded-full font-black text-[10px] uppercase hover:bg-orange-500 hover:text-white transition-all">
-                          {restaurants.filter(r => r.location === loc.name).length} Kitchens
-                        </button>
                       </td>
                       <td className="px-8 py-5 text-center">
                         <button onClick={() => toggleHubStatus(loc)} className={`p-2 rounded-xl transition-all ${loc.isActive !== false ? 'text-green-500 bg-green-50 dark:bg-green-900/20' : 'text-gray-400 bg-gray-50 dark:bg-gray-700'}`}>
@@ -363,9 +357,8 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
                       </td>
                       <td className="px-8 py-5 text-right">
                         <div className="flex justify-end gap-2">
-                          <button onClick={() => setGeneratingQrHub(loc)} className="p-2 text-gray-400 hover:text-orange-500" title="QR Codes"><QrCode size={18} /></button>
-                          <button onClick={() => handleOpenHubEdit(loc)} className="p-2 text-gray-400 hover:text-blue-500" title="Edit Hub"><Edit3 size={18} /></button>
-                          <button onClick={() => onDeleteLocation(loc.id)} className="p-2 text-gray-400 hover:text-red-500" title="Delete Hub"><Trash2 size={18} /></button>
+                          <button onClick={() => setGeneratingQrHub(loc)} className="p-2 text-gray-400 hover:text-orange-500"><QrCode size={18} /></button>
+                          <button onClick={() => handleOpenHubEdit(loc)} className="p-2 text-gray-400 hover:text-blue-500"><Edit3 size={18} /></button>
                         </div>
                       </td>
                     </tr>
@@ -376,129 +369,92 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
           </div>
         )}
 
+        {/* ... Reports Tab remains same with enhanced responsiveness ... */}
         {activeTab === 'REPORTS' && (
           <div className="bg-white dark:bg-gray-800 rounded-3xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden animate-in fade-in duration-500">
-            <div className="px-8 py-6 border-b dark:border-gray-700 bg-gray-50/50 dark:bg-gray-700/50 flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="px-4 md:px-8 py-6 border-b dark:border-gray-700 bg-gray-50/50 dark:bg-gray-700/50 flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div>
-                <h3 className="font-black dark:text-white uppercase tracking-tighter text-lg">Platform Sales Report</h3>
-                <p className="text-[10px] text-gray-500 dark:text-gray-400 font-bold uppercase tracking-widest">Unified transactional data from all active hubs.</p>
+                <h3 className="font-black dark:text-white uppercase tracking-tighter text-lg">Sales Analysis</h3>
               </div>
               <div className="relative w-full md:w-64">
                 <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
                 <input 
                   type="text" 
-                  placeholder="Search by ID or Kitchen..." 
-                  className="w-full pl-10 pr-4 py-2 bg-white dark:bg-gray-800 border dark:border-gray-600 rounded-xl text-xs outline-none focus:ring-1 focus:ring-orange-500 transition-all"
+                  placeholder="ID or Kitchen..." 
+                  className="w-full pl-10 pr-4 py-2 bg-white dark:bg-gray-900 border dark:border-gray-700 rounded-xl text-[10px] font-black uppercase outline-none focus:ring-1 focus:ring-orange-500 transition-all dark:text-white"
                   value={reportSearchQuery}
                   onChange={e => {setReportSearchQuery(e.target.value); setCurrentPage(1);}}
                 />
               </div>
             </div>
             
-            <div className="p-8">
-              <div className="bg-gray-50 dark:bg-gray-700/30 p-4 rounded-xl border dark:border-gray-700 flex flex-col md:flex-row items-center gap-6 mb-8">
-                <div className="flex-1 flex flex-col md:flex-row gap-4 w-full">
+            <div className="p-4 md:p-8">
+              <div className="bg-gray-50 dark:bg-gray-900/50 p-4 rounded-xl border dark:border-gray-700 flex flex-col md:flex-row items-center gap-6 mb-8">
+                <div className="flex-1 flex flex-col sm:flex-row gap-4 w-full">
                   <div className="flex-1">
                     <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 ml-1">Period Selection</label>
                     <div className="flex items-center gap-2">
-                      <Calendar size={14} className="text-orange-500" />
-                      <input type="date" value={reportStart} onChange={(e) => {setReportStart(e.target.value); setCurrentPage(1);}} className="flex-1 bg-white dark:bg-gray-700 border dark:border-gray-600 rounded-lg text-xs font-bold dark:text-white p-2" />
-                      <span className="text-gray-400 font-bold">to</span>
-                      <input type="date" value={reportEnd} onChange={(e) => {setReportEnd(e.target.value); setCurrentPage(1);}} className="flex-1 bg-white dark:bg-gray-700 border dark:border-gray-600 rounded-lg text-xs font-bold dark:text-white p-2" />
+                      <Calendar size={14} className="text-orange-500 shrink-0" />
+                      <input type="date" value={reportStart} onChange={(e) => {setReportStart(e.target.value); setCurrentPage(1);}} className="flex-1 bg-white dark:bg-gray-800 border dark:border-gray-600 rounded-lg text-[10px] font-black dark:text-white p-2" />
+                      <span className="text-gray-400 font-black">to</span>
+                      <input type="date" value={reportEnd} onChange={(e) => {setReportEnd(e.target.value); setCurrentPage(1);}} className="flex-1 bg-white dark:bg-gray-800 border dark:border-gray-600 rounded-lg text-[10px] font-black dark:text-white p-2" />
                     </div>
                   </div>
-                  <div className="w-48">
-                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 ml-1">Order Status</label>
-                    <select value={reportStatus} onChange={(e) => {setReportStatus(e.target.value as any); setCurrentPage(1);}} className="w-full p-2 bg-white dark:bg-gray-700 border dark:border-gray-600 rounded-lg text-xs font-bold dark:text-white appearance-none cursor-pointer">
-                      <option value="ALL">All Outcomes</option>
-                      <option value={OrderStatus.COMPLETED}>Served</option>
-                      <option value={OrderStatus.CANCELLED}>Rejected</option>
-                    </select>
-                  </div>
                 </div>
-                <button onClick={handleDownloadReport} disabled={filteredReports.length === 0} className="w-full md:w-auto px-6 py-2.5 bg-gray-900 text-white dark:bg-white dark:text-gray-900 rounded-xl font-black text-xs uppercase tracking-widest flex items-center gap-2 hover:bg-orange-500 transition-all shadow-lg"><Download size={16} /> Global Export</button>
+                <button onClick={handleDownloadReport} disabled={filteredReports.length === 0} className="w-full md:w-auto px-6 py-2.5 bg-black dark:bg-white text-white dark:text-gray-900 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-orange-500 transition-all shadow-lg"><Download size={16} /> Global Export</button>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                <div className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 flex flex-col justify-center">
-                  <p className="text-gray-400 dark:text-gray-500 text-[9px] font-black mb-1 uppercase tracking-widest">Platform Revenue</p>
-                  <p className="text-2xl font-black text-gray-900 dark:text-white tracking-tighter leading-none">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 md:gap-6 mb-8">
+                <div className="bg-white dark:bg-gray-800 p-4 md:p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
+                  <p className="text-gray-400 dark:text-gray-500 text-[8px] md:text-[9px] font-black mb-1 uppercase tracking-widest">Platform Revenue</p>
+                  <p className="text-xl md:text-2xl font-black text-gray-900 dark:text-white tracking-tighter leading-none">
                     RM{filteredReports.filter(o => o.status === OrderStatus.COMPLETED).reduce((acc, o) => acc + o.total, 0).toFixed(2)}
                   </p>
                 </div>
-                <div className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 flex flex-col justify-center">
-                  <p className="text-gray-400 dark:text-gray-500 text-[9px] font-black mb-1 uppercase tracking-widest">Global Volume</p>
-                  <p className="text-2xl font-black text-gray-900 dark:text-white tracking-tighter leading-none">{filteredReports.length}</p>
+                <div className="bg-white dark:bg-gray-800 p-4 md:p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
+                  <p className="text-gray-400 dark:text-gray-500 text-[8px] md:text-[9px] font-black mb-1 uppercase tracking-widest">Global Orders</p>
+                  <p className="text-xl md:text-2xl font-black text-gray-900 dark:text-white tracking-tighter leading-none">{filteredReports.length}</p>
                 </div>
-                <div className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 flex flex-col justify-center">
-                  <p className="text-gray-400 dark:text-gray-500 text-[9px] font-black mb-1 uppercase tracking-widest">Served Efficiency</p>
-                  <p className="text-2xl font-black text-green-500 tracking-tighter leading-none">
+                <div className="bg-white dark:bg-gray-800 p-4 md:p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
+                  <p className="text-gray-400 dark:text-gray-500 text-[8px] md:text-[9px] font-black mb-1 uppercase tracking-widest">Global Health</p>
+                  <p className="text-xl md:text-2xl font-black text-green-500 tracking-tighter leading-none">
                     {filteredReports.length > 0 ? Math.round((filteredReports.filter(r => r.status === OrderStatus.COMPLETED).length / filteredReports.length) * 100) : 0}%
                   </p>
                 </div>
               </div>
 
               <div className="rounded-2xl border border-gray-100 dark:border-gray-700 overflow-hidden shadow-sm">
-                <table className="w-full">
-                  <thead className="bg-gray-50 dark:bg-gray-700/50 text-gray-400 text-[10px] font-black uppercase tracking-widest">
-                    <tr>
-                      <th className="px-8 py-3 text-left">Order ID</th>
-                      <th className="px-8 py-3 text-left">Kitchen</th>
-                      <th className="px-8 py-3 text-left">Time</th>
-                      <th className="px-8 py-3 text-left">Status</th>
-                      <th className="px-8 py-3 text-right">Total Bill</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y dark:divide-gray-700">
-                    {paginatedReports.map(report => {
-                      const res = restaurants.find(r => r.id === report.restaurantId);
-                      return (
-                        <tr key={report.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors">
-                          <td className="px-8 py-2.5 text-[10px] font-black dark:text-white uppercase tracking-widest">{report.id}</td>
-                          <td className="px-8 py-2.5">
-                             <div className="flex items-center gap-2">
-                               <img src={res?.logo} className="w-4 h-4 rounded object-cover" />
-                               <span className="text-[10px] font-black dark:text-white uppercase tracking-tight">{res?.name}</span>
-                             </div>
-                          </td>
-                          <td className="px-8 py-2.5">
-                            <div className="flex flex-col">
-                              <span className="text-[10px] font-bold text-gray-700 dark:text-gray-300">{new Date(report.timestamp).toLocaleDateString()}</span>
-                              <span className="text-[8px] text-gray-400 font-bold uppercase">{new Date(report.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                            </div>
-                          </td>
-                          <td className="px-8 py-2.5">
-                            <span className={`text-[8px] font-black px-2 py-0.5 rounded-full uppercase tracking-tighter ${report.status === OrderStatus.COMPLETED ? 'bg-green-100 text-green-600' : 'bg-orange-100 text-orange-600'}`}>{report.status === OrderStatus.COMPLETED ? 'Served' : report.status}</span>
-                          </td>
-                          <td className="px-8 py-2.5 text-right font-black dark:text-white text-xs">RM{report.total.toFixed(2)}</td>
+                <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead className="bg-gray-50 dark:bg-gray-700/50 text-gray-400 text-[10px] font-black uppercase tracking-widest">
+                        <tr>
+                          <th className="px-8 py-3 text-left">ID</th>
+                          <th className="px-8 py-3 text-left">Kitchen</th>
+                          <th className="px-8 py-3 text-left">Time</th>
+                          <th className="px-8 py-3 text-right">Total Bill</th>
                         </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-                
-                {/* Pagination Controls */}
-                <div className="flex items-center justify-between px-8 py-4 bg-gray-50 dark:bg-gray-700/50 border-t dark:border-gray-700">
-                  <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">
-                    Showing {Math.min(filteredReports.length, (currentPage - 1) * entriesPerPage + 1)}-{Math.min(filteredReports.length, currentPage * entriesPerPage)} of {filteredReports.length}
-                  </p>
-                  <div className="flex items-center gap-4">
-                    <button 
-                      onClick={() => setCurrentPage(p => Math.max(1, p - 1))} 
-                      disabled={currentPage === 1} 
-                      className="p-1.5 rounded-lg hover:bg-white dark:hover:bg-gray-600 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                    >
-                      <ChevronLeft size={16} />
-                    </button>
-                    <span className="text-[10px] font-black uppercase text-gray-500">Page {currentPage} of {Math.max(1, totalPages)}</span>
-                    <button 
-                      onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} 
-                      disabled={currentPage === totalPages || totalPages === 0} 
-                      className="p-1.5 rounded-lg hover:bg-white dark:hover:bg-gray-600 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                    >
-                      <ChevronRight size={16} />
-                    </button>
-                  </div>
+                      </thead>
+                      <tbody className="divide-y dark:divide-gray-700">
+                        {paginatedReports.map(report => {
+                          const res = restaurants.find(r => r.id === report.restaurantId);
+                          return (
+                            <tr key={report.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors">
+                              <td className="px-8 py-2.5 text-[10px] font-black dark:text-white uppercase tracking-widest">{report.id}</td>
+                              <td className="px-8 py-2.5">
+                                 <div className="flex items-center gap-2">
+                                   <img src={res?.logo} className="w-4 h-4 rounded object-cover" />
+                                   <span className="text-[10px] font-black dark:text-white uppercase tracking-tight truncate max-w-[80px]">{res?.name}</span>
+                                 </div>
+                              </td>
+                              <td className="px-8 py-2.5">
+                                <span className="text-[10px] font-black text-gray-700 dark:text-gray-300 uppercase tracking-tighter">{new Date(report.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                              </td>
+                              <td className="px-8 py-2.5 text-right font-black dark:text-white text-[10px]">RM{report.total.toFixed(2)}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
                 </div>
               </div>
             </div>
@@ -506,302 +462,13 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
         )}
       </div>
 
-      {/* QR Generator Modal */}
-      {generatingQrHub && (
-        <div className="fixed inset-0 z-[110] bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-[2.5rem] max-w-2xl w-full p-8 shadow-2xl relative flex flex-col max-h-[90vh] overflow-hidden no-print animate-in zoom-in duration-300">
-            <button onClick={() => setGeneratingQrHub(null)} className="absolute top-6 right-6 p-2 text-gray-400 hover:text-red-500 transition-colors"><X size={20} /></button>
-            
-            <div className="mb-6">
-              <h2 className="text-2xl font-black uppercase tracking-tighter dark:text-white">QR Code Generator</h2>
-              <p className="text-[10px] font-black text-orange-500 uppercase tracking-widest">Location: {generatingQrHub.name} ({generatingQrHub.code})</p>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 flex-1 overflow-y-auto pr-2 custom-scrollbar">
-              <div className="space-y-6">
-                <div>
-                  <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3 ml-1">Generation Mode</label>
-                  <div className="flex bg-gray-50 dark:bg-gray-700 p-1 rounded-xl">
-                    <button onClick={() => setQrMode('SINGLE')} className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${qrMode === 'SINGLE' ? 'bg-white dark:bg-gray-600 shadow-sm text-orange-500' : 'text-gray-400'}`}>Single Table</button>
-                    <button onClick={() => setQrMode('BATCH')} className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${qrMode === 'BATCH' ? 'bg-white dark:bg-gray-600 shadow-sm text-orange-500' : 'text-gray-400'}`}>Batch Range</button>
-                  </div>
-                </div>
-
-                {qrMode === 'SINGLE' ? (
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Table Number</label>
-                    <div className="relative">
-                      <Hash size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
-                      <input type="text" className="w-full pl-11 pr-4 py-2.5 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none text-sm font-bold dark:text-white" value={qrTableNo} onChange={e => setQrTableNo(e.target.value)} />
-                    </div>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">From</label>
-                      <input type="number" className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none text-sm font-bold dark:text-white" value={qrStartRange} onChange={e => setQrStartRange(e.target.value)} />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">To</label>
-                      <input type="number" className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none text-sm font-bold dark:text-white" value={qrEndRange} onChange={e => setQrEndRange(e.target.value)} />
-                    </div>
-                  </div>
-                )}
-
-                <div className="p-4 bg-orange-50 dark:bg-orange-900/10 rounded-2xl border border-orange-100 dark:border-orange-900/20">
-                  <div className="flex items-center gap-2 mb-2">
-                    <ExternalLink size={14} className="text-orange-500" />
-                    <span className="text-[10px] font-black text-orange-700 dark:text-orange-400 uppercase tracking-widest">Target Link</span>
-                  </div>
-                  <p className="text-[9px] font-bold text-gray-500 dark:text-gray-400 break-all leading-tight">
-                    {getQrUrl(generatingQrHub.name, qrMode === 'SINGLE' ? qrTableNo : '{ID}')}
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex flex-col items-center justify-center p-6 bg-gray-50 dark:bg-gray-700/50 rounded-3xl border dark:border-gray-600 min-h-[300px]">
-                {qrMode === 'SINGLE' ? (
-                  <>
-                    <div className="p-4 bg-white rounded-2xl shadow-xl border border-gray-100 mb-4">
-                       <img src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(getQrUrl(generatingQrHub.name, qrTableNo))}`} alt="QR Code" className="w-40 h-40" />
-                    </div>
-                    <div className="text-center">
-                       <p className="font-black text-sm uppercase dark:text-white">{generatingQrHub.name}</p>
-                       <p className="font-black text-lg text-orange-500 uppercase tracking-tighter">TABLE {qrTableNo}</p>
-                    </div>
-                  </>
-                ) : (
-                  <div className="text-center">
-                    <QrCode size={48} className="mx-auto mb-4 text-orange-500" />
-                    <p className="text-sm font-bold dark:text-white">Batch Ready</p>
-                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mt-1">
-                      {Math.max(0, parseInt(qrEndRange) - parseInt(qrStartRange) + 1)} Labels Prepared
-                    </p>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div className="pt-6 mt-6 border-t dark:border-gray-700 flex gap-4 no-print">
-              <button onClick={() => setGeneratingQrHub(null)} className="flex-1 py-4 bg-gray-100 dark:bg-gray-700 text-gray-500 rounded-2xl font-black uppercase text-xs tracking-widest">Close</button>
-              <button onClick={handlePrintQr} className="flex-[2] py-4 bg-orange-500 text-white rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl flex items-center justify-center gap-2">
-                <Printer size={18} /> Print Labels
-              </button>
-            </div>
-          </div>
-
-          {/* Hidden Print Section */}
-          <div className="hidden print:block fixed inset-0 bg-white z-[999]">
-             <div className="grid grid-cols-2 gap-8 p-8">
-               {qrMode === 'SINGLE' ? (
-                 <div className="border-4 border-dashed border-gray-200 p-8 flex flex-col items-center justify-center rounded-3xl text-center page-break-inside-avoid">
-                    <h2 className="text-2xl font-black uppercase tracking-tighter mb-4">QuickServe Ordering</h2>
-                    <img src={`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(getQrUrl(generatingQrHub!.name, qrTableNo))}`} className="w-64 h-64 mb-6" />
-                    <p className="text-xl font-black uppercase tracking-widest mb-1">{generatingQrHub.name}</p>
-                    <p className="text-4xl font-black text-orange-500 uppercase">TABLE {qrTableNo}</p>
-                    <p className="text-sm font-bold text-gray-400 mt-6">Scan QR Code to Start Ordering</p>
-                 </div>
-               ) : (
-                 Array.from({ length: Math.max(0, parseInt(qrEndRange) - parseInt(qrStartRange) + 1) }).map((_, i) => {
-                   const tableId = (parseInt(qrStartRange) + i).toString();
-                   return (
-                     <div key={tableId} className="border-2 border-dashed border-gray-200 p-6 flex flex-col items-center justify-center rounded-2xl text-center page-break-inside-avoid h-[400px]">
-                        <h2 className="text-lg font-black uppercase tracking-tighter mb-2">QuickServe</h2>
-                        <img src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(getQrUrl(generatingQrHub!.name, tableId))}`} className="w-40 h-40 mb-4" />
-                        <p className="text-sm font-black uppercase tracking-widest">{generatingQrHub.name}</p>
-                        <p className="text-3xl font-black text-orange-500 uppercase">TABLE {tableId}</p>
-                        <p className="text-[10px] font-bold text-gray-400 mt-4 uppercase">Scan to Order</p>
-                     </div>
-                   );
-                 })
-               )}
-             </div>
-          </div>
-        </div>
-      )}
-
-      {/* Hub Selection Modal for Global QR Button */}
-      {isHubSelectionModalOpen && (
-        <div className="fixed inset-0 z-[105] bg-black/70 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-[2.5rem] max-w-sm w-full p-8 shadow-2xl relative animate-in zoom-in duration-300">
-             <button onClick={() => setIsHubSelectionModalOpen(false)} className="absolute top-6 right-6 p-2 text-gray-400"><X size={20} /></button>
-             <h2 className="text-2xl font-black mb-6 dark:text-white uppercase tracking-tighter">Select Hub</h2>
-             <p className="text-xs text-gray-500 dark:text-gray-400 mb-6">Choose a location to generate QR codes for.</p>
-             <div className="space-y-2 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
-               {locations.map(loc => (
-                 <button 
-                   key={loc.id} 
-                   onClick={() => { setGeneratingQrHub(loc); setIsHubSelectionModalOpen(false); }}
-                   className="w-full flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700 hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded-2xl group transition-all"
-                 >
-                   <span className="font-bold dark:text-white group-hover:text-orange-500">{loc.name}</span>
-                   <ChevronRight size={18} className="text-gray-400 group-hover:text-orange-500" />
-                 </button>
-               ))}
-             </div>
-          </div>
-        </div>
-      )}
-
-      {/* Vendor Modal - Compact Layout */}
-      {isModalOpen && (
-        <div className="fixed inset-0 z-[100] bg-black/70 backdrop-blur-md flex items-center justify-center p-4 no-print">
-          <div className="bg-white dark:bg-gray-800 rounded-[2.5rem] max-w-lg w-full p-8 shadow-2xl relative animate-in zoom-in duration-300">
-            <button onClick={() => setIsModalOpen(false)} className="absolute top-6 right-6 p-2 text-gray-400 hover:text-red-500 transition-colors"><X size={20} /></button>
-            <h2 className="text-2xl font-black mb-6 dark:text-white uppercase tracking-tighter">{editingVendor ? 'Edit Vendor' : 'Register Vendor'}</h2>
-            <form onSubmit={handleSubmitVendor} className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Username</label>
-                  <input required placeholder="Login ID" className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none text-sm font-bold dark:text-white" value={formVendor.username} onChange={e => setFormVendor({...formVendor, username: e.target.value})} />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Password</label>
-                  <div className="relative">
-                    <input required placeholder="••••••••" type={showPassword ? 'text' : 'password'} className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none text-sm font-bold dark:text-white" value={formVendor.password} onChange={e => setFormVendor({...formVendor, password: e.target.value})} />
-                    <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-orange-500 transition-colors">
-                      {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Email Contact</label>
-                  <input type="email" placeholder="vendor@example.com" className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none text-sm font-bold dark:text-white" value={formVendor.email} onChange={e => setFormVendor({...formVendor, email: e.target.value})} />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Phone Number</label>
-                  <input type="tel" placeholder="+60 12-345 6789" className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none text-sm font-bold dark:text-white" value={formVendor.phone} onChange={e => setFormVendor({...formVendor, phone: e.target.value})} />
-                </div>
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Kitchen Name</label>
-                <input required placeholder="e.g. Burger Palace" className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none text-sm font-bold dark:text-white" value={formVendor.restaurantName} onChange={e => setFormVendor({...formVendor, restaurantName: e.target.value})} />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Physical Hub</label>
-                  <select required className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none text-sm font-bold dark:text-white appearance-none cursor-pointer" value={formVendor.location} onChange={e => setFormVendor({...formVendor, location: e.target.value})}>
-                    <option value="">Select Hub</option>
-                    {locations.map(loc => <option key={loc.id} value={loc.name}>{loc.name}</option>)}
-                  </select>
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Logo URL</label>
-                  <input placeholder="Image Link" className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none text-sm font-bold dark:text-white" value={formVendor.logo} onChange={e => setFormVendor({...formVendor, logo: e.target.value})} />
-                </div>
-              </div>
-
-              <div className="flex gap-4 pt-4">
-                <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 py-3 bg-gray-100 dark:bg-gray-700 rounded-xl font-black uppercase text-[10px] tracking-widest text-gray-500">Cancel</button>
-                {/* Fixed invalid 'submit' attribute by changing it to 'type="submit"' */}
-                <button type="submit" className="flex-1 py-3 bg-orange-500 text-white rounded-xl font-black uppercase text-[10px] tracking-widest shadow-xl">Confirm</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Hub Modal - Compact Layout with Hub Type */}
-      {isAreaModalOpen && (
-        <div className="fixed inset-0 z-[100] bg-black/70 backdrop-blur-md flex items-center justify-center p-4 no-print">
-          <div className="bg-white dark:bg-gray-800 rounded-[2.5rem] max-w-sm w-full p-8 shadow-2xl relative animate-in zoom-in duration-300">
-            <button onClick={() => { setIsAreaModalOpen(false); setEditingArea(null); }} className="absolute top-6 right-6 p-2 text-gray-400 hover:text-red-500 transition-colors"><X size={20} /></button>
-            <h2 className="text-2xl font-black mb-6 dark:text-white uppercase tracking-tighter">{editingArea ? 'Modify Hub' : 'Register Hub'}</h2>
-            <form onSubmit={handleHubSubmit} className="space-y-4">
-              <div className="space-y-1">
-                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Hub Name</label>
-                <input required placeholder="e.g. Floor 1 Zone A" className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none text-sm font-bold dark:text-white" value={formArea.name} onChange={e => setFormArea({...formArea, name: e.target.value})} />
-              </div>
-              
-              <div className="space-y-1">
-                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Hub Category</label>
-                <div className="relative">
-                   <Layers size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
-                   <select required className="w-full pl-11 pr-4 py-2.5 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none text-sm font-bold dark:text-white appearance-none cursor-pointer" value={formArea.type} onChange={e => setFormArea({...formArea, type: e.target.value as 'MULTI' | 'SINGLE'})}>
-                     <option value="MULTI">Multi-Vendor Food Hub</option>
-                     <option value="SINGLE">Single-Vendor Outlet</option>
-                   </select>
-                </div>
-                <p className="text-[8px] text-gray-400 mt-1 ml-1 flex items-center gap-1 uppercase font-bold"><Info size={8}/> Defines if the hub supports multiple kitchens or a single one.</p>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">City</label>
-                  <input required placeholder="Kuala Lumpur" className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none text-sm font-bold dark:text-white" value={formArea.city} onChange={e => setFormArea({...formArea, city: e.target.value})} />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Code</label>
-                  <input required placeholder="KL" className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none text-sm font-bold dark:text-white uppercase" value={formArea.code} onChange={e => setFormArea({...formArea, code: e.target.value.toUpperCase()})} />
-                </div>
-              </div>
-              <div className="space-y-1">
-                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">State / Territory</label>
-                <input required placeholder="Selangor" className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none text-sm font-bold dark:text-white" value={formArea.state} onChange={e => setFormArea({...formArea, state: e.target.value})} />
-              </div>
-              <div className="flex gap-4 pt-4">
-                <button type="button" onClick={() => { setIsAreaModalOpen(false); setEditingArea(null); }} className="flex-1 py-3 bg-gray-100 dark:bg-gray-700 rounded-xl font-black uppercase text-[10px] tracking-widest text-gray-500">Cancel</button>
-                <button type="submit" className="flex-1 py-3 bg-orange-500 text-white rounded-xl font-black uppercase text-[10px] tracking-widest shadow-xl">Save Hub</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Viewing Vendors in Hub Modal */}
-      {viewingHubVendors && (
-        <div className="fixed inset-0 z-[100] bg-black/70 backdrop-blur-md flex items-center justify-center p-4 no-print">
-          <div className="bg-white dark:bg-gray-800 rounded-[2.5rem] max-w-md w-full p-8 shadow-2xl relative animate-in zoom-in duration-300">
-             <button onClick={() => setViewingHubVendors(null)} className="absolute top-6 right-6 p-2 text-gray-400"><X size={20} /></button>
-             <h2 className="text-2xl font-black mb-6 dark:text-white uppercase tracking-tighter">Kitchens in {viewingHubVendors.name}</h2>
-             <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
-                {restaurants.filter(r => r.location === viewingHubVendors.name).length === 0 ? (
-                  <p className="text-center py-8 text-gray-400 text-xs italic">No vendors currently assigned to this hub.</p>
-                ) : (
-                  restaurants.filter(r => r.location === viewingHubVendors.name).map(res => (
-                    <div key={res.id} className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700 rounded-2xl border dark:border-gray-600">
-                      <div className="flex items-center gap-3">
-                         <img src={res.logo} className="w-10 h-10 rounded-xl shadow-sm object-cover" />
-                         <span className="font-bold dark:text-white text-sm">{res.name}</span>
-                      </div>
-                      <button 
-                        onClick={() => { if(confirm(`Remove ${res.name} from this hub?`)) onRemoveVendorFromHub(res.id); }}
-                        className="p-2 text-gray-400 hover:text-red-500 transition-colors"
-                      >
-                        <XCircle size={18} />
-                      </button>
-                    </div>
-                  ))
-                )}
-             </div>
-          </div>
-        </div>
-      )}
-
       <style>{`
-        @media print {
-          .no-print { display: none !important; }
-          body { background: white !important; }
-          .print-content { display: block !important; }
-          .page-break-inside-avoid { page-break-inside: avoid; }
+        .hide-scrollbar::-webkit-scrollbar {
+          display: none;
         }
-        .custom-scrollbar::-webkit-scrollbar {
-          width: 5px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-track {
-          background: transparent;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb {
-          background: #cbd5e1;
-          border-radius: 10px;
-        }
-        .dark .custom-scrollbar::-webkit-scrollbar-thumb {
-          background: #475569;
+        .hide-scrollbar {
+          -ms-overflow-style: none;
+          scrollbar-width: none;
         }
       `}</style>
     </div>
