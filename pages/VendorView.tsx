@@ -1,7 +1,7 @@
 
 import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { Restaurant, Order, OrderStatus, MenuItem, MenuItemVariant } from '../types';
-import { ShoppingBag, BookOpen, BarChart3, Edit3, CheckCircle, Clock, X, Plus, Trash2, Image as ImageIcon, LayoutGrid, List, Filter, Archive, RotateCcw, Power, Eye, Upload, Hash, MessageSquare, Download, Calendar, Ban, ChevronLeft, ChevronRight, Bell, Activity, RefreshCw, Layers, Tag, Wifi, WifiOff, QrCode, Printer, ExternalLink, ThermometerSun, Info, Settings2, Menu, ToggleLeft, ToggleRight, Link } from 'lucide-react';
+import { ShoppingBag, BookOpen, BarChart3, Edit3, CheckCircle, Clock, X, Plus, Trash2, Image as ImageIcon, LayoutGrid, List, Filter, Archive, RotateCcw, Power, Eye, Upload, Hash, MessageSquare, Download, Calendar, Ban, ChevronLeft, ChevronRight, Bell, Activity, RefreshCw, Layers, Tag, Wifi, WifiOff, QrCode, Printer, ExternalLink, ThermometerSun, Info, Settings2, Menu, ToggleLeft, ToggleRight, Link, Search } from 'lucide-react';
 
 interface Props {
   restaurant: Restaurant;
@@ -57,6 +57,7 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
   const [menuStatusFilter, setMenuStatusFilter] = useState<'ACTIVE' | 'ARCHIVED'>('ACTIVE');
 
   // Report Filters & Pagination
+  const [reportSearchQuery, setReportSearchQuery] = useState('');
   const [reportStatus, setReportStatus] = useState<'ALL' | OrderStatus>('ALL');
   const [reportStart, setReportStart] = useState<string>(() => {
     const d = new Date();
@@ -144,13 +145,14 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
       const orderDate = new Date(o.timestamp).toISOString().split('T')[0];
       const matchesDate = orderDate >= reportStart && orderDate <= reportEnd;
       const matchesStatus = reportStatus === 'ALL' || o.status === reportStatus;
-      return matchesDate && matchesStatus;
+      const matchesSearch = reportSearchQuery === '' || o.id.toLowerCase().includes(reportSearchQuery.toLowerCase()) || o.tableNumber?.toLowerCase().includes(reportSearchQuery.toLowerCase());
+      return matchesDate && matchesStatus && matchesSearch;
     });
-  }, [orders, reportStart, reportEnd, reportStatus]);
+  }, [orders, reportStart, reportEnd, reportStatus, reportSearchQuery]);
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [filteredReports.length, entriesPerPage, reportStatus, reportStart, reportEnd]);
+  }, [filteredReports.length, entriesPerPage, reportStatus, reportStart, reportEnd, reportSearchQuery]);
 
   const totalPages = Math.ceil(filteredReports.length / entriesPerPage);
   const paginatedReports = useMemo(() => {
@@ -160,9 +162,10 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
 
   const handleDownloadReport = () => {
     if (filteredReports.length === 0) return;
-    const headers = ['Order ID', 'Time', 'Status', 'Items', 'Total'];
+    const headers = ['Order ID', 'Table', 'Time', 'Status', 'Items', 'Total'];
     const rows = filteredReports.map(o => [
       o.id,
+      o.tableNumber || 'N/A',
       new Date(o.timestamp).toLocaleString(),
       o.status,
       o.items.map(i => `${i.name} (x${i.quantity})`).join('; '),
@@ -343,7 +346,6 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
   };
 
   const handlePrintQr = () => {
-    // Defer the print call to prevent blocking the main thread during event handling, improving INP.
     requestAnimationFrame(() => {
       setTimeout(() => {
         window.print();
@@ -817,26 +819,95 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
             <div className="max-w-6xl mx-auto animate-in fade-in duration-500">
               <h1 className="text-2xl font-black mb-1 dark:text-white uppercase tracking-tighter">Sales Report</h1>
               <p className="text-xs text-gray-500 dark:text-gray-400 font-medium mb-8 uppercase tracking-widest">Financial performance and order history.</p>
-              <div className="bg-white dark:bg-gray-800 p-4 md:p-6 rounded-2xl border dark:border-gray-700 shadow-sm flex flex-col md:flex-row items-center gap-6 mb-8">
-                <div className="flex-1 flex flex-col sm:flex-row gap-4 w-full">
+              
+              <div className="bg-white dark:bg-gray-800 p-4 rounded-2xl border dark:border-gray-700 shadow-sm flex flex-col lg:flex-row items-center gap-4 mb-8">
+                <div className="flex-1 flex flex-col md:flex-row gap-4 w-full">
                   <div className="flex-1">
                     <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Period Selection</label>
-                    <div className="flex items-center gap-2"><Calendar size={14} className="text-orange-500 shrink-0" /><input type="date" value={reportStart} onChange={(e) => setReportStart(e.target.value)} className="flex-1 bg-gray-50 dark:bg-gray-700 border-none rounded-lg text-[10px] font-black dark:text-white p-2" /><span className="text-gray-400 font-black">to</span><input type="date" value={reportEnd} onChange={(e) => setReportEnd(e.target.value)} className="flex-1 bg-gray-50 dark:bg-gray-700 border-none rounded-lg text-[10px] font-black dark:text-white p-2" /></div>
+                    <div className="flex items-center gap-2 bg-gray-50 dark:bg-gray-700 p-1.5 rounded-xl border dark:border-gray-600">
+                      <Calendar size={14} className="text-orange-500 shrink-0" />
+                      <input type="date" value={reportStart} onChange={(e) => setReportStart(e.target.value)} className="flex-1 bg-transparent border-none rounded-lg text-[10px] font-black dark:text-white p-0 outline-none" />
+                      <span className="text-gray-400 font-black">-</span>
+                      <input type="date" value={reportEnd} onChange={(e) => setReportEnd(e.target.value)} className="flex-1 bg-transparent border-none rounded-lg text-[10px] font-black dark:text-white p-0 outline-none" />
+                    </div>
                   </div>
-                  <div className="w-full sm:w-48"><label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Order Outcome</label><select value={reportStatus} onChange={(e) => setReportStatus(e.target.value as any)} className="w-full p-2 bg-gray-50 dark:bg-gray-700 border-none rounded-lg text-[10px] font-black dark:text-white appearance-none cursor-pointer"><option value="ALL">All Outcomes</option><option value={OrderStatus.COMPLETED}>Served</option><option value={OrderStatus.CANCELLED}>Rejected</option></select></div>
+                  <div className="w-full md:w-40">
+                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Status</label>
+                    <select value={reportStatus} onChange={(e) => setReportStatus(e.target.value as any)} className="w-full p-2 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl text-[10px] font-black dark:text-white outline-none appearance-none cursor-pointer">
+                      <option value="ALL">All Outcomes</option>
+                      <option value={OrderStatus.COMPLETED}>Served</option>
+                      <option value={OrderStatus.CANCELLED}>Rejected</option>
+                    </select>
+                  </div>
                 </div>
-                <button onClick={handleDownloadReport} className="w-full md:w-auto px-6 py-3 bg-black text-white dark:bg-white dark:text-gray-900 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-orange-500 transition-all"><Download size={18} /> Export CSV</button>
+                <button onClick={handleDownloadReport} className="w-full lg:w-auto px-6 py-3 bg-black text-white dark:bg-white dark:text-gray-900 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-orange-500 transition-all">
+                  <Download size={18} /> Export CSV
+                </button>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 md:gap-6 mb-8">
-                <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl border dark:border-gray-700 shadow-sm"><p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">Total Revenue</p><p className="text-2xl md:text-3xl font-black dark:text-white">RM{filteredReports.filter(o => o.status === OrderStatus.COMPLETED).reduce((acc, o) => acc + o.total, 0).toFixed(2)}</p></div>
-                <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl border dark:border-gray-700 shadow-sm"><p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">Order Volume</p><p className="text-2xl md:text-3xl font-black dark:text-white">{filteredReports.length}</p></div>
-                <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl border dark:border-gray-700 shadow-sm"><p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">Efficiency</p><p className="text-2xl md:text-3xl font-black text-green-500">{filteredReports.length > 0 ? Math.round((filteredReports.filter(r => r.status === OrderStatus.COMPLETED).length / filteredReports.length) * 100) : 0}%</p></div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+                <div className="bg-white dark:bg-gray-800 p-4 rounded-2xl border dark:border-gray-700 shadow-sm">
+                  <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">Revenue</p>
+                  <p className="text-xl font-black dark:text-white">RM{filteredReports.filter(o => o.status === OrderStatus.COMPLETED).reduce((acc, o) => acc + o.total, 0).toFixed(2)}</p>
+                </div>
+                <div className="bg-white dark:bg-gray-800 p-4 rounded-2xl border dark:border-gray-700 shadow-sm">
+                  <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">Orders</p>
+                  <p className="text-xl font-black dark:text-white">{filteredReports.length}</p>
+                </div>
+                <div className="bg-white dark:bg-gray-800 p-4 rounded-2xl border dark:border-gray-700 shadow-sm">
+                  <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">Efficiency</p>
+                  <p className="text-xl font-black text-green-500">{filteredReports.length > 0 ? Math.round((filteredReports.filter(r => r.status === OrderStatus.COMPLETED).length / filteredReports.length) * 100) : 0}%</p>
+                </div>
               </div>
+
               <div className="bg-white dark:bg-gray-800 rounded-2xl border dark:border-gray-700 overflow-hidden shadow-sm">
+                <div className="px-6 py-4 border-b dark:border-gray-700 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <h3 className="text-xs font-black dark:text-white uppercase tracking-widest">Order Logs</h3>
+                  <div className="relative w-full md:w-64">
+                    <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                    <input 
+                      type="text" 
+                      placeholder="Search ID or Table..." 
+                      className="w-full h-[36px] pl-10 pr-4 py-2 bg-gray-50 dark:bg-gray-900 border dark:border-gray-700 rounded-xl text-[10px] font-black uppercase outline-none focus:ring-1 focus:ring-orange-500 transition-all dark:text-white"
+                      value={reportSearchQuery}
+                      onChange={e => setReportSearchQuery(e.target.value)}
+                    />
+                  </div>
+                </div>
                 <div className="overflow-x-auto">
                   <table className="w-full">
-                    <thead className="bg-gray-50 dark:bg-gray-700/50 text-gray-400 text-[10px] font-black uppercase tracking-widest"><tr><th className="px-8 py-4 text-left">Order ID</th><th className="px-8 py-4 text-left">Time</th><th className="px-8 py-4 text-left">Status</th><th className="px-8 py-4 text-right">Bill</th></tr></thead>
-                    <tbody className="divide-y dark:divide-gray-700">{paginatedReports.map(report => (<tr key={report.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors"><td className="px-8 py-4 text-[10px] font-black dark:text-white uppercase tracking-widest">{report.id}</td><td className="px-8 py-4"><p className="text-[10px] font-black text-gray-700 dark:text-gray-300 uppercase tracking-tighter">{new Date(report.timestamp).toLocaleDateString()}</p><p className="text-[8px] text-gray-400 font-bold uppercase">{new Date(report.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p></td><td className="px-8 py-4"><span className={`text-[8px] font-black px-2 py-0.5 rounded-full uppercase tracking-tighter ${report.status === OrderStatus.COMPLETED ? 'bg-green-100 text-green-600' : 'bg-orange-100 text-orange-600'}`}>{report.status === OrderStatus.COMPLETED ? 'Served' : report.status}</span></td><td className="px-8 py-4 text-right font-black dark:text-white text-xs">RM{report.total.toFixed(2)}</td></tr>))}</tbody>
+                    <thead className="bg-gray-50 dark:bg-gray-700/50 text-gray-400 text-[10px] font-black uppercase tracking-widest">
+                      <tr>
+                        <th className="px-8 py-4 text-left">Order ID</th>
+                        <th className="px-8 py-4 text-left">Table</th>
+                        <th className="px-8 py-4 text-left">Time</th>
+                        <th className="px-8 py-4 text-left">Status</th>
+                        <th className="px-8 py-4 text-right">Bill</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y dark:divide-gray-700">
+                      {paginatedReports.map(report => (
+                        <tr key={report.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors">
+                          <td className="px-8 py-4 text-[10px] font-black dark:text-white uppercase tracking-widest">{report.id}</td>
+                          <td className="px-8 py-4 text-[10px] font-black text-gray-500 dark:text-gray-400 uppercase">T-{report.tableNumber || 'N/A'}</td>
+                          <td className="px-8 py-4">
+                            <p className="text-[10px] font-black text-gray-700 dark:text-gray-300 uppercase tracking-tighter">{new Date(report.timestamp).toLocaleDateString()}</p>
+                            <p className="text-[8px] text-gray-400 font-bold uppercase">{new Date(report.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+                          </td>
+                          <td className="px-8 py-4">
+                            <span className={`text-[8px] font-black px-2 py-0.5 rounded-full uppercase tracking-tighter ${report.status === OrderStatus.COMPLETED ? 'bg-green-100 text-green-600' : report.status === OrderStatus.CANCELLED ? 'bg-red-100 text-red-600' : 'bg-orange-100 text-orange-600'}`}>
+                              {report.status}
+                            </span>
+                          </td>
+                          <td className="px-8 py-4 text-right font-black dark:text-white text-xs">RM{report.total.toFixed(2)}</td>
+                        </tr>
+                      ))}
+                      {paginatedReports.length === 0 && (
+                        <tr>
+                          <td colSpan={5} className="py-20 text-center text-[10px] font-black text-gray-400 uppercase tracking-widest">No matching records.</td>
+                        </tr>
+                      )}
+                    </tbody>
                   </table>
                 </div>
               </div>
@@ -844,180 +915,6 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
           )}
         </div>
       </main>
-
-      {/* Rejection Modal */}
-      {rejectingOrderId && (
-        <div className="fixed inset-0 z-[100] bg-black/70 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-3xl max-w-md w-full p-8 shadow-2xl relative animate-in zoom-in fade-in duration-300">
-            <button onClick={() => setRejectingOrderId(null)} className="absolute top-6 right-6 p-2 text-gray-400 hover:text-red-500 transition-colors"><X size={20} /></button>
-            <h2 className="text-2xl font-black mb-6 dark:text-white uppercase tracking-tighter">Order Rejection</h2>
-            <div className="space-y-4">
-              <div><label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Select Reason</label><select className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none text-sm font-bold dark:text-white appearance-none cursor-pointer" value={rejectionReason} onChange={e => setRejectionReason(e.target.value)}>{REJECTION_REASONS.map(r => <option key={r} value={r}>{r}</option>)}</select></div>
-              <div><label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Internal Note (Optional)</label><textarea className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none text-sm font-bold dark:text-white resize-none" rows={3} placeholder="Additional details..." value={rejectionNote} onChange={e => setRejectionNote(e.target.value)} /></div>
-              <div className="flex gap-4 pt-2"><button onClick={() => setRejectingOrderId(null)} className="flex-1 py-3 bg-gray-100 dark:bg-gray-700 rounded-xl font-black uppercase text-[10px] tracking-widest text-gray-500">Cancel</button><button onClick={handleConfirmRejection} className="flex-1 py-3 bg-red-500 text-white rounded-xl font-black uppercase text-[10px] tracking-widest shadow-xl">Confirm Rejection</button></div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Classification Add Modal */}
-      {showAddClassModal && (
-        <div className="fixed inset-0 z-[110] bg-black/70 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-3xl max-w-sm w-full p-8 shadow-2xl relative">
-             <button onClick={() => setShowAddClassModal(false)} className="absolute top-6 right-6 p-2 text-gray-400"><X size={20}/></button>
-             <h2 className="text-xl font-black mb-6 dark:text-white uppercase tracking-tight">Add Classification</h2>
-             <div className="space-y-4">
-                <input autoFocus placeholder="e.g. Beverages" className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none font-bold text-sm dark:text-white" value={newClassName} onChange={e => setNewClassName(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleAddClassification()} />
-                <button onClick={handleAddClassification} className="w-full py-4 bg-orange-500 text-white rounded-xl font-black uppercase tracking-widest text-xs">Confirm Class</button>
-             </div>
-          </div>
-        </div>
-      )}
-
-      {/* Menu Item Form Modal */}
-      {isFormModalOpen && (
-        <div className="fixed inset-0 z-[100] bg-black/70 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-3xl max-w-2xl w-full p-8 shadow-2xl relative animate-in zoom-in fade-in duration-300 max-h-[90vh] overflow-y-auto custom-scrollbar">
-            <button onClick={() => setIsFormModalOpen(false)} className="absolute top-6 right-6 p-2 text-gray-400 hover:text-red-500 transition-colors"><X size={24} /></button>
-            <h2 className="text-2xl font-black mb-8 dark:text-white uppercase tracking-tighter">{editingItem ? 'Edit Menu Details' : 'New Dish Broadcast'}</h2>
-            
-            <form onSubmit={handleSaveItem} className="space-y-8">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <div className="space-y-6">
-                  <div>
-                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Menu Name</label>
-                    <input required type="text" className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none font-bold dark:text-white text-sm" value={formItem.name} onChange={e => setFormItem({...formItem, name: e.target.value})} placeholder="e.g. Signature Beef Burger" />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Description</label>
-                    <textarea className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none font-bold dark:text-white text-sm resize-none" rows={3} value={formItem.description} onChange={e => setFormItem({...formItem, description: e.target.value})} placeholder="Describe the ingredients and preparation..." />
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Base Cost</label>
-                      <input required type="number" step="0.01" className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none font-bold dark:text-white text-sm" value={formItem.price} onChange={e => setFormItem({...formItem, price: Number(e.target.value)})} />
-                    </div>
-                    <div>
-                      <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Classification</label>
-                      <select className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none font-bold dark:text-white text-sm appearance-none cursor-pointer" value={formItem.category} onChange={e => setFormItem({...formItem, category: e.target.value})}>
-                        {categories.filter(c => c !== 'All').map(cat => <option key={cat} value={cat}>{cat}</option>)}
-                      </select>
-                    </div>
-                  </div>
-                </div>
-                
-                <div className="space-y-6">
-                   <div>
-                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Visual Asset</label>
-                    <div className="relative group aspect-video rounded-2xl overflow-hidden bg-gray-50 dark:bg-gray-700 border-2 border-dashed border-gray-200 dark:border-gray-600 flex items-center justify-center cursor-pointer mb-4" onClick={() => fileInputRef.current?.click()}>
-                      {formItem.image ? (
-                        <img src={formItem.image} className="w-full h-full object-cover group-hover:scale-105 transition-all" />
-                      ) : (
-                        <div className="text-center">
-                          <ImageIcon size={32} className="mx-auto text-gray-300 mb-2" />
-                          <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Upload Frame</span>
-                        </div>
-                      )}
-                      <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleImageUpload} />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1 flex items-center gap-2"><Link size={12}/> Or Image URL</label>
-                      <input type="text" className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none font-bold dark:text-white text-xs" value={formItem.image} onChange={e => setFormItem({...formItem, image: e.target.value})} placeholder="Paste link here..." />
-                    </div>
-                   </div>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pt-6 border-t dark:border-gray-700">
-                 <div>
-                   <div className="flex items-center justify-between mb-4">
-                      <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Portion Variants</label>
-                      <button type="button" onClick={handleAddSize} className="p-1.5 text-orange-500 bg-orange-50 dark:bg-orange-900/20 rounded-lg"><Plus size={16} /></button>
-                   </div>
-                   <div className="space-y-3">
-                      {formItem.sizes?.map((size, idx) => (
-                        <div key={idx} className="flex gap-2 animate-in slide-in-from-right-2 duration-300">
-                          <input type="text" className="flex-1 px-3 py-2 bg-gray-50 dark:bg-gray-700 border-none rounded-lg text-xs font-bold dark:text-white" placeholder="Portion Name" value={size.name} onChange={e => handleSizeChange(idx, 'name', e.target.value)} />
-                          <input type="number" step="0.01" className="w-24 px-3 py-2 bg-gray-50 dark:bg-gray-700 border-none rounded-lg text-xs font-bold dark:text-white" placeholder="+Price" value={size.price} onChange={e => handleSizeChange(idx, 'price', Number(e.target.value))} />
-                          <button type="button" onClick={() => handleRemoveSize(idx)} className="p-2 text-red-400 hover:bg-red-50 rounded-lg"><Trash2 size={14} /></button>
-                        </div>
-                      ))}
-                      {(!formItem.sizes || formItem.sizes.length === 0) && <p className="text-[9px] text-gray-400 italic">No variants established yet.</p>}
-                   </div>
-                 </div>
-
-                 <div className="space-y-6">
-                   <div>
-                     <div className="flex items-center justify-between mb-4">
-                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Other Variant Group</label>
-                        <button type="button" onClick={() => setFormItem({...formItem, otherVariantsEnabled: !formItem.otherVariantsEnabled})} className={`p-1 text-orange-500 rounded-lg transition-all ${formItem.otherVariantsEnabled ? 'bg-orange-500 text-white shadow-md' : 'bg-gray-100 dark:bg-gray-700 text-gray-400'}`}>
-                          {formItem.otherVariantsEnabled ? <ToggleRight size={24} /> : <ToggleLeft size={24} />}
-                        </button>
-                     </div>
-                     {formItem.otherVariantsEnabled && (
-                       <div className="space-y-4 animate-in fade-in zoom-in-95 duration-300">
-                         <div>
-                            <label className="block text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Variant Title (e.g. Toppings)</label>
-                            <input type="text" className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none font-bold dark:text-white text-xs" value={formItem.otherVariantName} onChange={e => setFormItem({...formItem, otherVariantName: e.target.value})} placeholder="Milk Choice, Toppings, etc." />
-                         </div>
-                         <div className="space-y-3">
-                           <div className="flex justify-between items-center mb-2">
-                             <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1">Options</label>
-                             <button type="button" onClick={handleAddOtherVariant} className="px-2 py-1 bg-gray-900 dark:bg-white text-white dark:text-gray-900 rounded-lg text-[9px] font-black uppercase tracking-widest flex items-center gap-1">Add Option</button>
-                           </div>
-                           {formItem.otherVariants?.map((variant, idx) => (
-                             <div key={idx} className="flex gap-2 animate-in slide-in-from-right-2 duration-300">
-                               <input type="text" className="flex-1 px-3 py-2 bg-gray-50 dark:bg-gray-700 border-none rounded-lg text-xs font-bold dark:text-white" placeholder="Option Name" value={variant.name} onChange={e => handleOtherVariantChange(idx, 'name', e.target.value)} />
-                               <input type="number" step="0.01" className="w-24 px-3 py-2 bg-gray-50 dark:bg-gray-700 border-none rounded-lg text-xs font-bold dark:text-white" placeholder="+Price" value={variant.price} onChange={e => handleOtherVariantChange(idx, 'price', Number(e.target.value))} />
-                               <button type="button" onClick={() => handleRemoveOtherVariant(idx)} className="p-2 text-red-400 hover:bg-red-50 rounded-lg"><Trash2 size={14} /></button>
-                             </div>
-                           ))}
-                         </div>
-                       </div>
-                     )}
-                   </div>
-
-                   <div>
-                     <div className="flex items-center justify-between mb-4">
-                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Thermal Options</label>
-                        <button type="button" onClick={() => setFormItem({...formItem, tempOptions: {...formItem.tempOptions!, enabled: !formItem.tempOptions?.enabled}})} className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${formItem.tempOptions?.enabled ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-400'}`}>
-                          {formItem.tempOptions?.enabled ? 'Activated' : 'Disabled'}
-                        </button>
-                     </div>
-                     {formItem.tempOptions?.enabled && (
-                       <div className="grid grid-cols-2 gap-4 animate-in fade-in zoom-in-95 duration-300">
-                          <div className="space-y-2">
-                             <div className="flex items-center gap-2 text-orange-500"><ThermometerSun size={14} /><span className="text-[9px] font-black uppercase tracking-widest">Hot Surcharge</span></div>
-                             <input type="number" step="0.01" className="w-full px-3 py-2 bg-orange-50 dark:bg-orange-900/10 border-none rounded-lg text-xs font-bold dark:text-white" value={formItem.tempOptions.hot} onChange={e => setFormItem({...formItem, tempOptions: {...formItem.tempOptions!, hot: Number(e.target.value)}})} />
-                          </div>
-                          <div className="space-y-2">
-                             <div className="flex items-center gap-2 text-blue-500"><Info size={14} /><span className="text-[9px] font-black uppercase tracking-widest">Cold Surcharge</span></div>
-                             <input type="number" step="0.01" className="w-full px-3 py-2 bg-blue-50 dark:bg-blue-900/10 border-none rounded-lg text-xs font-bold dark:text-white" value={formItem.tempOptions.cold} onChange={e => setFormItem({...formItem, tempOptions: {...formItem.tempOptions!, cold: Number(e.target.value)}})} />
-                          </div>
-                       </div>
-                     )}
-                   </div>
-                 </div>
-              </div>
-
-              <div className="pt-8 border-t dark:border-gray-700">
-                <button type="submit" className="w-full py-5 bg-orange-500 text-white rounded-[2rem] font-black uppercase tracking-[0.2em] text-xs shadow-xl shadow-orange-100 dark:shadow-none hover:bg-orange-600 transition-all active:scale-95">Confirm Dish Broadcast</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      <style>{`
-        @media print {
-          .no-print { display: none !important; }
-          body { background: white !important; }
-          .page-break-inside-avoid { page-break-inside: avoid; }
-        }
-        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
-        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #e5e7eb; border-radius: 10px; }
-      `}</style>
     </div>
   );
 };
