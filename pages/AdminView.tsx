@@ -120,10 +120,20 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
 
   const handleDownloadReport = () => {
     if (filteredReports.length === 0) return;
-    const headers = ['Order ID', 'Kitchen', 'Hub', 'Time', 'Status', 'Menu Order', 'Total Bill'];
+    const headers = ['Order ID', 'Kitchen', 'Hub', 'Table No', 'Date', 'Time', 'Status', 'Menu Order', 'Total Bill'];
     const rows = filteredReports.map(o => {
       const res = restaurants.find(r => r.id === o.restaurantId);
-      return [o.id, res?.name || 'Unknown', o.locationName || 'Unknown', new Date(o.timestamp).toLocaleString(), o.status, o.items.map(i => `${i.name} (x${i.quantity})`).join('; '), o.total.toFixed(2)];
+      return [
+        o.id, 
+        res?.name || 'Unknown', 
+        o.locationName || 'Unknown', 
+        o.tableNumber || 'N/A',
+        new Date(o.timestamp).toLocaleDateString(),
+        new Date(o.timestamp).toLocaleTimeString(),
+        o.status, 
+        o.items.map(i => `${i.name} (x${i.quantity})`).join('; '), 
+        o.total.toFixed(2)
+      ];
     });
     const csvContent = [headers, ...rows].map(e => e.join(',')).join('\n');
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -513,7 +523,10 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
                           <th className="px-8 py-3 text-left">ID</th>
                           <th className="px-8 py-3 text-left">Kitchen</th>
                           <th className="px-8 py-3 text-left">Hub</th>
+                          <th className="px-8 py-3 text-left">Table No</th>
+                          <th className="px-8 py-3 text-left">Date</th>
                           <th className="px-8 py-3 text-left">Time</th>
+                          <th className="px-8 py-3 text-left">Status</th>
                           <th className="px-8 py-3 text-right">Total Bill</th>
                         </tr>
                       </thead>
@@ -530,8 +543,11 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
                                  </div>
                               </td>
                               <td className="px-8 py-2.5 text-[10px] font-black text-gray-400 uppercase tracking-widest">{report.locationName}</td>
+                              <td className="px-8 py-2.5 text-[10px] font-black text-gray-900 dark:text-white uppercase tracking-widest">#{report.tableNumber}</td>
+                              <td className="px-8 py-2.5 text-[10px] font-black text-gray-700 dark:text-gray-300 uppercase tracking-tighter">{new Date(report.timestamp).toLocaleDateString()}</td>
+                              <td className="px-8 py-2.5 text-[9px] font-bold text-gray-500 dark:text-gray-400 uppercase">{new Date(report.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</td>
                               <td className="px-8 py-2.5">
-                                <span className="text-[10px] font-black text-gray-700 dark:text-gray-300 uppercase tracking-tighter">{new Date(report.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                <span className={`text-[8px] font-black px-2 py-0.5 rounded-full uppercase tracking-tighter ${report.status === OrderStatus.COMPLETED ? 'bg-green-100 text-green-600' : 'bg-orange-100 text-orange-600'}`}>{report.status === OrderStatus.COMPLETED ? 'Served' : report.status}</span>
                               </td>
                               <td className="px-8 py-2.5 text-right font-black dark:text-white text-[10px]">RM{report.total.toFixed(2)}</td>
                             </tr>
@@ -539,7 +555,7 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
                         })}
                         {paginatedReports.length === 0 && (
                           <tr>
-                            <td colSpan={5} className="py-20 text-center text-[10px] font-black text-gray-400 uppercase tracking-widest">No matching records found.</td>
+                            <td colSpan={8} className="py-20 text-center text-[10px] font-black text-gray-400 uppercase tracking-widest">No matching records found.</td>
                           </tr>
                         )}
                       </tbody>
@@ -646,6 +662,7 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
                       <Link size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                       <input type="text" placeholder="Paste URL or upload..." className="w-full pl-9 pr-4 py-3 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none font-bold dark:text-white text-xs" value={formVendor.logo} onChange={e => setFormVendor({...formVendor, logo: e.target.value})} />
                     </div>
+                    {/* Fixed: Use 'ref' instead of 'vendorFileInputRef' */}
                     <input type="file" ref={vendorFileInputRef} className="hidden" accept="image/*" onChange={handleVendorImageUpload} />
                   </div>
                </div>

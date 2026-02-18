@@ -1,7 +1,7 @@
 
 import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { Restaurant, Order, OrderStatus, MenuItem, MenuItemVariant } from '../types';
-import { ShoppingBag, BookOpen, BarChart3, Edit3, CheckCircle, Clock, X, Plus, Trash2, Image as ImageIcon, LayoutGrid, List, Filter, Archive, RotateCcw, Power, Eye, Upload, Hash, MessageSquare, Download, Calendar, Ban, ChevronLeft, ChevronRight, Bell, Activity, RefreshCw, Layers, Tag, Wifi, WifiOff, QrCode, Printer, ExternalLink, ThermometerSun, Info, Settings2, Menu, ToggleLeft, ToggleRight, Link } from 'lucide-react';
+import { ShoppingBag, BookOpen, BarChart3, Edit3, CheckCircle, Clock, X, Plus, Trash2, Image as ImageIcon, LayoutGrid, List, Filter, Archive, RotateCcw, Power, Eye, Upload, Hash, MessageSquare, Download, Calendar, Ban, ChevronLeft, ChevronRight, Bell, Activity, RefreshCw, Layers, Tag, Wifi, WifiOff, QrCode, Printer, ExternalLink, ThermometerSun, Info, Settings2, Menu, ToggleLeft, ToggleRight, Link, Search } from 'lucide-react';
 
 interface Props {
   restaurant: Restaurant;
@@ -57,6 +57,7 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
   const [menuStatusFilter, setMenuStatusFilter] = useState<'ACTIVE' | 'ARCHIVED'>('ACTIVE');
 
   // Report Filters & Pagination
+  const [reportSearchQuery, setReportSearchQuery] = useState('');
   const [reportStatus, setReportStatus] = useState<'ALL' | OrderStatus>('ALL');
   const [reportStart, setReportStart] = useState<string>(() => {
     const d = new Date();
@@ -144,13 +145,14 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
       const orderDate = new Date(o.timestamp).toISOString().split('T')[0];
       const matchesDate = orderDate >= reportStart && orderDate <= reportEnd;
       const matchesStatus = reportStatus === 'ALL' || o.status === reportStatus;
-      return matchesDate && matchesStatus;
+      const matchesSearch = o.id.toLowerCase().includes(reportSearchQuery.toLowerCase());
+      return matchesDate && matchesStatus && matchesSearch;
     });
-  }, [orders, reportStart, reportEnd, reportStatus]);
+  }, [orders, reportStart, reportEnd, reportStatus, reportSearchQuery]);
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [filteredReports.length, entriesPerPage, reportStatus, reportStart, reportEnd]);
+  }, [filteredReports.length, entriesPerPage, reportStatus, reportStart, reportEnd, reportSearchQuery]);
 
   const totalPages = Math.ceil(filteredReports.length / entriesPerPage);
   const paginatedReports = useMemo(() => {
@@ -160,10 +162,12 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
 
   const handleDownloadReport = () => {
     if (filteredReports.length === 0) return;
-    const headers = ['Order ID', 'Time', 'Status', 'Items', 'Total'];
+    const headers = ['Order ID', 'Table', 'Date', 'Time', 'Status', 'Items', 'Total'];
     const rows = filteredReports.map(o => [
       o.id,
-      new Date(o.timestamp).toLocaleString(),
+      o.tableNumber,
+      new Date(o.timestamp).toLocaleDateString(),
+      new Date(o.timestamp).toLocaleTimeString(),
       o.status,
       o.items.map(i => `${i.name} (x${i.quantity})`).join('; '),
       o.total.toFixed(2)
@@ -817,26 +821,61 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
             <div className="max-w-6xl mx-auto animate-in fade-in duration-500">
               <h1 className="text-2xl font-black mb-1 dark:text-white uppercase tracking-tighter">Sales Report</h1>
               <p className="text-xs text-gray-500 dark:text-gray-400 font-medium mb-8 uppercase tracking-widest">Financial performance and order history.</p>
-              <div className="bg-white dark:bg-gray-800 p-4 md:p-6 rounded-2xl border dark:border-gray-700 shadow-sm flex flex-col md:flex-row items-center gap-6 mb-8">
+              
+              <div className="bg-white dark:bg-gray-800 p-3 md:p-4 rounded-2xl border dark:border-gray-700 shadow-sm flex flex-col md:flex-row items-center gap-4 mb-6">
                 <div className="flex-1 flex flex-col sm:flex-row gap-4 w-full">
                   <div className="flex-1">
-                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Period Selection</label>
-                    <div className="flex items-center gap-2"><Calendar size={14} className="text-orange-500 shrink-0" /><input type="date" value={reportStart} onChange={(e) => setReportStart(e.target.value)} className="flex-1 bg-gray-50 dark:bg-gray-700 border-none rounded-lg text-[10px] font-black dark:text-white p-2" /><span className="text-gray-400 font-black">to</span><input type="date" value={reportEnd} onChange={(e) => setReportEnd(e.target.value)} className="flex-1 bg-gray-50 dark:bg-gray-700 border-none rounded-lg text-[10px] font-black dark:text-white p-2" /></div>
+                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 ml-1">Period Selection</label>
+                    <div className="flex items-center gap-2"><Calendar size={14} className="text-orange-500 shrink-0" /><input type="date" value={reportStart} onChange={(e) => setReportStart(e.target.value)} className="flex-1 bg-gray-50 dark:bg-gray-700 border-none rounded-lg text-[10px] font-black dark:text-white p-1.5" /><span className="text-gray-400 font-black">to</span><input type="date" value={reportEnd} onChange={(e) => setReportEnd(e.target.value)} className="flex-1 bg-gray-50 dark:bg-gray-700 border-none rounded-lg text-[10px] font-black dark:text-white p-1.5" /></div>
                   </div>
-                  <div className="w-full sm:w-48"><label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Order Outcome</label><select value={reportStatus} onChange={(e) => setReportStatus(e.target.value as any)} className="w-full p-2 bg-gray-50 dark:bg-gray-700 border-none rounded-lg text-[10px] font-black dark:text-white appearance-none cursor-pointer"><option value="ALL">All Outcomes</option><option value={OrderStatus.COMPLETED}>Served</option><option value={OrderStatus.CANCELLED}>Rejected</option></select></div>
+                  <div className="w-full sm:w-48"><label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 ml-1">Order Outcome</label><select value={reportStatus} onChange={(e) => setReportStatus(e.target.value as any)} className="w-full p-1.5 bg-gray-50 dark:bg-gray-700 border-none rounded-lg text-[10px] font-black dark:text-white appearance-none cursor-pointer"><option value="ALL">All Outcomes</option><option value={OrderStatus.COMPLETED}>Served</option><option value={OrderStatus.CANCELLED}>Rejected</option></select></div>
                 </div>
-                <button onClick={handleDownloadReport} className="w-full md:w-auto px-6 py-3 bg-black text-white dark:bg-white dark:text-gray-900 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-orange-500 transition-all"><Download size={18} /> Export CSV</button>
+                <button onClick={handleDownloadReport} className="w-full md:w-auto px-6 py-2 bg-black text-white dark:bg-white dark:text-gray-900 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-orange-500 transition-all"><Download size={16} /> Export CSV</button>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 md:gap-6 mb-8">
-                <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl border dark:border-gray-700 shadow-sm"><p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">Total Revenue</p><p className="text-2xl md:text-3xl font-black dark:text-white">RM{filteredReports.filter(o => o.status === OrderStatus.COMPLETED).reduce((acc, o) => acc + o.total, 0).toFixed(2)}</p></div>
-                <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl border dark:border-gray-700 shadow-sm"><p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">Order Volume</p><p className="text-2xl md:text-3xl font-black dark:text-white">{filteredReports.length}</p></div>
-                <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl border dark:border-gray-700 shadow-sm"><p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">Efficiency</p><p className="text-2xl md:text-3xl font-black text-green-500">{filteredReports.length > 0 ? Math.round((filteredReports.filter(r => r.status === OrderStatus.COMPLETED).length / filteredReports.length) * 100) : 0}%</p></div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 md:gap-4 mb-6">
+                <div className="bg-white dark:bg-gray-800 p-3 md:p-4 rounded-2xl border dark:border-gray-700 shadow-sm"><p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-0.5">Total Revenue</p><p className="text-xl md:text-2xl font-black dark:text-white">RM{filteredReports.filter(o => o.status === OrderStatus.COMPLETED).reduce((acc, o) => acc + o.total, 0).toFixed(2)}</p></div>
+                <div className="bg-white dark:bg-gray-800 p-3 md:p-4 rounded-2xl border dark:border-gray-700 shadow-sm"><p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-0.5">Order Volume</p><p className="text-xl md:text-2xl font-black dark:text-white">{filteredReports.length}</p></div>
+                <div className="bg-white dark:bg-gray-800 p-3 md:p-4 rounded-2xl border dark:border-gray-700 shadow-sm"><p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-0.5">Efficiency</p><p className="text-xl md:text-2xl font-black text-green-500">{filteredReports.length > 0 ? Math.round((filteredReports.filter(r => r.status === OrderStatus.COMPLETED).length / filteredReports.length) * 100) : 0}%</p></div>
               </div>
+
               <div className="bg-white dark:bg-gray-800 rounded-2xl border dark:border-gray-700 overflow-hidden shadow-sm">
+                <div className="p-4 border-b dark:border-gray-700">
+                  <div className="relative max-w-sm">
+                    <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                    <input 
+                      type="text" 
+                      placeholder="Search Order ID..." 
+                      value={reportSearchQuery}
+                      onChange={(e) => setReportSearchQuery(e.target.value)}
+                      className="w-full pl-10 pr-4 py-2 bg-gray-50 dark:bg-gray-700 border-none rounded-xl text-xs font-black dark:text-white outline-none focus:ring-1 focus:ring-orange-500" 
+                    />
+                  </div>
+                </div>
                 <div className="overflow-x-auto">
                   <table className="w-full">
-                    <thead className="bg-gray-50 dark:bg-gray-700/50 text-gray-400 text-[10px] font-black uppercase tracking-widest"><tr><th className="px-8 py-4 text-left">Order ID</th><th className="px-8 py-4 text-left">Time</th><th className="px-8 py-4 text-left">Status</th><th className="px-8 py-4 text-right">Bill</th></tr></thead>
-                    <tbody className="divide-y dark:divide-gray-700">{paginatedReports.map(report => (<tr key={report.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors"><td className="px-8 py-4 text-[10px] font-black dark:text-white uppercase tracking-widest">{report.id}</td><td className="px-8 py-4"><p className="text-[10px] font-black text-gray-700 dark:text-gray-300 uppercase tracking-tighter">{new Date(report.timestamp).toLocaleDateString()}</p><p className="text-[8px] text-gray-400 font-bold uppercase">{new Date(report.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p></td><td className="px-8 py-4"><span className={`text-[8px] font-black px-2 py-0.5 rounded-full uppercase tracking-tighter ${report.status === OrderStatus.COMPLETED ? 'bg-green-100 text-green-600' : 'bg-orange-100 text-orange-600'}`}>{report.status === OrderStatus.COMPLETED ? 'Served' : report.status}</span></td><td className="px-8 py-4 text-right font-black dark:text-white text-xs">RM{report.total.toFixed(2)}</td></tr>))}</tbody>
+                    <thead className="bg-gray-50 dark:bg-gray-700/50 text-gray-400 text-[10px] font-black uppercase tracking-widest">
+                      <tr>
+                        <th className="px-6 py-4 text-left">Order ID</th>
+                        <th className="px-6 py-4 text-left">Table</th>
+                        <th className="px-6 py-4 text-left">Date</th>
+                        <th className="px-6 py-4 text-left">Time</th>
+                        <th className="px-6 py-4 text-left">Status</th>
+                        <th className="px-6 py-4 text-right">Bill</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y dark:divide-gray-700">
+                      {paginatedReports.map(report => (
+                        <tr key={report.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors">
+                          <td className="px-6 py-4 text-[10px] font-black dark:text-white uppercase tracking-widest">{report.id}</td>
+                          <td className="px-6 py-4 text-[10px] font-black text-gray-900 dark:text-white">#{report.tableNumber}</td>
+                          <td className="px-6 py-4 text-[10px] font-black text-gray-700 dark:text-gray-300 uppercase tracking-tighter">{new Date(report.timestamp).toLocaleDateString()}</td>
+                          <td className="px-6 py-4 text-[9px] font-bold text-gray-500 dark:text-gray-400 uppercase">{new Date(report.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</td>
+                          <td className="px-6 py-4"><span className={`text-[8px] font-black px-2 py-0.5 rounded-full uppercase tracking-tighter ${report.status === OrderStatus.COMPLETED ? 'bg-green-100 text-green-600' : 'bg-orange-100 text-orange-600'}`}>{report.status === OrderStatus.COMPLETED ? 'Served' : report.status}</span></td>
+                          <td className="px-6 py-4 text-right font-black dark:text-white text-xs">RM{report.total.toFixed(2)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
                   </table>
                 </div>
               </div>
@@ -863,7 +902,7 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
       {/* Classification Add Modal */}
       {showAddClassModal && (
         <div className="fixed inset-0 z-[110] bg-black/70 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-3xl max-w-sm w-full p-8 shadow-2xl relative">
+          <div className="bg-white dark:bg-gray-800 rounded-3xl max-sm w-full p-8 shadow-2xl relative">
              <button onClick={() => setShowAddClassModal(false)} className="absolute top-6 right-6 p-2 text-gray-400"><X size={20}/></button>
              <h2 className="text-xl font-black mb-6 dark:text-white uppercase tracking-tight">Add Classification</h2>
              <div className="space-y-4">
