@@ -15,10 +15,9 @@ interface Props {
   onUpdateLocation: (area: Area) => void;
   onDeleteLocation: (areaId: string) => void;
   onRemoveVendorFromHub: (restaurantId: string) => void;
-  onUpdateOrder: (orderId: string, status: OrderStatus, reason?: string, note?: string) => void;
 }
 
-const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, onAddVendor, onUpdateVendor, onImpersonateVendor, onAddLocation, onUpdateLocation, onDeleteLocation, onRemoveVendorFromHub, onUpdateOrder }) => {
+const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, onAddVendor, onUpdateVendor, onImpersonateVendor, onAddLocation, onUpdateLocation, onDeleteLocation, onRemoveVendorFromHub }) => {
   const [activeTab, setActiveTab] = useState<'VENDORS' | 'LOCATIONS' | 'REPORTS' | 'SYSTEM'>('VENDORS');
   const [searchQuery, setSearchQuery] = useState('');
   const [hubSearchQuery, setHubSearchQuery] = useState('');
@@ -73,12 +72,6 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
   const [entriesPerPage, setEntriesPerPage] = useState<number>(25);
   const [currentPage, setCurrentPage] = useState<number>(1);
 
-  // System Troubleshooting State
-  const [systemSearchId, setSystemSearchId] = useState('');
-  const foundTroubleshootOrder = useMemo(() => {
-    return orders.find(o => o.id.toLowerCase() === systemSearchId.toLowerCase());
-  }, [orders, systemSearchId]);
-
   const filteredVendors = useMemo(() => {
     return vendors.filter(vendor => {
       const res = restaurants.find(r => r.id === vendor.restaurantId);
@@ -112,8 +105,7 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
       const res = restaurants.find(r => r.id === o.restaurantId);
       const searchLower = reportSearchQuery.toLowerCase();
       const matchesSearch = o.id.toLowerCase().includes(searchLower) || 
-                           (res?.name.toLowerCase().includes(searchLower) || false) ||
-                           (o.tableNumber?.toLowerCase().includes(searchLower) || false);
+                           (res?.name.toLowerCase().includes(searchLower) || false);
       
       return matchesDate && matchesStatus && matchesSearch && matchesVendor && matchesHub;
     });
@@ -128,10 +120,10 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
 
   const handleDownloadReport = () => {
     if (filteredReports.length === 0) return;
-    const headers = ['Order ID', 'Kitchen', 'Hub', 'Table', 'Time', 'Status', 'Menu Order', 'Total Bill'];
+    const headers = ['Order ID', 'Kitchen', 'Hub', 'Time', 'Status', 'Menu Order', 'Total Bill'];
     const rows = filteredReports.map(o => {
       const res = restaurants.find(r => r.id === o.restaurantId);
-      return [o.id, res?.name || 'Unknown', o.locationName || 'Unknown', o.tableNumber || 'N/A', new Date(o.timestamp).toLocaleString(), o.status, o.items.map(i => `${i.name} (x${i.quantity})`).join('; '), o.total.toFixed(2)];
+      return [o.id, res?.name || 'Unknown', o.locationName || 'Unknown', new Date(o.timestamp).toLocaleString(), o.status, o.items.map(i => `${i.name} (x${i.quantity})`).join('; '), o.total.toFixed(2)];
     });
     const csvContent = [headers, ...rows].map(e => e.join(',')).join('\n');
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -410,7 +402,7 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
                   <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
                   <input 
                     type="text" 
-                    placeholder="Search ID, Table, or Kitchen..." 
+                    placeholder="ID or Kitchen..." 
                     className="w-full h-[36px] pl-10 pr-4 py-2 bg-white dark:bg-gray-900 border dark:border-gray-700 rounded-xl text-[10px] font-black uppercase outline-none focus:ring-1 focus:ring-orange-500 transition-all dark:text-white"
                     value={reportSearchQuery}
                     onChange={e => {setReportSearchQuery(e.target.value); setCurrentPage(1);}}
@@ -421,7 +413,7 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
                   disabled={filteredReports.length === 0} 
                   className="h-[36px] px-4 py-2 bg-black dark:bg-white text-white dark:text-gray-900 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center gap-2 hover:bg-orange-500 hover:text-white transition-all shadow-lg whitespace-nowrap"
                 >
-                  <Download size={14} /> Download
+                  <Download size={14} /> Download report
                 </button>
               </div>
             </div>
@@ -429,6 +421,7 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
             <div className="p-2 md:p-4">
               <div className="bg-gray-50 dark:bg-gray-900/50 p-3 rounded-2xl border dark:border-gray-700 mb-4 space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                  {/* Period selection */}
                   <div className="space-y-1">
                     <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Period Selection</label>
                     <div className="flex items-center gap-2 bg-white dark:bg-gray-800 p-2 rounded-xl border dark:border-gray-600">
@@ -438,33 +431,53 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
                       <input type="date" value={reportEnd} onChange={(e) => {setReportEnd(e.target.value); setCurrentPage(1);}} className="flex-1 bg-transparent border-none text-[10px] font-black dark:text-white p-0 outline-none" />
                     </div>
                   </div>
+
+                  {/* Vendor Filter */}
                   <div className="space-y-1">
                     <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Filter by Kitchen</label>
                     <div className="relative">
                       <Store size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
-                      <select value={reportVendor} onChange={(e) => {setReportVendor(e.target.value); setCurrentPage(1);}} className="w-full pl-9 pr-4 py-2 bg-white dark:bg-gray-800 border dark:border-gray-600 rounded-xl text-[10px] font-black dark:text-white appearance-none outline-none cursor-pointer">
+                      <select 
+                        value={reportVendor} 
+                        onChange={(e) => {setReportVendor(e.target.value); setCurrentPage(1);}}
+                        className="w-full pl-9 pr-4 py-2 bg-white dark:bg-gray-800 border dark:border-gray-600 rounded-xl text-[10px] font-black dark:text-white appearance-none cursor-pointer outline-none"
+                      >
                         <option value="ALL">All Kitchens</option>
                         {restaurants.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
                       </select>
                     </div>
                   </div>
+
+                  {/* Hub Filter */}
                   <div className="space-y-1">
                     <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Filter by Hub</label>
                     <div className="relative">
                       <MapPin size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
-                      <select value={reportHub} onChange={(e) => {setReportHub(e.target.value); setCurrentPage(1);}} className="w-full pl-9 pr-4 py-2 bg-white dark:bg-gray-800 border dark:border-gray-600 rounded-xl text-[10px] font-black dark:text-white appearance-none outline-none cursor-pointer">
+                      <select 
+                        value={reportHub} 
+                        onChange={(e) => {setReportHub(e.target.value); setCurrentPage(1);}}
+                        className="w-full pl-9 pr-4 py-2 bg-white dark:bg-gray-800 border dark:border-gray-600 rounded-xl text-[10px] font-black dark:text-white appearance-none cursor-pointer outline-none"
+                      >
                         <option value="ALL">All Hubs</option>
                         {locations.map(l => <option key={l.id} value={l.name}>{l.name}</option>)}
                       </select>
                     </div>
                   </div>
+
+                  {/* Status Filter */}
                   <div className="space-y-1">
                     <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Order Outcome</label>
                     <div className="relative">
                       <Filter size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
-                      <select value={reportStatus} onChange={(e) => {setReportStatus(e.target.value as any); setCurrentPage(1);}} className="w-full pl-9 pr-4 py-2 bg-white dark:bg-gray-800 border dark:border-gray-600 rounded-xl text-[10px] font-black dark:text-white appearance-none outline-none cursor-pointer">
+                      <select 
+                        value={reportStatus} 
+                        onChange={(e) => {setReportStatus(e.target.value as any); setCurrentPage(1);}}
+                        className="w-full pl-9 pr-4 py-2 bg-white dark:bg-gray-800 border dark:border-gray-600 rounded-xl text-[10px] font-black dark:text-white appearance-none cursor-pointer outline-none"
+                      >
                         <option value="ALL">All Outcomes</option>
                         <option value={OrderStatus.COMPLETED}>Served</option>
+                        <option value={OrderStatus.PENDING}>Pending</option>
+                        <option value={OrderStatus.ONGOING}>Ongoing</option>
                         <option value={OrderStatus.CANCELLED}>Rejected</option>
                       </select>
                     </div>
@@ -472,6 +485,26 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
                 </div>
               </div>
 
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 md:gap-6 mb-4">
+                <div className="bg-white dark:bg-gray-800 p-2 md:p-3 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
+                  <p className="text-gray-400 dark:text-gray-500 text-[8px] md:text-[9px] font-black mb-1 uppercase tracking-widest">Platform Revenue</p>
+                  <p className="text-lg md:text-xl font-black text-gray-900 dark:text-white tracking-tighter leading-none">
+                    RM{filteredReports.filter(o => o.status === OrderStatus.COMPLETED).reduce((acc, o) => acc + o.total, 0).toFixed(2)}
+                  </p>
+                </div>
+                <div className="bg-white dark:bg-gray-800 p-2 md:p-3 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
+                  <p className="text-gray-400 dark:text-gray-500 text-[8px] md:text-[9px] font-black mb-1 uppercase tracking-widest">Filtered Orders</p>
+                  <p className="text-lg md:text-xl font-black text-gray-900 dark:text-white tracking-tighter leading-none">{filteredReports.length}</p>
+                </div>
+                <div className="bg-white dark:bg-gray-800 p-2 md:p-3 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
+                  <p className="text-gray-400 dark:text-gray-500 text-[8px] md:text-[9px] font-black mb-1 uppercase tracking-widest">Global Health</p>
+                  <p className="text-lg md:text-xl font-black text-green-500 tracking-tighter leading-none">
+                    {filteredReports.length > 0 ? Math.round((filteredReports.filter(r => r.status === OrderStatus.COMPLETED).length / filteredReports.length) * 100) : 0}%
+                  </p>
+                </div>
+              </div>
+
+              <h3 className="text-xs font-black dark:text-white uppercase tracking-widest mb-3 ml-1">All Order</h3>
               <div className="rounded-2xl border border-gray-100 dark:border-gray-700 overflow-hidden shadow-sm">
                 <div className="overflow-x-auto">
                     <table className="w-full">
@@ -479,10 +512,9 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
                         <tr>
                           <th className="px-8 py-3 text-left">ID</th>
                           <th className="px-8 py-3 text-left">Kitchen</th>
-                          <th className="px-8 py-3 text-left">Hub/Table</th>
+                          <th className="px-8 py-3 text-left">Hub</th>
                           <th className="px-8 py-3 text-left">Time</th>
-                          <th className="px-8 py-3 text-center">Status</th>
-                          <th className="px-8 py-3 text-right">Bill</th>
+                          <th className="px-8 py-3 text-right">Total Bill</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y dark:divide-gray-700">
@@ -497,114 +529,313 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
                                    <span className="text-[10px] font-black dark:text-white uppercase tracking-tight truncate max-w-[80px]">{res?.name}</span>
                                  </div>
                               </td>
-                              <td className="px-8 py-2.5">
-                                <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest block">{report.locationName}</span>
-                                <span className="text-[9px] font-black text-orange-500 uppercase tracking-tighter">Table {report.tableNumber || 'N/A'}</span>
-                              </td>
+                              <td className="px-8 py-2.5 text-[10px] font-black text-gray-400 uppercase tracking-widest">{report.locationName}</td>
                               <td className="px-8 py-2.5">
                                 <span className="text-[10px] font-black text-gray-700 dark:text-gray-300 uppercase tracking-tighter">{new Date(report.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                              </td>
-                              <td className="px-8 py-2.5 text-center">
-                                <span className={`text-[8px] font-black px-2 py-0.5 rounded-full uppercase tracking-tighter ${report.status === OrderStatus.COMPLETED ? 'bg-green-100 text-green-600' : report.status === OrderStatus.CANCELLED ? 'bg-red-100 text-red-600' : 'bg-orange-100 text-orange-600'}`}>
-                                  {report.status}
-                                </span>
                               </td>
                               <td className="px-8 py-2.5 text-right font-black dark:text-white text-[10px]">RM{report.total.toFixed(2)}</td>
                             </tr>
                           );
                         })}
+                        {paginatedReports.length === 0 && (
+                          <tr>
+                            <td colSpan={5} className="py-20 text-center text-[10px] font-black text-gray-400 uppercase tracking-widest">No matching records found.</td>
+                          </tr>
+                        )}
                       </tbody>
                     </table>
                 </div>
               </div>
 
+              {/* Pagination Controls */}
               {totalPages > 1 && (
-                <div className="mt-8 flex items-center justify-center gap-2 overflow-x-auto py-2">
-                  <button onClick={() => setCurrentPage(1)} disabled={currentPage === 1} className="p-2 bg-gray-100 dark:bg-gray-800 rounded-lg text-gray-400 hover:text-orange-500 disabled:opacity-30"><ChevronFirst size={16} /></button>
-                  <button onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))} disabled={currentPage === 1} className="p-2 bg-gray-100 dark:bg-gray-800 rounded-lg text-gray-400 hover:text-orange-500 disabled:opacity-30"><ChevronLeft size={16} /></button>
-                  <span className="text-[10px] font-black text-gray-500 uppercase">Page {currentPage} / {totalPages}</span>
-                  <button onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))} disabled={currentPage === totalPages} className="p-2 bg-gray-100 dark:bg-gray-800 rounded-lg text-gray-400 hover:text-orange-500 disabled:opacity-30"><ChevronRight size={16} /></button>
-                  <button onClick={() => setCurrentPage(totalPages)} disabled={currentPage === totalPages} className="p-2 bg-gray-100 dark:bg-gray-800 rounded-lg text-gray-400 hover:text-orange-500 disabled:opacity-30"><ChevronLast size={16} /></button>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {activeTab === 'SYSTEM' && (
-          <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <div className="bg-white dark:bg-gray-800 rounded-3xl p-8 border dark:border-gray-700 shadow-sm">
-              <div className="flex items-center gap-3 mb-8">
-                <div className="w-12 h-12 bg-red-50 dark:bg-red-900/20 text-red-500 rounded-2xl flex items-center justify-center"><AlertCircle size={28} /></div>
-                <div>
-                  <h3 className="text-2xl font-black dark:text-white uppercase tracking-tighter">Order Troubleshooter</h3>
-                  <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Manual status override for platform issues</p>
-                </div>
-              </div>
-              
-              <div className="max-w-md">
-                <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">Search Order Number</label>
-                <div className="relative">
-                  <Hash size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
-                  <input 
-                    type="text" 
-                    placeholder="e.g. LPP0000017" 
-                    className="w-full pl-11 pr-4 py-3.5 bg-gray-50 dark:bg-gray-700 border-none rounded-2xl focus:ring-2 focus:ring-orange-500 dark:text-white font-bold outline-none uppercase" 
-                    value={systemSearchId} 
-                    onChange={e => setSystemSearchId(e.target.value)}
-                  />
-                </div>
-              </div>
-
-              {foundTroubleshootOrder ? (
-                <div className="mt-8 p-6 bg-orange-50 dark:bg-orange-900/10 border border-orange-200 dark:border-orange-900/20 rounded-2xl animate-in zoom-in duration-300">
-                  <div className="flex flex-col md:flex-row justify-between gap-6">
-                    <div className="space-y-4">
-                      <div>
-                        <span className="text-[10px] font-black text-orange-600 dark:text-orange-400 uppercase tracking-widest block mb-1">Found Order</span>
-                        <h4 className="text-2xl font-black dark:text-white uppercase tracking-tighter">{foundTroubleshootOrder.id}</h4>
-                      </div>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Kitchen</p>
-                          <p className="text-xs font-black dark:text-white">{restaurants.find(r => r.id === foundTroubleshootOrder.restaurantId)?.name || 'N/A'}</p>
-                        </div>
-                        <div>
-                          <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Current Status</p>
-                          <p className="text-xs font-black text-orange-600 uppercase tracking-tighter">{foundTroubleshootOrder.status}</p>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex flex-col justify-end gap-2 w-full md:w-48">
-                      <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Change Status To</p>
-                      <div className="grid grid-cols-1 gap-2">
-                        {Object.values(OrderStatus).map(status => (
-                          <button 
-                            key={status} 
-                            onClick={() => {
-                              if(confirm(`Force update ${foundTroubleshootOrder.id} to ${status}?`)) {
-                                onUpdateOrder(foundTroubleshootOrder.id, status, 'Admin Override', 'Manual fix via System Tab');
-                              }
-                            }}
-                            className={`py-2 px-4 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${foundTroubleshootOrder.status === status ? 'bg-orange-500 text-white cursor-default' : 'bg-white dark:bg-gray-800 text-gray-500 hover:bg-gray-100'}`}
-                          >
-                            {status}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
+                <div className="mt-8 flex items-center justify-center gap-2 overflow-x-auto py-2 no-print">
+                  <button 
+                    onClick={() => setCurrentPage(1)} 
+                    disabled={currentPage === 1}
+                    className="p-2 bg-gray-100 dark:bg-gray-800 rounded-lg text-gray-400 hover:text-orange-500 disabled:opacity-30 transition-all"
+                  >
+                    <ChevronFirst size={16} />
+                  </button>
+                  <button 
+                    onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))} 
+                    disabled={currentPage === 1}
+                    className="p-2 bg-gray-100 dark:bg-gray-800 rounded-lg text-gray-400 hover:text-orange-500 disabled:opacity-30 transition-all"
+                  >
+                    <ChevronLeft size={16} />
+                  </button>
+                  
+                  <div className="flex items-center gap-1">
+                    {Array.from({ length: totalPages }, (_, i) => i + 1)
+                      .filter(p => p === 1 || p === totalPages || (p >= currentPage - 2 && p <= currentPage + 2))
+                      .map((p, i, arr) => {
+                        const showEllipsis = i > 0 && p !== arr[i-1] + 1;
+                        return (
+                          <React.Fragment key={p}>
+                            {showEllipsis && <span className="text-gray-400 px-1">...</span>}
+                            <button
+                              onClick={() => setCurrentPage(p)}
+                              className={`w-8 h-8 rounded-lg text-[10px] font-black transition-all ${
+                                currentPage === p 
+                                ? 'bg-orange-500 text-white shadow-lg' 
+                                : 'bg-gray-100 dark:bg-gray-800 text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-700'
+                              }`}
+                            >
+                              {p}
+                            </button>
+                          </React.Fragment>
+                        );
+                      })
+                    }
                   </div>
-                </div>
-              ) : systemSearchId && (
-                <div className="mt-8 flex items-center gap-3 text-gray-400 animate-in fade-in duration-300">
-                  <XCircle size={20} />
-                  <p className="text-xs font-black uppercase tracking-widest">Order not found. Verify the ID.</p>
+
+                  <button 
+                    onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))} 
+                    disabled={currentPage === totalPages}
+                    className="p-2 bg-gray-100 dark:bg-gray-800 rounded-lg text-gray-400 hover:text-orange-500 disabled:opacity-30 transition-all"
+                  >
+                    <ChevronRight size={16} />
+                  </button>
+                  <button 
+                    onClick={() => setCurrentPage(totalPages)} 
+                    disabled={currentPage === totalPages}
+                    className="p-2 bg-gray-100 dark:bg-gray-800 rounded-lg text-gray-400 hover:text-orange-500 disabled:opacity-30 transition-all"
+                  >
+                    <ChevronLast size={16} />
+                  </button>
                 </div>
               )}
             </div>
           </div>
         )}
       </div>
+
+      {/* MODALS SECTION */}
+
+      {/* Vendor Registration/Edit Modal */}
+      {isModalOpen && (
+        <div className="fixed inset-0 z-[100] bg-black/70 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-3xl max-w-2xl w-full p-8 shadow-2xl relative animate-in zoom-in fade-in duration-300">
+            <button onClick={() => setIsModalOpen(false)} className="absolute top-6 right-6 p-2 text-gray-400 hover:text-red-500 transition-colors"><X size={24} /></button>
+            <h2 className="text-2xl font-black mb-8 dark:text-white uppercase tracking-tighter">{editingVendor ? 'Modify Vendor' : 'New Kitchen Signal'}</h2>
+            <form onSubmit={handleSubmitVendor} className="grid grid-cols-1 md:grid-cols-2 gap-6">
+               {/* Kitchen Name (1) & Assign Hub (2) */}
+               <div>
+                 <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Kitchen Name</label>
+                 <input required type="text" className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none font-bold dark:text-white text-sm" value={formVendor.restaurantName} onChange={e => setFormVendor({...formVendor, restaurantName: e.target.value})} />
+               </div>
+               <div>
+                 <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Assign to Hub</label>
+                 <select required className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none font-bold dark:text-white text-sm appearance-none cursor-pointer" value={formVendor.location} onChange={e => setFormVendor({...formVendor, location: e.target.value})}>
+                   <option value="">Select a Hub</option>
+                   {locations.filter(l => l.isActive !== false).map(loc => <option key={loc.id} value={loc.name}>{loc.name}</option>)}
+                 </select>
+               </div>
+
+               {/* Logo URL (3) & Contact Phone (4) */}
+               <div className="space-y-4">
+                  <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Kitchen Logo (Asset)</label>
+                  <div className="flex gap-2">
+                    <div 
+                      onClick={() => vendorFileInputRef.current?.click()}
+                      className="w-12 h-12 bg-orange-50 dark:bg-orange-900/20 text-orange-500 rounded-xl flex items-center justify-center border-2 border-dashed border-orange-200 cursor-pointer hover:bg-orange-100 transition-colors shrink-0"
+                    >
+                      {formVendor.logo ? <img src={formVendor.logo} className="w-full h-full object-cover rounded-lg" /> : <Upload size={18} />}
+                    </div>
+                    <div className="flex-1 relative">
+                      <Link size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                      <input type="text" placeholder="Paste URL or upload..." className="w-full pl-9 pr-4 py-3 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none font-bold dark:text-white text-xs" value={formVendor.logo} onChange={e => setFormVendor({...formVendor, logo: e.target.value})} />
+                    </div>
+                    <input type="file" ref={vendorFileInputRef} className="hidden" accept="image/*" onChange={handleVendorImageUpload} />
+                  </div>
+               </div>
+               <div>
+                 <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Contact Phone No.</label>
+                 <input type="tel" className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none font-bold dark:text-white text-sm" value={formVendor.phone} onChange={e => setFormVendor({...formVendor, phone: e.target.value})} />
+               </div>
+
+               {/* Contact Email (5) & Vendor Username (6) */}
+               <div>
+                 <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Contact Email</label>
+                 <input type="email" className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none font-bold dark:text-white text-sm" value={formVendor.email} onChange={e => setFormVendor({...formVendor, email: e.target.value})} />
+               </div>
+               <div>
+                 <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Vendor Username</label>
+                 <input required type="text" className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none font-bold dark:text-white text-sm" value={formVendor.username} onChange={e => setFormVendor({...formVendor, username: e.target.value})} />
+               </div>
+
+               {/* Password (7) */}
+               <div className="md:col-span-2">
+                 <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Secret Key (Password)</label>
+                 <div className="relative">
+                   <input required type={showPassword ? "text" : "password"} className="w-full pl-4 pr-11 py-3 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none font-bold dark:text-white text-sm" value={formVendor.password} onChange={e => setFormVendor({...formVendor, password: e.target.value})} />
+                   <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">{showPassword ? <EyeOff size={18} /> : <Eye size={18} />}</button>
+                 </div>
+               </div>
+
+               <div className="md:col-span-2 pt-4">
+                  <button type="submit" className="w-full py-4 bg-orange-500 text-white rounded-2xl font-black uppercase tracking-widest text-xs shadow-xl hover:bg-orange-600 transition-all active:scale-95">Save Changes</button>
+               </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Hub Add/Edit Modal */}
+      {isAreaModalOpen && (
+        <div className="fixed inset-0 z-[100] bg-black/70 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-3xl max-w-2xl w-full p-8 shadow-2xl relative animate-in zoom-in fade-in duration-300">
+             <button onClick={() => setIsAreaModalOpen(false)} className="absolute top-6 right-6 p-2 text-gray-400 hover:text-red-500 transition-colors"><X size={24} /></button>
+             <h2 className="text-2xl font-black mb-8 dark:text-white uppercase tracking-tighter">{editingArea ? 'Modify Hub' : 'Register New Hub'}</h2>
+             <form onSubmit={handleHubSubmit} className="space-y-6">
+                <div>
+                   <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Hub Name</label>
+                   <input required type="text" className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none font-bold dark:text-white text-sm" value={formArea.name} onChange={e => setFormArea({...formArea, name: e.target.value})} />
+                </div>
+                <div className="grid grid-cols-2 gap-6">
+                   <div>
+                      <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">City</label>
+                      <input required type="text" className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none font-bold dark:text-white text-sm" value={formArea.city} onChange={e => setFormArea({...formArea, city: e.target.value})} />
+                   </div>
+                   <div>
+                      <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">State</label>
+                      <input required type="text" className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none font-bold dark:text-white text-sm" value={formArea.state} onChange={e => setFormArea({...formArea, state: e.target.value})} />
+                   </div>
+                </div>
+                <div className="grid grid-cols-2 gap-6">
+                   <div>
+                      <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Short Code</label>
+                      <input required type="text" maxLength={3} placeholder="e.g. SF" className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none font-bold dark:text-white text-sm uppercase" value={formArea.code} onChange={e => setFormArea({...formArea, code: e.target.value.toUpperCase()})} />
+                   </div>
+                   <div>
+                      <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Hub Type</label>
+                      <div className="flex bg-gray-50 dark:bg-gray-700 p-1 rounded-xl">
+                        <button type="button" onClick={() => setFormArea({...formArea, type: 'MULTI'})} className={`flex-1 py-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${formArea.type === 'MULTI' ? 'bg-white dark:bg-gray-600 shadow-sm text-orange-500' : 'text-gray-400'}`}>Multi</button>
+                        <button type="button" onClick={() => setFormArea({...formArea, type: 'SINGLE'})} className={`flex-1 py-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${formArea.type === 'SINGLE' ? 'bg-white dark:bg-gray-600 shadow-sm text-orange-500' : 'text-gray-400'}`}>Single</button>
+                      </div>
+                   </div>
+                </div>
+                <div className="pt-4 flex gap-4">
+                   {editingArea && (
+                     <button type="button" onClick={() => { if(confirm('Delete Hub?')) onDeleteLocation(editingArea.id); setIsAreaModalOpen(false); }} className="p-3 text-red-500 bg-red-50 dark:bg-red-900/10 rounded-xl hover:bg-red-500 hover:text-white transition-all"><Trash2 size={24} /></button>
+                   )}
+                   <button type="submit" className="flex-1 py-4 bg-orange-500 text-white rounded-2xl font-black uppercase tracking-widest text-xs shadow-xl">Confirm Hub Data</button>
+                </div>
+             </form>
+          </div>
+        </div>
+      )}
+
+      {/* QR Generator Modal (Hub Specific) */}
+      {generatingQrHub && (
+        <div className="fixed inset-0 z-[110] bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-3xl max-w-4xl w-full p-8 shadow-2xl relative animate-in zoom-in duration-300">
+             <button onClick={() => setGeneratingQrHub(null)} className="absolute top-6 right-6 p-2 text-gray-400 hover:text-red-500 transition-colors no-print"><X size={24} /></button>
+             
+             <div className="no-print">
+               <h2 className="text-2xl font-black mb-1 dark:text-white uppercase tracking-tighter">Hub QR Factory</h2>
+               <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-8">Generating for: {generatingQrHub.name}</p>
+               
+               <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
+                 <div className="bg-gray-50 dark:bg-gray-700/50 p-6 rounded-2xl space-y-4">
+                    <div>
+                       <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Range Strategy</label>
+                       <div className="flex bg-white dark:bg-gray-800 p-1 rounded-xl">
+                          <button onClick={() => setQrMode('SINGLE')} className={`flex-1 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${qrMode === 'SINGLE' ? 'bg-orange-500 text-white shadow-md' : 'text-gray-400'}`}>Single</button>
+                          <button onClick={() => setQrMode('BATCH')} className={`flex-1 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${qrMode === 'BATCH' ? 'bg-orange-500 text-white shadow-md' : 'text-gray-400'}`}>Batch</button>
+                       </div>
+                    </div>
+                    {qrMode === 'SINGLE' ? (
+                       <input type="text" className="w-full px-4 py-3 bg-white dark:bg-gray-800 border dark:border-gray-600 rounded-xl outline-none font-bold text-sm dark:text-white" value={qrTableNo} onChange={e => setQrTableNo(e.target.value)} placeholder="Table No." />
+                    ) : (
+                       <div className="flex gap-4">
+                          <input type="number" className="flex-1 px-4 py-3 bg-white dark:bg-gray-800 border dark:border-gray-600 rounded-xl outline-none font-bold text-sm dark:text-white" value={qrStartRange} onChange={e => setQrStartRange(e.target.value)} placeholder="Start" />
+                          <input type="number" className="flex-1 px-4 py-3 bg-white dark:bg-gray-800 border dark:border-gray-600 rounded-xl outline-none font-bold text-sm dark:text-white" value={qrEndRange} onChange={e => setQrEndRange(e.target.value)} placeholder="End" />
+                       </div>
+                    )}
+                    <button onClick={handlePrintQr} className="w-full py-4 bg-orange-500 text-white rounded-xl font-black uppercase tracking-widest text-[10px] shadow-lg flex items-center justify-center gap-2"><Printer size={18} /> Print Labelling</button>
+                 </div>
+                 <div className="bg-white dark:bg-gray-900 rounded-2xl border-4 border-dashed border-gray-100 dark:border-gray-700 flex flex-col items-center justify-center p-8">
+                    {qrMode === 'SINGLE' ? (
+                      <>
+                        <img src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(getQrUrl(generatingQrHub.name, qrTableNo))}`} alt="QR" className="w-40 h-40 mb-4" />
+                        <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">{generatingQrHub.name}</span>
+                        <span className="text-2xl font-black text-orange-500 uppercase tracking-tighter">TABLE {qrTableNo}</span>
+                      </>
+                    ) : (
+                      <div className="text-center opacity-40">
+                        <Layers size={48} className="mx-auto mb-4 text-gray-300" />
+                        <p className="text-[10px] font-black uppercase tracking-widest">Multiple Print Nodes Ready</p>
+                      </div>
+                    )}
+                 </div>
+               </div>
+             </div>
+
+             <div className="hidden print:block bg-white text-black p-0">
+               {qrMode === 'SINGLE' ? (
+                 <div className="flex flex-col items-center justify-center h-screen">
+                    <img src={`https://api.qrserver.com/v1/create-qr-code/?size=500x500&data=${encodeURIComponent(getQrUrl(generatingQrHub.name, qrTableNo))}`} className="w-80 h-80 mb-8" />
+                    <h1 className="text-4xl font-black uppercase">{generatingQrHub.name}</h1>
+                    <h2 className="text-6xl font-black text-orange-600">TABLE {qrTableNo}</h2>
+                 </div>
+               ) : (
+                 <div className="grid grid-cols-2 gap-8 p-8">
+                    {(() => {
+                      const start = parseInt(qrStartRange);
+                      const end = parseInt(qrEndRange);
+                      if (isNaN(start) || isNaN(end)) return null;
+                      const length = Math.max(0, end - start + 1);
+                      return Array.from({ length }).map((_, i) => {
+                         const num = start + i;
+                         return (
+                           <div key={num} className="page-break-inside-avoid border-2 border-gray-200 p-8 flex flex-col items-center rounded-[2rem]">
+                              <img src={`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(getQrUrl(generatingQrHub.name, String(num)))}`} className="w-48 h-48 mb-4" />
+                              <p className="text-xs font-bold uppercase tracking-widest mb-1 text-gray-500">{generatingQrHub.name}</p>
+                              <p className="text-2xl font-black uppercase">TABLE {num}</p>
+                           </div>
+                         );
+                      });
+                    })()}
+                 </div>
+               )}
+             </div>
+          </div>
+        </div>
+      )}
+
+      {isHubSelectionModalOpen && (
+        <div className="fixed inset-0 z-[120] bg-black/70 backdrop-blur-md flex items-center justify-center p-4">
+           <div className="bg-white dark:bg-gray-800 rounded-3xl max-lg w-full p-8 shadow-2xl relative">
+              <button onClick={() => setIsHubSelectionModalOpen(false)} className="absolute top-6 right-6 p-2 text-gray-400 hover:text-red-500 transition-colors"><X size={24} /></button>
+              <h2 className="text-2xl font-black mb-6 dark:text-white uppercase tracking-tighter">Select Hub to Generate</h2>
+              <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-2 custom-scrollbar">
+                 {locations.filter(l => l.isActive !== false).map(loc => (
+                   <button key={loc.id} onClick={() => { setGeneratingQrHub(loc); setIsHubSelectionModalOpen(false); }} className="w-full flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700/50 hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded-2xl border dark:border-gray-700 group transition-all">
+                      <div className="flex items-center gap-3">
+                         <MapPin size={20} className="text-orange-500" />
+                         <span className="font-black dark:text-white uppercase tracking-tight text-sm">{loc.name}</span>
+                      </div>
+                      <ChevronRight size={18} className="text-gray-300 group-hover:text-orange-500 translate-x-0 group-hover:translate-x-1 transition-all" />
+                   </button>
+                 ))}
+              </div>
+           </div>
+        </div>
+      )}
+
+      <style>{`
+        .hide-scrollbar::-webkit-scrollbar {
+          display: none;
+        }
+        .hide-scrollbar {
+          -ms-overflow-style: none;
+          scrollbar-width: none;
+        }
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #e5e7eb; border-radius: 10px; }
+      `}</style>
     </div>
   );
 };

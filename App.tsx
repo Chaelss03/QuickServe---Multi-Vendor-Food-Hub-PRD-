@@ -93,11 +93,13 @@ const App: React.FC = () => {
 
   const parseTimestamp = (ts: any): number => {
     if (!ts) return Date.now();
+    // If it's a string from ISO or DB, try parsing it
     if (typeof ts === 'string') {
       const date = new Date(ts);
       const time = date.getTime();
       return isNaN(time) ? Date.now() : time;
     }
+    // If it's already a number (bigint returned as number)
     if (typeof ts === 'number') return ts;
     return Date.now();
   };
@@ -184,6 +186,7 @@ const App: React.FC = () => {
   }, []);
 
   useEffect(() => {
+    // Handling direct QR Code Navigation from URL params
     const params = new URLSearchParams(window.location.search);
     const loc = params.get('loc');
     const table = params.get('table');
@@ -196,6 +199,7 @@ const App: React.FC = () => {
       localStorage.setItem('qs_view', 'APP');
       localStorage.setItem('qs_session_location', loc);
       localStorage.setItem('qs_session_table', table);
+      // Strip params from URL for a clean experience
       window.history.replaceState({}, '', window.location.pathname);
     }
   }, []);
@@ -297,6 +301,7 @@ const App: React.FC = () => {
         items: itemsForThisRestaurant,
         total: totalForThisRestaurant,
         status: OrderStatus.PENDING,
+        // Use Date.now() for bigint column compatibility
         timestamp: Date.now(),
         customer_id: 'guest_user',
         restaurant_id: rid,
@@ -492,7 +497,7 @@ const App: React.FC = () => {
       <main className="flex-1">
         {currentRole === 'CUSTOMER' && <CustomerView restaurants={restaurants.filter(r => r.location === sessionLocation && r.isOnline === true)} cart={cart} orders={orders} onAddToCart={addToCart} onRemoveFromCart={removeFromCart} onPlaceOrder={placeOrder} locationName={sessionLocation || undefined} tableNo={sessionTable || undefined} areaType={currentArea?.type || 'MULTI'} allRestaurants={restaurants} />}
         {currentRole === 'VENDOR' && activeVendorRes && <VendorView restaurant={activeVendorRes} orders={orders.filter(o => o.restaurantId === currentUser?.restaurantId)} onUpdateOrder={updateOrderStatus} onUpdateMenu={handleUpdateMenuItem} onAddMenuItem={handleAddMenuItem} onPermanentDeleteMenuItem={handleDeleteMenuItem} onToggleOnline={() => toggleVendorOnline(activeVendorRes.id, activeVendorRes.isOnline ?? true)} lastSyncTime={lastSyncTime} />}
-        {currentRole === 'ADMIN' && <AdminView vendors={allUsers.filter(u => u.role === 'VENDOR')} restaurants={restaurants} orders={orders} locations={locations} onAddVendor={handleAddVendor} onUpdateVendor={handleUpdateVendor} onImpersonateVendor={handleLogin} onAddLocation={handleAddLocation} onUpdateLocation={handleUpdateLocation} onDeleteLocation={handleDeleteLocation} onRemoveVendorFromHub={(rid) => supabase.from('restaurants').update({ location_name: null }).eq('id', rid).then(() => fetchRestaurants())} onUpdateOrder={updateOrderStatus} />}
+        {currentRole === 'ADMIN' && <AdminView vendors={allUsers.filter(u => u.role === 'VENDOR')} restaurants={restaurants} orders={orders} locations={locations} onAddVendor={handleAddVendor} onUpdateVendor={handleUpdateVendor} onImpersonateVendor={handleLogin} onAddLocation={handleAddLocation} onUpdateLocation={handleUpdateLocation} onDeleteLocation={handleDeleteLocation} onRemoveVendorFromHub={(rid) => supabase.from('restaurants').update({ location_name: null }).eq('id', rid).then(() => fetchRestaurants())} />}
       </main>
     </div>
   );
