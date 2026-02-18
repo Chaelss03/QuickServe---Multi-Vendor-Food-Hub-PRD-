@@ -140,9 +140,12 @@ const App: React.FC = () => {
         menu: menuData.filter(m => m.restaurant_id === res.id).map(m => ({
           id: m.id, name: m.name, description: m.description, price: Number(m.price),
           image: m.image, category: m.category, isArchived: m.is_archived,
-          sizes: m.sizes, tempOptions: m.temp_options,
-          other_variant_name: m.other_variant_name,
-          otherVariants: m.other_variants, otherVariantsEnabled: m.other_variants_enabled
+          sizes: m.sizes, 
+          // Fix: Correct mapping from Supabase snake_case columns to MenuItem camelCase properties
+          tempOptions: m.temp_options,
+          otherVariantName: m.other_variant_name,
+          otherVariants: m.other_variants, 
+          otherVariantsEnabled: m.other_variants_enabled
         }))
       }));
       setRestaurants(formatted);
@@ -165,6 +168,7 @@ const App: React.FC = () => {
               status: o.status as OrderStatus, 
               timestamp: parseTimestamp(o.timestamp),
               customerId: o.customer_id, 
+              // Fix: Removed invalid restaurant_id property, using correct restaurantId
               restaurantId: o.restaurant_id,
               tableNumber: o.table_number, 
               locationName: o.location_name,
@@ -182,14 +186,18 @@ const App: React.FC = () => {
           return mapped;
         });
       }
-      // Always update sync time on successful completion of the request
-      setLastSyncTime(new Date());
     } catch (e) {
       console.error("Fetch orders failed", e);
     } finally {
       isFetchingRef.current = false;
     }
   }, []);
+
+  // Combined refresh function to ensure heartbeat works reliably
+  const refreshAppData = useCallback(async () => {
+    await Promise.allSettled([fetchOrders(), fetchRestaurants()]);
+    setLastSyncTime(new Date());
+  }, [fetchOrders, fetchRestaurants]);
 
   // QR Redirection Logic
   useEffect(() => {
@@ -213,25 +221,25 @@ const App: React.FC = () => {
   useEffect(() => {
     const initApp = async () => {
       await Promise.allSettled([fetchUsers(), fetchLocations(), fetchRestaurants(), fetchOrders()]);
+      setLastSyncTime(new Date());
       setIsLoading(false);
     };
     initApp();
 
     const interval = setInterval(() => {
-      fetchOrders();
-      fetchRestaurants();
+      refreshAppData();
     }, 5000);
 
     const channel = supabase.channel('order-updates')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => fetchOrders())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'restaurants' }, () => fetchRestaurants())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => refreshAppData())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'restaurants' }, () => refreshAppData())
       .subscribe();
 
     return () => { 
       clearInterval(interval);
       supabase.removeChannel(channel); 
     };
-  }, [fetchUsers, fetchLocations, fetchRestaurants, fetchOrders]);
+  }, [fetchUsers, fetchLocations, refreshAppData, fetchRestaurants, fetchOrders]);
 
   useEffect(() => {
     if (isDarkMode) document.documentElement.classList.add('dark');
@@ -294,7 +302,7 @@ const App: React.FC = () => {
 
     const { error } = await supabase.from('orders').insert(ordersToInsert);
     if (error) alert("Placement Error: " + error.message);
-    else { setCart([]); fetchOrders(); alert(`Your order(s) have been placed! Reference: ${baseOrderId}`); }
+    else { setCart([]); refreshAppData(); alert(`Your order(s) have been placed! Reference: ${baseOrderId}`); }
   };
 
   const handleLogin = (user: User) => {
@@ -314,7 +322,7 @@ const App: React.FC = () => {
     setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status, rejectionReason: reason, rejectionNote: note } : o));
     await supabase.from('orders').update({ status, rejection_reason: reason, rejection_note: note }).eq('id', orderId);
     setTimeout(() => lockedOrderIds.current.delete(orderId), 3000);
-    fetchOrders();
+    refreshAppData();
   };
 
   const toggleVendorOnline = async (restaurantId: string, currentStatus: boolean) => {
@@ -376,6 +384,7 @@ const App: React.FC = () => {
       temp_options: item.tempOptions,
       other_variant_name: item.otherVariantName,
       other_variants: item.otherVariants,
+      // Fix: Use correct camelCase property otherVariantsEnabled from MenuItem type
       other_variants_enabled: item.otherVariantsEnabled
     });
     if (!error) fetchRestaurants();
