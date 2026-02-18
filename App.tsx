@@ -50,7 +50,8 @@ const App: React.FC = () => {
   const [lastSyncTime, setLastSyncTime] = useState<Date>(new Date());
   
   // --- TRANSACTION LOCKS (Prevent Polling Flickering) ---
-  const lockedOrderIds = useRef<Set<string>>(new Set());
+  // Using a Map to store the INTENDED status to override server lag
+  const orderStatusLocks = useRef<Map<string, { status: OrderStatus; reason?: string; note?: string }>>(new Map());
   const isStatusLocked = useRef<boolean>(false);
   const isFetchingRef = useRef(false);
   
@@ -93,13 +94,11 @@ const App: React.FC = () => {
 
   const parseTimestamp = (ts: any): number => {
     if (!ts) return Date.now();
-    // If it's a string from ISO or DB, try parsing it
     if (typeof ts === 'string') {
       const date = new Date(ts);
       const time = date.getTime();
       return isNaN(time) ? Date.now() : time;
     }
-    // If it's already a number (bigint returned as number)
     if (typeof ts === 'number') return ts;
     return Date.now();
   };
@@ -142,8 +141,8 @@ const App: React.FC = () => {
           id: m.id, name: m.name, description: m.description, price: Number(m.price),
           image: m.image, category: m.category, isArchived: m.is_archived,
           sizes: m.sizes, tempOptions: m.temp_options,
-          otherVariantName: m.other_variant_name,
-          otherVariants: m.other_variants, otherVariantsEnabled: m.other_variants_enabled
+          other_variant_name: m.other_variant_name,
+          other_variants: m.other_variants, other_variants_enabled: m.other_variants_enabled
         }))
       }));
       setRestaurants(formatted);
@@ -167,11 +166,12 @@ const App: React.FC = () => {
               remark: o.remark, rejectionReason: o.rejection_reason, rejectionNote: o.rejection_note
             };
 
-            if (lockedOrderIds.current.has(o.id)) {
-              const localOrder = prev.find(p => p.id === o.id);
-              if (localOrder) {
-                mappedOrder.status = localOrder.status;
-              }
+            // Apply Intended State Override if the order is currently locked
+            const lock = orderStatusLocks.current.get(o.id);
+            if (lock) {
+              mappedOrder.status = lock.status;
+              if (lock.reason) mappedOrder.rejectionReason = lock.reason;
+              if (lock.note) mappedOrder.rejectionNote = lock.note;
             }
             return mappedOrder;
           });
@@ -186,7 +186,6 @@ const App: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    // Handling direct QR Code Navigation from URL params
     const params = new URLSearchParams(window.location.search);
     const loc = params.get('loc');
     const table = params.get('table');
@@ -199,7 +198,6 @@ const App: React.FC = () => {
       localStorage.setItem('qs_view', 'APP');
       localStorage.setItem('qs_session_location', loc);
       localStorage.setItem('qs_session_table', table);
-      // Strip params from URL for a clean experience
       window.history.replaceState({}, '', window.location.pathname);
     }
   }, []);
@@ -301,7 +299,6 @@ const App: React.FC = () => {
         items: itemsForThisRestaurant,
         total: totalForThisRestaurant,
         status: OrderStatus.PENDING,
-        // Use Date.now() for bigint column compatibility
         timestamp: Date.now(),
         customer_id: 'guest_user',
         restaurant_id: rid,
@@ -335,12 +332,21 @@ const App: React.FC = () => {
   };
 
   const updateOrderStatus = async (orderId: string, status: OrderStatus, reason?: string, note?: string) => {
-    lockedOrderIds.current.add(orderId);
+    // 1. Lock in the INTENDED state to ignore incoming stale server data
+    orderStatusLocks.current.set(orderId, { status, reason, note });
+    
+    // 2. Update local state immediately for snappy UI
     setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status, rejectionReason: reason, rejectionNote: note } : o));
+    
+    // 3. Perform database update
     await supabase.from('orders').update({ status, rejection_reason: reason, rejection_note: note }).eq('id', orderId);
+    
+    // 4. Set a generous timeout to release the lock after Realtime and Polling settle
     setTimeout(() => {
-      lockedOrderIds.current.delete(orderId);
-    }, 3000);
+      orderStatusLocks.current.delete(orderId);
+    }, 5000);
+
+    // 5. Trigger a fresh fetch
     fetchOrders();
   };
 
