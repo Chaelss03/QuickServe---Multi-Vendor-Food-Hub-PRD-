@@ -49,7 +49,7 @@ const App: React.FC = () => {
 
   const [lastSyncTime, setLastSyncTime] = useState<Date>(new Date());
   
-  // --- TRANSACTION LOCKS (Prevent Polling Flickering) ---
+  // --- TRANSACTION LOCKS ---
   const lockedOrderIds = useRef<Set<string>>(new Set());
   const isStatusLocked = useRef<boolean>(false);
   const isFetchingRef = useRef(false);
@@ -93,11 +93,8 @@ const App: React.FC = () => {
 
   const parseTimestamp = (ts: any): number => {
     if (!ts) return Date.now();
-    // Supabase BigInt columns often return numeric strings
     if (typeof ts === 'string') {
-      if (/^\d+$/.test(ts)) {
-        return parseInt(ts, 10);
-      }
+      if (/^\d+$/.test(ts)) return parseInt(ts, 10);
       const date = new Date(ts);
       const time = date.getTime();
       return isNaN(time) ? Date.now() : time;
@@ -133,7 +130,6 @@ const App: React.FC = () => {
 
   const fetchRestaurants = useCallback(async () => {
     if (isStatusLocked.current) return;
-
     const { data: resData, error: resError } = await supabase.from('restaurants').select('*');
     const { data: menuData, error: menuError } = await supabase.from('menu_items').select('*');
     if (!resError && !menuError && resData && menuData) {
@@ -145,7 +141,7 @@ const App: React.FC = () => {
           id: m.id, name: m.name, description: m.description, price: Number(m.price),
           image: m.image, category: m.category, isArchived: m.is_archived,
           sizes: m.sizes, tempOptions: m.temp_options,
-          otherVariantName: m.other_variant_name,
+          other_variant_name: m.other_variant_name,
           otherVariants: m.other_variants, otherVariantsEnabled: m.other_variants_enabled
         }))
       }));
@@ -176,27 +172,27 @@ const App: React.FC = () => {
               rejectionReason: o.rejection_reason, 
               rejectionNote: o.rejection_note
             };
-
             if (lockedOrderIds.current.has(o.id)) {
               const localOrder = prev.find(p => p.id === o.id);
-              if (localOrder) {
-                mappedOrder.status = localOrder.status;
-              }
+              if (localOrder) mappedOrder.status = localOrder.status;
             }
             return mappedOrder;
           });
           persistCache('qs_cache_orders', mapped);
           return mapped;
         });
-        setLastSyncTime(new Date());
       }
+      // Always update sync time on successful completion of the request
+      setLastSyncTime(new Date());
+    } catch (e) {
+      console.error("Fetch orders failed", e);
     } finally {
       isFetchingRef.current = false;
     }
   }, []);
 
+  // QR Redirection Logic
   useEffect(() => {
-    // Handling direct QR Code Navigation from URL params
     const params = new URLSearchParams(window.location.search);
     const loc = params.get('loc');
     const table = params.get('table');
@@ -209,11 +205,11 @@ const App: React.FC = () => {
       localStorage.setItem('qs_view', 'APP');
       localStorage.setItem('qs_session_location', loc);
       localStorage.setItem('qs_session_table', table);
-      // Strip params from URL for a clean experience
       window.history.replaceState({}, '', window.location.pathname);
     }
   }, []);
 
+  // Global Data Polling (Simplified Dependencies)
   useEffect(() => {
     const initApp = async () => {
       await Promise.allSettled([fetchUsers(), fetchLocations(), fetchRestaurants(), fetchOrders()]);
@@ -221,33 +217,21 @@ const App: React.FC = () => {
     };
     initApp();
 
-    const channel = supabase.channel('order-updates')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => {
-        fetchOrders();
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'restaurants' }, () => {
-        fetchRestaurants();
-      })
-      .subscribe();
-
-    return () => { 
-      supabase.removeChannel(channel); 
-    };
-  }, [fetchUsers, fetchLocations, fetchRestaurants, fetchOrders]);
-
-  useEffect(() => {
-    const activeVendorRes = currentUser?.role === 'VENDOR' ? restaurants.find(r => r.id === currentUser.restaurantId) : null;
-    const isOffline = activeVendorRes && activeVendorRes.isOnline === false;
-
-    if (isOffline) return;
-
     const interval = setInterval(() => {
       fetchOrders();
       fetchRestaurants();
     }, 5000);
 
-    return () => clearInterval(interval);
-  }, [fetchOrders, fetchRestaurants, restaurants, currentUser]);
+    const channel = supabase.channel('order-updates')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => fetchOrders())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'restaurants' }, () => fetchRestaurants())
+      .subscribe();
+
+    return () => { 
+      clearInterval(interval);
+      supabase.removeChannel(channel); 
+    };
+  }, [fetchUsers, fetchLocations, fetchRestaurants, fetchOrders]);
 
   useEffect(() => {
     if (isDarkMode) document.documentElement.classList.add('dark');
@@ -268,7 +252,6 @@ const App: React.FC = () => {
 
   const placeOrder = async (remark: string) => {
     if (cart.length === 0) return;
-    
     const uniqueRestaurantIdsInCart = Array.from(new Set(cart.map(item => item.restaurantId)));
     const offlineRestaurants = uniqueRestaurantIdsInCart
       .map(rid => restaurants.find(r => r.id === rid))
@@ -282,7 +265,6 @@ const App: React.FC = () => {
     const area = locations.find(l => l.name === sessionLocation);
     const code = area?.code || 'QS';
     let nextNum = 1;
-
     const { data: lastOrder } = await supabase.from('orders')
       .select('id')
       .ilike('id', `${code}%`)
@@ -301,35 +283,18 @@ const App: React.FC = () => {
     const ordersToInsert = uniqueRestaurantIdsInCart.map((rid, index) => {
       const itemsForThisRestaurant = cart.filter(item => item.restaurantId === rid);
       const totalForThisRestaurant = itemsForThisRestaurant.reduce((acc, item) => acc + (item.price * item.quantity), 0);
-      
-      const finalOrderId = uniqueRestaurantIdsInCart.length > 1 
-        ? `${baseOrderId}-${index + 1}` 
-        : baseOrderId;
-
+      const finalOrderId = uniqueRestaurantIdsInCart.length > 1 ? `${baseOrderId}-${index + 1}` : baseOrderId;
       return {
-        id: finalOrderId,
-        items: itemsForThisRestaurant,
-        total: totalForThisRestaurant,
-        status: OrderStatus.PENDING,
-        // Use Date.now() for bigint column compatibility
-        timestamp: Date.now(),
-        customer_id: 'guest_user',
-        restaurant_id: rid,
-        table_number: sessionTable || 'N/A',
-        location_name: sessionLocation || 'Unspecified',
+        id: finalOrderId, items: itemsForThisRestaurant, total: totalForThisRestaurant,
+        status: OrderStatus.PENDING, timestamp: Date.now(), customer_id: 'guest_user',
+        restaurant_id: rid, table_number: sessionTable || 'N/A', location_name: sessionLocation || 'Unspecified',
         remark: remark
       };
     });
 
     const { error } = await supabase.from('orders').insert(ordersToInsert);
-
-    if (error) {
-      alert("Placement Error: " + error.message);
-    } else {
-      setCart([]);
-      fetchOrders();
-      alert(`Your order(s) have been placed! Reference: ${baseOrderId}${uniqueRestaurantIdsInCart.length > 1 ? ` (Split into ${uniqueRestaurantIdsInCart.length} kitchens)` : ''}`);
-    }
+    if (error) alert("Placement Error: " + error.message);
+    else { setCart([]); fetchOrders(); alert(`Your order(s) have been placed! Reference: ${baseOrderId}`); }
   };
 
   const handleLogin = (user: User) => {
@@ -348,9 +313,7 @@ const App: React.FC = () => {
     lockedOrderIds.current.add(orderId);
     setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status, rejectionReason: reason, rejectionNote: note } : o));
     await supabase.from('orders').update({ status, rejection_reason: reason, rejection_note: note }).eq('id', orderId);
-    setTimeout(() => {
-      lockedOrderIds.current.delete(orderId);
-    }, 3000);
+    setTimeout(() => lockedOrderIds.current.delete(orderId), 3000);
     fetchOrders();
   };
 
@@ -360,17 +323,12 @@ const App: React.FC = () => {
     setRestaurants(prev => prev.map(r => r.id === restaurantId ? { ...r, isOnline: newStatus } : r));
     const { error } = await supabase.from('restaurants').update({ is_online: newStatus }).eq('id', restaurantId);
     if (error) fetchRestaurants();
-    setTimeout(() => {
-      isStatusLocked.current = false;
-    }, 3000);
+    setTimeout(() => isStatusLocked.current = false, 3000);
   };
 
   const addToCart = (item: CartItem) => {
     const res = restaurants.find(r => r.id === item.restaurantId);
-    if (res && res.isOnline === false) {
-      alert("This kitchen is currently offline and cannot take new orders.");
-      return;
-    }
+    if (res && res.isOnline === false) { alert("This kitchen is currently offline."); return; }
     setCart(prev => {
       const existing = prev.find(i => i.id === item.id && i.selectedSize === item.selectedSize && i.selectedTemp === item.selectedTemp && i.selectedOtherVariant === item.selectedOtherVariant);
       if (existing) return prev.map(i => (i.id === item.id && i.selectedSize === item.selectedSize && i.selectedTemp === item.selectedTemp && i.selectedOtherVariant === item.selectedOtherVariant) ? { ...i, quantity: i.quantity + 1 } : i);
@@ -386,87 +344,104 @@ const App: React.FC = () => {
     });
   };
 
-  const handleAddVendor = async (newUser: User, newRestaurant: Restaurant) => {
-    const { data: userData, error: userError } = await supabase.from('users').insert([{
-      username: newUser.username, password: newUser.password, role: 'VENDOR', email: newUser.email, phone: newUser.phone, is_active: true
-    }]).select();
-    if (!userError && userData?.[0]) {
-      const uid = userData[0].id;
-      const { data: resData, error: resError } = await supabase.from('restaurants').insert([{
-        name: newRestaurant.name, logo: newRestaurant.logo, vendor_id: uid, location_name: newRestaurant.location, is_online: true
-      }]).select();
-      if (!resError && resData?.[0]) await supabase.from('users').update({ restaurant_id: resData[0].id }).eq('id', uid);
-      await Promise.all([fetchUsers(), fetchRestaurants()]);
-    }
-  };
-
-  const handleUpdateVendor = async (u: User, r: Restaurant) => {
-    await supabase.from('users').update({ username: u.username, email: u.email, phone: u.phone, is_active: u.isActive, password: u.password }).eq('id', u.id);
-    await supabase.from('restaurants').update({ name: r.name, logo: r.logo, location_name: r.location }).eq('id', r.id);
-    await Promise.all([fetchUsers(), fetchRestaurants()]);
-  };
-
-  const handleAddLocation = async (a: Area) => {
-    await supabase.from('areas').insert([{ name: a.name, city: a.city, state: a.state, code: a.code, is_active: a.isActive, type: a.type }]);
-    fetchLocations();
-  };
-
-  const handleUpdateLocation = async (a: Area) => {
-    await supabase.from('areas').update({ name: a.name, city: a.city, state: a.state, code: a.code, is_active: a.isActive, type: a.type }).eq('id', a.id);
-    await Promise.all([fetchLocations(), fetchRestaurants()]);
-  };
-
-  const handleDeleteLocation = async (id: string) => {
-    await supabase.from('areas').delete().eq('id', id);
-    fetchLocations();
-  };
-
-  const handleUpdateMenuItem = async (rid: string, item: MenuItem) => {
-    const { error } = await supabase.from('menu_items').update({ 
-      name: item.name, 
-      description: item.description, 
-      price: item.price, 
-      image: item.image, 
-      category: item.category, 
-      is_archived: item.isArchived, 
-      sizes: item.sizes, 
+  // --- MENU ITEM HANDLERS ---
+  const handleUpdateMenuItem = async (restaurantId: string, item: MenuItem) => {
+    const { error } = await supabase.from('menu_items').update({
+      name: item.name,
+      description: item.description,
+      price: item.price,
+      image: item.image,
+      category: item.category,
+      is_archived: item.isArchived,
+      sizes: item.sizes,
       temp_options: item.tempOptions,
       other_variant_name: item.otherVariantName,
       other_variants: item.otherVariants,
       other_variants_enabled: item.otherVariantsEnabled
     }).eq('id', item.id);
-    if (error) console.error("Error updating menu item:", error);
-    fetchRestaurants();
+    if (!error) fetchRestaurants();
   };
 
-  const handleAddMenuItem = async (rid: string, item: MenuItem) => {
-    const { error } = await supabase.from('menu_items').insert([{ 
-      restaurant_id: rid, 
-      name: item.name, 
-      description: item.description, 
-      price: item.price, 
-      image: item.image, 
-      category: item.category, 
-      sizes: item.sizes, 
+  const handleAddMenuItem = async (restaurantId: string, item: MenuItem) => {
+    const { error } = await supabase.from('menu_items').insert({
+      id: item.id,
+      restaurant_id: restaurantId,
+      name: item.name,
+      description: item.description,
+      price: item.price,
+      image: item.image,
+      category: item.category,
+      is_archived: false,
+      sizes: item.sizes,
       temp_options: item.tempOptions,
       other_variant_name: item.otherVariantName,
       other_variants: item.otherVariants,
       other_variants_enabled: item.otherVariantsEnabled
-    }]);
-    if (error) console.error("Error adding menu item:", error);
-    fetchRestaurants();
+    });
+    if (!error) fetchRestaurants();
   };
 
-  const handleDeleteMenuItem = async (rid: string, mid: string) => {
-    await supabase.from('menu_items').delete().eq('id', mid);
-    fetchRestaurants();
+  const handleDeleteMenuItem = async (restaurantId: string, itemId: string) => {
+    const { error } = await supabase.from('menu_items').delete().eq('id', itemId);
+    if (!error) fetchRestaurants();
   };
+
+  // --- VENDOR & HUB HANDLERS ---
+  const handleAddVendor = async (user: User, restaurant: Restaurant) => {
+    const userId = `u_${Date.now()}`;
+    const resId = `res_${Date.now()}`;
+    const { error: userError } = await supabase.from('users').insert({
+      id: userId, username: user.username, password: user.password, role: 'VENDOR',
+      restaurant_id: resId, is_active: true, email: user.email, phone: user.phone
+    });
+    if (userError) { alert("Error adding user: " + userError.message); return; }
+    const { error: resError } = await supabase.from('restaurants').insert({
+      id: resId, name: restaurant.name, logo: restaurant.logo, vendor_id: userId,
+      location_name: restaurant.location, is_online: true
+    });
+    if (resError) alert("Error adding restaurant: " + resError.message);
+    fetchUsers(); fetchRestaurants();
+  };
+
+  const handleUpdateVendor = async (user: User, restaurant: Restaurant) => {
+    const { error: userError } = await supabase.from('users').update({
+      username: user.username, password: user.password, email: user.email, phone: user.phone, is_active: user.isActive
+    }).eq('id', user.id);
+    const { error: resError } = await supabase.from('restaurants').update({
+      name: restaurant.name, logo: restaurant.logo, location_name: restaurant.location
+    }).eq('id', restaurant.id);
+    if (userError || resError) alert("Error updating vendor");
+    fetchUsers(); fetchRestaurants();
+  };
+
+  const handleAddLocation = async (area: Area) => {
+    const id = `loc_${Date.now()}`;
+    const { error } = await supabase.from('areas').insert({
+      id, name: area.name, city: area.city, state: area.state, code: area.code, is_active: true, type: area.type || 'MULTI'
+    });
+    if (!error) fetchLocations();
+  };
+
+  const handleUpdateLocation = async (area: Area) => {
+    const { error } = await supabase.from('areas').update({
+      name: area.name, city: area.city, state: area.state, code: area.code, is_active: area.isActive, type: area.type
+    }).eq('id', area.id);
+    if (!error) fetchLocations();
+  };
+
+  const handleDeleteLocation = async (areaId: string) => {
+    const { error } = await supabase.from('areas').delete().eq('id', areaId);
+    if (!error) fetchLocations();
+  };
+
+  const activeVendorRes = currentUser?.role === 'VENDOR' ? restaurants.find(r => r.id === currentUser.restaurantId) : null;
+  const currentArea = locations.find(l => l.name === sessionLocation);
 
   if (isLoading) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 dark:bg-gray-900">
         <Loader2 className="w-12 h-12 text-orange-500 animate-spin mb-4" />
-        <p className="text-gray-500 font-black uppercase tracking-[0.2em] text-[10px]">Syncing Command Hub...</p>
+        <p className="text-gray-500 font-black uppercase tracking-[0.2em] text-[10px]">Syncing Hub...</p>
       </div>
     );
   }
@@ -478,9 +453,6 @@ const App: React.FC = () => {
   if (view === 'LOGIN') {
     return <LoginPage allUsers={allUsers} onLogin={handleLogin} onBack={() => setView('LANDING')} />;
   }
-
-  const activeVendorRes = currentUser?.role === 'VENDOR' ? restaurants.find(r => r.id === currentUser.restaurantId) : null;
-  const currentArea = locations.find(l => l.name === sessionLocation);
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-50 dark:bg-gray-900 transition-colors">
