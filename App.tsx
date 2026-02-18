@@ -7,7 +7,7 @@ import AdminView from './pages/AdminView';
 import LandingPage from './pages/LandingPage';
 import LoginPage from './pages/LoginPage';
 import { supabase } from './lib/supabase';
-import { LogOut, Sun, Moon, MapPin, LogIn, Loader2 } from 'lucide-react';
+import { LogOut, Sun, Moon, MapPin, LogIn, Loader2, WifiOff, RefreshCcw } from 'lucide-react';
 
 const App: React.FC = () => {
   // --- HYDRATED STATE ---
@@ -48,9 +48,9 @@ const App: React.FC = () => {
   });
 
   const [lastSyncTime, setLastSyncTime] = useState<Date>(new Date());
+  const [connectionError, setConnectionError] = useState<string | null>(null);
   
   // --- TRANSACTION LOCKS (Prevent Polling Flickering) ---
-  // Using a Map to store the INTENDED status to override server lag
   const orderStatusLocks = useRef<Map<string, { status: OrderStatus; reason?: string; note?: string }>>(new Map());
   const isStatusLocked = useRef<boolean>(false);
   const isFetchingRef = useRef(false);
@@ -105,20 +105,27 @@ const App: React.FC = () => {
 
   const fetchUsers = useCallback(async () => {
     const { data, error } = await supabase.from('users').select('*');
-    if (!error && data) {
+    if (error) {
+      console.error("Fetch Users Error:", error);
+      setConnectionError("Failed to connect to database. Retrying...");
+      return;
+    }
+    if (data) {
       const mapped = data.map(u => ({
         id: u.id, username: u.username, role: u.role as Role,
-        restaurantId: u.restaurant_id, password: u.password,
+        restaurant_id: u.restaurant_id, password: u.password,
         isActive: u.is_active, email: u.email, phone: u.phone
       }));
       setAllUsers(mapped);
       persistCache('qs_cache_users', mapped);
+      setConnectionError(null);
     }
   }, []);
 
   const fetchLocations = useCallback(async () => {
     const { data, error } = await supabase.from('areas').select('*').order('name');
-    if (!error && data) {
+    if (error) return;
+    if (data) {
       const mapped = data.map(l => ({
         id: l.id, name: l.name, city: l.city, state: l.state, code: l.code, isActive: l.is_active ?? true, type: l.type as 'MULTI' | 'SINGLE'
       }));
@@ -132,7 +139,10 @@ const App: React.FC = () => {
 
     const { data: resData, error: resError } = await supabase.from('restaurants').select('*');
     const { data: menuData, error: menuError } = await supabase.from('menu_items').select('*');
-    if (!resError && !menuError && resData && menuData) {
+    
+    if (resError || menuError) return;
+
+    if (resData && menuData) {
       const formatted: Restaurant[] = resData.map(res => ({
         id: res.id, name: res.name, logo: res.logo, vendorId: res.vendor_id,
         location: res.location_name, created_at: res.created_at,
@@ -141,8 +151,8 @@ const App: React.FC = () => {
           id: m.id, name: m.name, description: m.description, price: Number(m.price),
           image: m.image, category: m.category, isArchived: m.is_archived,
           sizes: m.sizes, tempOptions: m.temp_options,
-          other_variant_name: m.other_variant_name,
-          other_variants: m.other_variants, other_variants_enabled: m.other_variants_enabled
+          otherVariantName: m.other_variant_name,
+          otherVariants: m.other_variants, otherVariantsEnabled: m.other_variants_enabled
         }))
       }));
       setRestaurants(formatted);
@@ -154,8 +164,14 @@ const App: React.FC = () => {
     if (isFetchingRef.current) return;
     isFetchingRef.current = true;
     try {
-      const { data, error } = await supabase.from('orders').select('*').order('timestamp', { ascending: false }).limit(200);
-      if (!error && data) {
+      // Increased limit to 500 for better report history
+      const { data, error } = await supabase.from('orders').select('*').order('timestamp', { ascending: false }).limit(500);
+      if (error) {
+        setConnectionError("Offline: Reconnecting to sync hub...");
+        return;
+      }
+      if (data) {
+        setConnectionError(null);
         setOrders(prev => {
           const mapped = data.map(o => {
             const mappedOrder: Order = {
@@ -166,7 +182,6 @@ const App: React.FC = () => {
               remark: o.remark, rejectionReason: o.rejection_reason, rejectionNote: o.rejection_note
             };
 
-            // Apply Intended State Override if the order is currently locked
             const lock = orderStatusLocks.current.get(o.id);
             if (lock) {
               mappedOrder.status = lock.status;
@@ -202,6 +217,7 @@ const App: React.FC = () => {
     }
   }, []);
 
+  // One-time initialization and channel setup
   useEffect(() => {
     const initApp = async () => {
       await Promise.allSettled([fetchUsers(), fetchLocations(), fetchRestaurants(), fetchOrders()]);
@@ -216,26 +232,28 @@ const App: React.FC = () => {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'restaurants' }, () => {
         fetchRestaurants();
       })
-      .subscribe();
+      .subscribe((status) => {
+        if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
+          setConnectionError("Live update link lost. Reconnecting...");
+        } else if (status === 'SUBSCRIBED') {
+          setConnectionError(null);
+        }
+      });
 
     return () => { 
       supabase.removeChannel(channel); 
     };
   }, [fetchUsers, fetchLocations, fetchRestaurants, fetchOrders]);
 
+  // Decoupled Polling Loop to prevent state loops
   useEffect(() => {
-    const activeVendorRes = currentUser?.role === 'VENDOR' ? restaurants.find(r => r.id === currentUser.restaurantId) : null;
-    const isOffline = activeVendorRes && activeVendorRes.isOnline === false;
-
-    if (isOffline) return;
-
     const interval = setInterval(() => {
       fetchOrders();
       fetchRestaurants();
-    }, 5000);
+    }, 10000); // 10s polling is sufficient with Realtime active
 
     return () => clearInterval(interval);
-  }, [fetchOrders, fetchRestaurants, restaurants, currentUser]);
+  }, [fetchOrders, fetchRestaurants]);
 
   useEffect(() => {
     if (isDarkMode) document.documentElement.classList.add('dark');
@@ -299,7 +317,7 @@ const App: React.FC = () => {
         items: itemsForThisRestaurant,
         total: totalForThisRestaurant,
         status: OrderStatus.PENDING,
-        timestamp: Date.now(),
+        timestamp: new Date().toISOString(),
         customer_id: 'guest_user',
         restaurant_id: rid,
         table_number: sessionTable || 'N/A',
@@ -315,7 +333,7 @@ const App: React.FC = () => {
     } else {
       setCart([]);
       fetchOrders();
-      alert(`Your order(s) have been placed! Reference: ${baseOrderId}${uniqueRestaurantIdsInCart.length > 1 ? ` (Split into ${uniqueRestaurantIdsInCart.length} kitchens)` : ''}`);
+      alert(`Your order(s) have been placed! Reference: ${baseOrderId}`);
     }
   };
 
@@ -332,21 +350,19 @@ const App: React.FC = () => {
   };
 
   const updateOrderStatus = async (orderId: string, status: OrderStatus, reason?: string, note?: string) => {
-    // 1. Lock in the INTENDED state to ignore incoming stale server data
     orderStatusLocks.current.set(orderId, { status, reason, note });
-    
-    // 2. Update local state immediately for snappy UI
     setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status, rejectionReason: reason, rejectionNote: note } : o));
     
-    // 3. Perform database update
-    await supabase.from('orders').update({ status, rejection_reason: reason, rejection_note: note }).eq('id', orderId);
+    const { error } = await supabase.from('orders').update({ status, rejection_reason: reason, rejection_note: note }).eq('id', orderId);
     
-    // 4. Set a generous timeout to release the lock after Realtime and Polling settle
+    if (error) {
+      setConnectionError("Action failed: Link to hub interrupted.");
+    }
+
     setTimeout(() => {
       orderStatusLocks.current.delete(orderId);
     }, 5000);
 
-    // 5. Trigger a fresh fetch
     fetchOrders();
   };
 
@@ -364,7 +380,7 @@ const App: React.FC = () => {
   const addToCart = (item: CartItem) => {
     const res = restaurants.find(r => r.id === item.restaurantId);
     if (res && res.isOnline === false) {
-      alert("This kitchen is currently offline and cannot take new orders.");
+      alert("This kitchen is currently offline.");
       return;
     }
     setCart(prev => {
@@ -486,6 +502,13 @@ const App: React.FC = () => {
           <h1 className="text-xl font-black dark:text-white">QuickServe</h1>
         </div>
         <div className="flex items-center gap-4">
+          {connectionError && (
+            <div className="flex items-center gap-2 px-3 py-1 bg-red-100 text-red-600 rounded-lg animate-pulse">
+               <WifiOff size={14}/>
+               <span className="text-[10px] font-black uppercase">{connectionError}</span>
+               <button onClick={() => window.location.reload()} className="p-1 hover:bg-red-200 rounded"><RefreshCcw size={10}/></button>
+            </div>
+          )}
           <button onClick={() => setIsDarkMode(!isDarkMode)} className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 dark:text-white">
             {isDarkMode ? <Sun size={20} /> : <Moon size={20} />}
           </button>
