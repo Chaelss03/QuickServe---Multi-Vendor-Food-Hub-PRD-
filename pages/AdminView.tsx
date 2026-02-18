@@ -64,8 +64,9 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
   const [reportVendor, setReportVendor] = useState<string>('ALL');
   const [reportHub, setReportHub] = useState<string>('ALL');
   const [reportStart, setReportStart] = useState<string>(() => {
+    // Default to 30 days ago to ensure users see recent data by default
     const d = new Date();
-    d.setDate(1); 
+    d.setDate(d.getDate() - 30); 
     return d.toISOString().split('T')[0];
   });
   const [reportEnd, setReportEnd] = useState<string>(() => new Date().toISOString().split('T')[0]);
@@ -662,7 +663,6 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
                       <Link size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                       <input type="text" placeholder="Paste URL or upload..." className="w-full pl-9 pr-4 py-3 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none font-bold dark:text-white text-xs" value={formVendor.logo} onChange={e => setFormVendor({...formVendor, logo: e.target.value})} />
                     </div>
-                    {/* Fixed: Use 'ref' instead of 'vendorFileInputRef' */}
                     <input type="file" ref={vendorFileInputRef} className="hidden" accept="image/*" onChange={handleVendorImageUpload} />
                   </div>
                </div>

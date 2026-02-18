@@ -60,8 +60,9 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
   const [reportSearchQuery, setReportSearchQuery] = useState('');
   const [reportStatus, setReportStatus] = useState<'ALL' | OrderStatus>('ALL');
   const [reportStart, setReportStart] = useState<string>(() => {
+    // Default to 30 days ago to ensure users see recent data by default
     const d = new Date();
-    d.setDate(1); 
+    d.setDate(d.getDate() - 30); 
     return d.toISOString().split('T')[0];
   });
   const [reportEnd, setReportEnd] = useState<string>(() => new Date().toISOString().split('T')[0]);
@@ -142,7 +143,9 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
 
   const filteredReports = useMemo(() => {
     return orders.filter(o => {
-      const orderDate = new Date(o.timestamp).toISOString().split('T')[0];
+      const d = new Date(o.timestamp);
+      if (isNaN(d.getTime())) return false;
+      const orderDate = d.toISOString().split('T')[0];
       const matchesDate = orderDate >= reportStart && orderDate <= reportEnd;
       const matchesStatus = reportStatus === 'ALL' || o.status === reportStatus;
       const matchesSearch = o.id.toLowerCase().includes(reportSearchQuery.toLowerCase());
@@ -842,7 +845,7 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
               <div className="bg-white dark:bg-gray-800 rounded-2xl border dark:border-gray-700 overflow-hidden shadow-sm">
                 <div className="p-4 border-b dark:border-gray-700">
                   <div className="relative max-w-sm">
-                    <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                    <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
                     <input 
                       type="text" 
                       placeholder="Search Order ID..." 
@@ -887,7 +890,7 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
       {/* Rejection Modal */}
       {rejectingOrderId && (
         <div className="fixed inset-0 z-[100] bg-black/70 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-3xl max-w-md w-full p-8 shadow-2xl relative animate-in zoom-in fade-in duration-300">
+          <div className="bg-white dark:bg-gray-800 rounded-3xl max-md w-full p-8 shadow-2xl relative animate-in zoom-in fade-in duration-300">
             <button onClick={() => setRejectingOrderId(null)} className="absolute top-6 right-6 p-2 text-gray-400 hover:text-red-500 transition-colors"><X size={20} /></button>
             <h2 className="text-2xl font-black mb-6 dark:text-white uppercase tracking-tighter">Order Rejection</h2>
             <div className="space-y-4">

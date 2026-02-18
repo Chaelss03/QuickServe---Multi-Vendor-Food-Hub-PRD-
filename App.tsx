@@ -93,14 +93,17 @@ const App: React.FC = () => {
 
   const parseTimestamp = (ts: any): number => {
     if (!ts) return Date.now();
-    // If it's a string from ISO or DB, try parsing it
+    // Supabase BigInt columns often return numeric strings
     if (typeof ts === 'string') {
+      if (/^\d+$/.test(ts)) {
+        return parseInt(ts, 10);
+      }
       const date = new Date(ts);
       const time = date.getTime();
       return isNaN(time) ? Date.now() : time;
     }
-    // If it's already a number (bigint returned as number)
     if (typeof ts === 'number') return ts;
+    if (typeof ts === 'bigint') return Number(ts);
     return Date.now();
   };
 
@@ -160,11 +163,18 @@ const App: React.FC = () => {
         setOrders(prev => {
           const mapped = data.map(o => {
             const mappedOrder: Order = {
-              id: o.id, items: o.items || [], total: Number(o.total || 0),
-              status: o.status as OrderStatus, timestamp: parseTimestamp(o.timestamp),
-              customerId: o.customer_id, restaurantId: o.restaurant_id,
-              tableNumber: o.table_number, locationName: o.location_name,
-              remark: o.remark, rejectionReason: o.rejection_reason, rejectionNote: o.rejection_note
+              id: o.id, 
+              items: Array.isArray(o.items) ? o.items : (typeof o.items === 'string' ? JSON.parse(o.items) : []), 
+              total: Number(o.total || 0),
+              status: o.status as OrderStatus, 
+              timestamp: parseTimestamp(o.timestamp),
+              customerId: o.customer_id, 
+              restaurantId: o.restaurant_id,
+              tableNumber: o.table_number, 
+              locationName: o.location_name,
+              remark: o.remark, 
+              rejectionReason: o.rejection_reason, 
+              rejectionNote: o.rejection_note
             };
 
             if (lockedOrderIds.current.has(o.id)) {
