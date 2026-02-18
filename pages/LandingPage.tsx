@@ -1,6 +1,6 @@
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { QrCode, Utensils, ShieldCheck, ShoppingBag, Sun, Moon, X, MapPin, Hash, Camera, RefreshCcw, CheckCircle2, Loader2 } from 'lucide-react';
+import { QrCode, Utensils, ShieldCheck, ShoppingBag, Sun, Moon, X, MapPin, Hash, Camera, RefreshCcw } from 'lucide-react';
 import { Area } from '../types';
 import jsQR from 'jsqr';
 
@@ -15,8 +15,6 @@ interface Props {
 const LandingPage: React.FC<Props> = ({ onScan, onLoginClick, isDarkMode, onToggleDarkMode, locations }) => {
   const [showSimModal, setShowSimModal] = useState(false);
   const [showCamera, setShowCamera] = useState(false);
-  const [isValidating, setIsValidating] = useState(false);
-  const [scanSuccess, setScanSuccess] = useState(false);
   const [selectedLocation, setSelectedLocation] = useState('');
   const [tableNo, setTableNo] = useState('1');
   const [cameraError, setCameraError] = useState<string | null>(null);
@@ -25,31 +23,12 @@ const LandingPage: React.FC<Props> = ({ onScan, onLoginClick, isDarkMode, onTogg
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const requestRef = useRef<number>(0);
 
-  // Sync selectedLocation once locations are loaded
+  // Sync selectedLocation once locations are loaded to fix simulation "no response"
   useEffect(() => {
     if (locations.length > 0 && !selectedLocation) {
       setSelectedLocation(locations[0].name);
     }
   }, [locations, selectedLocation]);
-
-  const playSuccessSound = () => {
-    try {
-      const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
-      const osc = audioCtx.createOscillator();
-      const gain = audioCtx.createGain();
-      osc.connect(gain);
-      gain.connect(audioCtx.destination);
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(880, audioCtx.currentTime);
-      gain.gain.setValueAtTime(0, audioCtx.currentTime);
-      gain.gain.linearRampToValueAtTime(0.2, audioCtx.currentTime + 0.05);
-      gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.3);
-      osc.start();
-      osc.stop(audioCtx.currentTime + 0.3);
-    } catch (e) {
-      console.warn("Audio Context blocked");
-    }
-  };
 
   const stopCamera = useCallback(() => {
     if (videoRef.current && videoRef.current.srcObject) {
@@ -62,23 +41,10 @@ const LandingPage: React.FC<Props> = ({ onScan, onLoginClick, isDarkMode, onTogg
       requestRef.current = 0;
     }
     setShowCamera(false);
-    setIsValidating(false);
-    setScanSuccess(false);
   }, []);
 
-  const handleSuccessfulScan = useCallback((loc: string, tbl: string) => {
-    setScanSuccess(true);
-    playSuccessSound();
-    
-    // Brief delay to show success state before redirecting to menu page
-    setTimeout(() => {
-      onScan(loc, tbl);
-      stopCamera();
-    }, 800);
-  }, [onScan, stopCamera]);
-
   const scanQRCode = useCallback((_time: number) => {
-    if (videoRef.current && videoRef.current.readyState === videoRef.current.HAVE_ENOUGH_DATA && canvasRef.current && !scanSuccess) {
+    if (videoRef.current && videoRef.current.readyState === videoRef.current.HAVE_ENOUGH_DATA && canvasRef.current) {
       const canvas = canvasRef.current;
       const video = videoRef.current;
       canvas.height = video.videoHeight;
@@ -99,13 +65,15 @@ const LandingPage: React.FC<Props> = ({ onScan, onLoginClick, isDarkMode, onTogg
               const loc = url.searchParams.get("loc");
               const tbl = url.searchParams.get("table");
               if (loc && tbl) {
-                handleSuccessfulScan(loc, tbl);
+                onScan(loc, tbl);
+                stopCamera();
                 return;
               }
             } else {
               const parts = code.data.split(',');
               if (parts.length === 2) {
-                handleSuccessfulScan(parts[0].trim(), parts[1].trim());
+                onScan(parts[0].trim(), parts[1].trim());
+                stopCamera();
                 return;
               }
             }
@@ -115,15 +83,12 @@ const LandingPage: React.FC<Props> = ({ onScan, onLoginClick, isDarkMode, onTogg
         }
       }
     }
-    if (!scanSuccess) {
-      requestRef.current = requestAnimationFrame(scanQRCode);
-    }
-  }, [handleSuccessfulScan, scanSuccess]);
+    requestRef.current = requestAnimationFrame(scanQRCode);
+  }, [onScan, stopCamera]);
 
   const startCamera = async () => {
     setCameraError(null);
     setShowCamera(true);
-    setScanSuccess(false);
 
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
       setCameraError('Camera API not supported in this browser.');
@@ -149,6 +114,7 @@ const LandingPage: React.FC<Props> = ({ onScan, onLoginClick, isDarkMode, onTogg
     } catch (err: any) {
       const msg = err.name === 'NotAllowedError' ? 'Camera permission denied. Please allow access in settings.' : (err.message || 'Could not access camera');
       setCameraError(msg);
+      console.error('Camera Error:', err);
     }
   };
 
@@ -161,12 +127,7 @@ const LandingPage: React.FC<Props> = ({ onScan, onLoginClick, isDarkMode, onTogg
   const handleSimulate = () => {
     const locToUse = selectedLocation || (locations.length > 0 ? locations[0].name : '');
     if (!locToUse || !tableNo) return;
-    setIsValidating(true);
-    setTimeout(() => {
-      onScan(locToUse, tableNo);
-      setIsValidating(false);
-      setShowSimModal(false);
-    }, 600);
+    onScan(locToUse, tableNo);
   };
 
   return (
@@ -211,27 +172,13 @@ const LandingPage: React.FC<Props> = ({ onScan, onLoginClick, isDarkMode, onTogg
             ) : (
               <div className="w-full relative">
                 <div className="relative aspect-square w-full rounded-2xl overflow-hidden bg-black shadow-inner border-4 border-orange-500">
-                  <video ref={videoRef} className={`w-full h-full object-cover transition-opacity duration-500 ${scanSuccess ? 'opacity-30' : 'opacity-100'}`} playsInline muted autoPlay />
+                  <video ref={videoRef} className="w-full h-full object-cover" playsInline muted autoPlay />
                   <canvas ref={canvasRef} className="hidden" />
-                  
-                  {/* Scanning HUD */}
-                  {!scanSuccess && (
-                    <div className="absolute inset-0 border-2 border-orange-500/20 pointer-events-none">
-                      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-48 border-2 border-orange-500 rounded-2xl flex items-center justify-center">
-                        <div className="w-full h-0.5 bg-orange-500/50 absolute top-0 animate-[scan_2s_infinite]"></div>
-                      </div>
+                  <div className="absolute inset-0 border-2 border-orange-500/20 pointer-events-none">
+                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-48 border-2 border-orange-500 rounded-2xl flex items-center justify-center">
+                      <div className="w-full h-0.5 bg-orange-500/50 absolute top-0 animate-[scan_2s_infinite]"></div>
                     </div>
-                  )}
-
-                  {/* Success State */}
-                  {scanSuccess && (
-                    <div className="absolute inset-0 flex flex-col items-center justify-center bg-green-500/20 backdrop-blur-sm animate-in zoom-in fade-in duration-300">
-                       <CheckCircle2 size={100} className="text-white drop-shadow-lg" />
-                       <p className="text-white font-black text-xl mt-4 drop-shadow-md">QR DETECTED</p>
-                       <p className="text-white/80 font-bold text-sm">Opening Menu...</p>
-                    </div>
-                  )}
-
+                  </div>
                   {cameraError && (
                     <div className="absolute inset-0 flex items-center justify-center bg-black/80 p-6 text-center z-10">
                       <div>
@@ -242,13 +189,7 @@ const LandingPage: React.FC<Props> = ({ onScan, onLoginClick, isDarkMode, onTogg
                     </div>
                   )}
                 </div>
-                <button 
-                  onClick={stopCamera} 
-                  disabled={scanSuccess}
-                  className="mt-6 w-full py-4 bg-red-500 text-white rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-red-600 transition-all disabled:opacity-50"
-                >
-                  Cancel Scanner
-                </button>
+                <button onClick={stopCamera} className="mt-6 w-full py-4 bg-red-500 text-white rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-red-600 transition-all">Cancel Scanner</button>
               </div>
             )}
           </div>
@@ -281,13 +222,7 @@ const LandingPage: React.FC<Props> = ({ onScan, onLoginClick, isDarkMode, onTogg
                   <input type="text" placeholder="e.g. 12" className="w-full pl-11 pr-4 py-3.5 bg-gray-50 dark:bg-gray-700 border-none rounded-2xl focus:ring-2 focus:ring-orange-500 dark:text-white font-bold outline-none" value={tableNo} onChange={(e) => setTableNo(e.target.value)} />
                 </div>
               </div>
-              <button 
-                onClick={handleSimulate} 
-                disabled={isValidating}
-                className="w-full py-4 bg-orange-500 text-white rounded-2xl font-black text-lg shadow-xl shadow-orange-100 dark:shadow-none hover:bg-orange-600 transition-all active:scale-95 flex items-center justify-center gap-3"
-              >
-                {isValidating ? <><Loader2 className="animate-spin" /> Entering...</> : 'Start Ordering'}
-              </button>
+              <button onClick={handleSimulate} className="w-full py-4 bg-orange-500 text-white rounded-2xl font-black text-lg shadow-xl shadow-orange-100 dark:shadow-none hover:bg-orange-600 transition-all active:scale-95">Start Ordering</button>
             </div>
           </div>
         </div>
