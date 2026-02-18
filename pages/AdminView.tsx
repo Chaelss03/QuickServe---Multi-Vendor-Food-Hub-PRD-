@@ -397,23 +397,32 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
               <div>
                 <h3 className="font-black dark:text-white uppercase tracking-tighter text-lg">Sales Analysis</h3>
               </div>
-              <div className="relative w-full md:w-64">
-                <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
-                <input 
-                  type="text" 
-                  placeholder="ID or Kitchen..." 
-                  className="w-full pl-10 pr-4 py-2 bg-white dark:bg-gray-900 border dark:border-gray-700 rounded-xl text-[10px] font-black uppercase outline-none focus:ring-1 focus:ring-orange-500 transition-all dark:text-white"
-                  value={reportSearchQuery}
-                  onChange={e => {setReportSearchQuery(e.target.value); setCurrentPage(1);}}
-                />
+              <div className="flex items-center gap-2 w-full md:w-auto">
+                <div className="relative w-full md:w-64">
+                  <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <input 
+                    type="text" 
+                    placeholder="ID or Kitchen..." 
+                    className="w-full h-[36px] pl-10 pr-4 py-2 bg-white dark:bg-gray-900 border dark:border-gray-700 rounded-xl text-[10px] font-black uppercase outline-none focus:ring-1 focus:ring-orange-500 transition-all dark:text-white"
+                    value={reportSearchQuery}
+                    onChange={e => {setReportSearchQuery(e.target.value); setCurrentPage(1);}}
+                  />
+                </div>
+                <button 
+                  onClick={handleDownloadReport} 
+                  disabled={filteredReports.length === 0} 
+                  className="h-[36px] px-4 py-2 bg-black dark:bg-white text-white dark:text-gray-900 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center gap-2 hover:bg-orange-500 hover:text-white transition-all shadow-lg whitespace-nowrap"
+                >
+                  <Download size={14} /> Download report
+                </button>
               </div>
             </div>
             
-            <div className="p-4 md:p-8">
-              <div className="bg-gray-50 dark:bg-gray-900/50 p-6 rounded-2xl border dark:border-gray-700 mb-8 space-y-6">
+            <div className="p-2 md:p-4">
+              <div className="bg-gray-50 dark:bg-gray-900/50 p-3 rounded-2xl border dark:border-gray-700 mb-4 space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                   {/* Period selection */}
-                  <div className="space-y-1.5">
+                  <div className="space-y-1">
                     <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Period Selection</label>
                     <div className="flex items-center gap-2 bg-white dark:bg-gray-800 p-2 rounded-xl border dark:border-gray-600">
                       <Calendar size={14} className="text-orange-500 shrink-0" />
@@ -424,14 +433,14 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
                   </div>
 
                   {/* Vendor Filter */}
-                  <div className="space-y-1.5">
+                  <div className="space-y-1">
                     <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Filter by Kitchen</label>
                     <div className="relative">
                       <Store size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
                       <select 
                         value={reportVendor} 
                         onChange={(e) => {setReportVendor(e.target.value); setCurrentPage(1);}}
-                        className="w-full pl-9 pr-4 py-2.5 bg-white dark:bg-gray-800 border dark:border-gray-600 rounded-xl text-[10px] font-black dark:text-white appearance-none cursor-pointer outline-none"
+                        className="w-full pl-9 pr-4 py-2 bg-white dark:bg-gray-800 border dark:border-gray-600 rounded-xl text-[10px] font-black dark:text-white appearance-none cursor-pointer outline-none"
                       >
                         <option value="ALL">All Kitchens</option>
                         {restaurants.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
@@ -440,14 +449,14 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
                   </div>
 
                   {/* Hub Filter */}
-                  <div className="space-y-1.5">
+                  <div className="space-y-1">
                     <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Filter by Hub</label>
                     <div className="relative">
                       <MapPin size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
                       <select 
                         value={reportHub} 
                         onChange={(e) => {setReportHub(e.target.value); setCurrentPage(1);}}
-                        className="w-full pl-9 pr-4 py-2.5 bg-white dark:bg-gray-800 border dark:border-gray-600 rounded-xl text-[10px] font-black dark:text-white appearance-none cursor-pointer outline-none"
+                        className="w-full pl-9 pr-4 py-2 bg-white dark:bg-gray-800 border dark:border-gray-600 rounded-xl text-[10px] font-black dark:text-white appearance-none cursor-pointer outline-none"
                       >
                         <option value="ALL">All Hubs</option>
                         {locations.map(l => <option key={l.id} value={l.name}>{l.name}</option>)}
@@ -456,14 +465,14 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
                   </div>
 
                   {/* Status Filter */}
-                  <div className="space-y-1.5">
+                  <div className="space-y-1">
                     <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Order Outcome</label>
                     <div className="relative">
                       <Filter size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
                       <select 
                         value={reportStatus} 
                         onChange={(e) => {setReportStatus(e.target.value as any); setCurrentPage(1);}}
-                        className="w-full pl-9 pr-4 py-2.5 bg-white dark:bg-gray-800 border dark:border-gray-600 rounded-xl text-[10px] font-black dark:text-white appearance-none cursor-pointer outline-none"
+                        className="w-full pl-9 pr-4 py-2 bg-white dark:bg-gray-800 border dark:border-gray-600 rounded-xl text-[10px] font-black dark:text-white appearance-none cursor-pointer outline-none"
                       >
                         <option value="ALL">All Outcomes</option>
                         <option value={OrderStatus.COMPLETED}>Served</option>
@@ -474,33 +483,28 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
                     </div>
                   </div>
                 </div>
-
-                <div className="flex justify-end pt-2">
-                  <button onClick={handleDownloadReport} disabled={filteredReports.length === 0} className="px-6 py-2.5 bg-black dark:bg-white text-white dark:text-gray-900 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center gap-2 hover:bg-orange-500 hover:text-white transition-all shadow-lg">
-                    <Download size={16} /> Global Export
-                  </button>
-                </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 md:gap-6 mb-8">
-                <div className="bg-white dark:bg-gray-800 p-4 md:p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 md:gap-6 mb-4">
+                <div className="bg-white dark:bg-gray-800 p-2 md:p-3 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
                   <p className="text-gray-400 dark:text-gray-500 text-[8px] md:text-[9px] font-black mb-1 uppercase tracking-widest">Platform Revenue</p>
-                  <p className="text-xl md:text-2xl font-black text-gray-900 dark:text-white tracking-tighter leading-none">
+                  <p className="text-lg md:text-xl font-black text-gray-900 dark:text-white tracking-tighter leading-none">
                     RM{filteredReports.filter(o => o.status === OrderStatus.COMPLETED).reduce((acc, o) => acc + o.total, 0).toFixed(2)}
                   </p>
                 </div>
-                <div className="bg-white dark:bg-gray-800 p-4 md:p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
+                <div className="bg-white dark:bg-gray-800 p-2 md:p-3 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
                   <p className="text-gray-400 dark:text-gray-500 text-[8px] md:text-[9px] font-black mb-1 uppercase tracking-widest">Filtered Orders</p>
-                  <p className="text-xl md:text-2xl font-black text-gray-900 dark:text-white tracking-tighter leading-none">{filteredReports.length}</p>
+                  <p className="text-lg md:text-xl font-black text-gray-900 dark:text-white tracking-tighter leading-none">{filteredReports.length}</p>
                 </div>
-                <div className="bg-white dark:bg-gray-800 p-4 md:p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
+                <div className="bg-white dark:bg-gray-800 p-2 md:p-3 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
                   <p className="text-gray-400 dark:text-gray-500 text-[8px] md:text-[9px] font-black mb-1 uppercase tracking-widest">Global Health</p>
-                  <p className="text-xl md:text-2xl font-black text-green-500 tracking-tighter leading-none">
+                  <p className="text-lg md:text-xl font-black text-green-500 tracking-tighter leading-none">
                     {filteredReports.length > 0 ? Math.round((filteredReports.filter(r => r.status === OrderStatus.COMPLETED).length / filteredReports.length) * 100) : 0}%
                   </p>
                 </div>
               </div>
 
+              <h3 className="text-xs font-black dark:text-white uppercase tracking-widest mb-3 ml-1">All Order</h3>
               <div className="rounded-2xl border border-gray-100 dark:border-gray-700 overflow-hidden shadow-sm">
                 <div className="overflow-x-auto">
                     <table className="w-full">
