@@ -66,18 +66,9 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
   const [reportStart, setReportStart] = useState<string>(() => {
     const d = new Date();
     d.setDate(1); 
-    const year = d.getFullYear();
-    const month = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
+    return d.toISOString().split('T')[0];
   });
-  const [reportEnd, setReportEnd] = useState<string>(() => {
-    const d = new Date();
-    const year = d.getFullYear();
-    const month = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-  });
+  const [reportEnd, setReportEnd] = useState<string>(() => new Date().toISOString().split('T')[0]);
   const [entriesPerPage, setEntriesPerPage] = useState<number>(25);
   const [currentPage, setCurrentPage] = useState<number>(1);
 
@@ -104,11 +95,7 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
       try {
         const d = new Date(o.timestamp);
         if (isNaN(d.getTime())) return false; 
-        // Use local date instead of UTC to prevent timezone disappearance
-        const year = d.getFullYear();
-        const month = String(d.getMonth() + 1).padStart(2, '0');
-        const day = String(d.getDate()).padStart(2, '0');
-        orderDate = `${year}-${month}-${day}`;
+        orderDate = d.toISOString().split('T')[0];
       } catch { return false; }
       const matchesDate = orderDate >= reportStart && orderDate <= reportEnd;
       const matchesStatus = reportStatus === 'ALL' || o.status === reportStatus;
@@ -648,6 +635,7 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
             <button onClick={() => setIsModalOpen(false)} className="absolute top-6 right-6 p-2 text-gray-400 hover:text-red-500 transition-colors"><X size={24} /></button>
             <h2 className="text-2xl font-black mb-8 dark:text-white uppercase tracking-tighter">{editingVendor ? 'Modify Vendor' : 'New Kitchen Signal'}</h2>
             <form onSubmit={handleSubmitVendor} className="grid grid-cols-1 md:grid-cols-2 gap-6">
+               {/* Kitchen Name (1) & Assign Hub (2) */}
                <div>
                  <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Kitchen Name</label>
                  <input required type="text" className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none font-bold dark:text-white text-sm" value={formVendor.restaurantName} onChange={e => setFormVendor({...formVendor, restaurantName: e.target.value})} />
@@ -660,6 +648,7 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
                  </select>
                </div>
 
+               {/* Logo URL (3) & Contact Phone (4) */}
                <div className="space-y-4">
                   <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Kitchen Logo (Asset)</label>
                   <div className="flex gap-2">
@@ -673,6 +662,7 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
                       <Link size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                       <input type="text" placeholder="Paste URL or upload..." className="w-full pl-9 pr-4 py-3 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none font-bold dark:text-white text-xs" value={formVendor.logo} onChange={e => setFormVendor({...formVendor, logo: e.target.value})} />
                     </div>
+                    {/* Fixed: Use 'ref' instead of 'vendorFileInputRef' */}
                     <input type="file" ref={vendorFileInputRef} className="hidden" accept="image/*" onChange={handleVendorImageUpload} />
                   </div>
                </div>
@@ -681,6 +671,7 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
                  <input type="tel" className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none font-bold dark:text-white text-sm" value={formVendor.phone} onChange={e => setFormVendor({...formVendor, phone: e.target.value})} />
                </div>
 
+               {/* Contact Email (5) & Vendor Username (6) */}
                <div>
                  <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Contact Email</label>
                  <input type="email" className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none font-bold dark:text-white text-sm" value={formVendor.email} onChange={e => setFormVendor({...formVendor, email: e.target.value})} />
@@ -690,6 +681,7 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
                  <input required type="text" className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none font-bold dark:text-white text-sm" value={formVendor.username} onChange={e => setFormVendor({...formVendor, username: e.target.value})} />
                </div>
 
+               {/* Password (7) */}
                <div className="md:col-span-2">
                  <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Secret Key (Password)</label>
                  <div className="relative">
