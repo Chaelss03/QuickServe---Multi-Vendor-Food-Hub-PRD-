@@ -13,11 +13,6 @@ export interface MenuItemVariant {
   price: number;
 }
 
-export interface VariantGroup {
-  name: string;
-  options: MenuItemVariant[];
-}
-
 export interface MenuItem {
   id: string;
   name: string;
@@ -27,15 +22,9 @@ export interface MenuItem {
   category: string;
   isArchived?: boolean;
   sizes?: MenuItemVariant[];
-  
-  // Legacy support (optional)
   otherVariantName?: string;
   otherVariants?: MenuItemVariant[];
   otherVariantsEnabled?: boolean;
-
-  // New Multi-Group support
-  variantGroups?: VariantGroup[];
-
   tempOptions?: {
     hot?: number;
     cold?: number;
@@ -69,8 +58,7 @@ export interface CartItem extends MenuItem {
   restaurantId: string;
   selectedSize?: string;
   selectedTemp?: 'Hot' | 'Cold';
-  selectedOtherVariant?: string; // Legacy
-  selectedVariants?: Record<string, string>; // New: GroupName -> OptionName
+  selectedOtherVariant?: string;
   tableNumber?: string;
   remark?: string;
 }
