@@ -322,7 +322,6 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
                 </div>
               </div>
             </div>
-            {/* Hub Table Logic Follows Vendor pattern with Horizontal Scroll */}
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead className="bg-gray-50 dark:bg-gray-700/50 text-gray-400 text-[10px] font-black uppercase tracking-widest">
@@ -369,7 +368,6 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
           </div>
         )}
 
-        {/* ... Reports Tab remains same with enhanced responsiveness ... */}
         {activeTab === 'REPORTS' && (
           <div className="bg-white dark:bg-gray-800 rounded-3xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden animate-in fade-in duration-500">
             <div className="px-4 md:px-8 py-6 border-b dark:border-gray-700 bg-gray-50/50 dark:bg-gray-700/50 flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -462,6 +460,190 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
         )}
       </div>
 
+      {/* MODALS SECTION */}
+
+      {/* Vendor Registration/Edit Modal */}
+      {isModalOpen && (
+        <div className="fixed inset-0 z-[100] bg-black/70 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-3xl max-w-2xl w-full p-8 shadow-2xl relative animate-in zoom-in fade-in duration-300">
+            <button onClick={() => setIsModalOpen(false)} className="absolute top-6 right-6 p-2 text-gray-400 hover:text-red-500 transition-colors"><X size={24} /></button>
+            <h2 className="text-2xl font-black mb-8 dark:text-white uppercase tracking-tighter">{editingVendor ? 'Modify Vendor' : 'New Kitchen Signal'}</h2>
+            <form onSubmit={handleSubmitVendor} className="grid grid-cols-1 md:grid-cols-2 gap-6">
+               <div className="space-y-4">
+                  <div>
+                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Vendor Username</label>
+                    <input required type="text" className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none font-bold dark:text-white text-sm" value={formVendor.username} onChange={e => setFormVendor({...formVendor, username: e.target.value})} />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Secret Key (Password)</label>
+                    <div className="relative">
+                      <input required type={showPassword ? "text" : "password"} className="w-full pl-4 pr-11 py-3 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none font-bold dark:text-white text-sm" value={formVendor.password} onChange={e => setFormVendor({...formVendor, password: e.target.value})} />
+                      <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">{showPassword ? <EyeOff size={18} /> : <Eye size={18} />}</button>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Contact Email</label>
+                    <input type="email" className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none font-bold dark:text-white text-sm" value={formVendor.email} onChange={e => setFormVendor({...formVendor, email: e.target.value})} />
+                  </div>
+               </div>
+               <div className="space-y-4">
+                  <div>
+                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Kitchen Name</label>
+                    <input required type="text" className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none font-bold dark:text-white text-sm" value={formVendor.restaurantName} onChange={e => setFormVendor({...formVendor, restaurantName: e.target.value})} />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Assign to Hub</label>
+                    <select required className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none font-bold dark:text-white text-sm appearance-none cursor-pointer" value={formVendor.location} onChange={e => setFormVendor({...formVendor, location: e.target.value})}>
+                      <option value="">Select a Hub</option>
+                      {locations.filter(l => l.isActive !== false).map(loc => <option key={loc.id} value={loc.name}>{loc.name}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Logo URL (Optional)</label>
+                    <input type="text" className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none font-bold dark:text-white text-sm" value={formVendor.logo} onChange={e => setFormVendor({...formVendor, logo: e.target.value})} />
+                  </div>
+               </div>
+               <div className="md:col-span-2 pt-4">
+                  <button type="submit" className="w-full py-4 bg-orange-500 text-white rounded-2xl font-black uppercase tracking-widest text-xs shadow-xl hover:bg-orange-600 transition-all active:scale-95">Deploy Vendor Signal</button>
+               </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Hub Add/Edit Modal */}
+      {isAreaModalOpen && (
+        <div className="fixed inset-0 z-[100] bg-black/70 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-3xl max-w-md w-full p-8 shadow-2xl relative animate-in zoom-in fade-in duration-300">
+             <button onClick={() => setIsAreaModalOpen(false)} className="absolute top-6 right-6 p-2 text-gray-400 hover:text-red-500 transition-colors"><X size={24} /></button>
+             <h2 className="text-2xl font-black mb-8 dark:text-white uppercase tracking-tighter">{editingArea ? 'Modify Hub' : 'Establish New Hub'}</h2>
+             <form onSubmit={handleHubSubmit} className="space-y-4">
+                <div>
+                   <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Hub Alias (Unique Name)</label>
+                   <input required type="text" className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none font-bold dark:text-white text-sm" value={formArea.name} onChange={e => setFormArea({...formArea, name: e.target.value})} />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                   <div>
+                      <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">City</label>
+                      <input required type="text" className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none font-bold dark:text-white text-sm" value={formArea.city} onChange={e => setFormArea({...formArea, city: e.target.value})} />
+                   </div>
+                   <div>
+                      <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Short Code</label>
+                      <input required type="text" maxLength={3} placeholder="e.g. SF" className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none font-bold dark:text-white text-sm uppercase" value={formArea.code} onChange={e => setFormArea({...formArea, code: e.target.value.toUpperCase()})} />
+                   </div>
+                </div>
+                <div>
+                   <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Hub Logic</label>
+                   <div className="flex bg-gray-50 dark:bg-gray-700 p-1 rounded-xl">
+                      <button type="button" onClick={() => setFormArea({...formArea, type: 'MULTI'})} className={`flex-1 py-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${formArea.type === 'MULTI' ? 'bg-white dark:bg-gray-600 shadow-sm text-orange-500' : 'text-gray-400'}`}>Multi-Vendor</button>
+                      <button type="button" onClick={() => setFormArea({...formArea, type: 'SINGLE'})} className={`flex-1 py-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${formArea.type === 'SINGLE' ? 'bg-white dark:bg-gray-600 shadow-sm text-orange-500' : 'text-gray-400'}`}>Standalone</button>
+                   </div>
+                </div>
+                <div className="pt-4 flex gap-4">
+                   {editingArea && (
+                     <button type="button" onClick={() => { if(confirm('Delete Hub?')) onDeleteLocation(editingArea.id); setIsAreaModalOpen(false); }} className="p-3 text-red-500 bg-red-50 dark:bg-red-900/10 rounded-xl hover:bg-red-500 hover:text-white transition-all"><Trash2 size={24} /></button>
+                   )}
+                   <button type="submit" className="flex-1 py-4 bg-orange-500 text-white rounded-2xl font-black uppercase tracking-widest text-xs shadow-xl">Confirm Hub Data</button>
+                </div>
+             </form>
+          </div>
+        </div>
+      )}
+
+      {/* QR Generator Modal (Hub Specific) */}
+      {generatingQrHub && (
+        <div className="fixed inset-0 z-[110] bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-3xl max-w-4xl w-full p-8 shadow-2xl relative animate-in zoom-in duration-300">
+             <button onClick={() => setGeneratingQrHub(null)} className="absolute top-6 right-6 p-2 text-gray-400 hover:text-red-500 transition-colors no-print"><X size={24} /></button>
+             
+             <div className="no-print">
+               <h2 className="text-2xl font-black mb-1 dark:text-white uppercase tracking-tighter">Hub QR Factory</h2>
+               <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-8">Generating for: {generatingQrHub.name}</p>
+               
+               <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
+                 <div className="bg-gray-50 dark:bg-gray-700/50 p-6 rounded-2xl space-y-4">
+                    <div>
+                       <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Range Strategy</label>
+                       <div className="flex bg-white dark:bg-gray-800 p-1 rounded-xl">
+                          <button onClick={() => setQrMode('SINGLE')} className={`flex-1 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${qrMode === 'SINGLE' ? 'bg-orange-500 text-white shadow-md' : 'text-gray-400'}`}>Single</button>
+                          <button onClick={() => setQrMode('BATCH')} className={`flex-1 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${qrMode === 'BATCH' ? 'bg-orange-500 text-white shadow-md' : 'text-gray-400'}`}>Batch</button>
+                       </div>
+                    </div>
+                    {qrMode === 'SINGLE' ? (
+                       <input type="text" className="w-full px-4 py-3 bg-white dark:bg-gray-800 border dark:border-gray-600 rounded-xl outline-none font-bold text-sm dark:text-white" value={qrTableNo} onChange={e => setQrTableNo(e.target.value)} placeholder="Table No." />
+                    ) : (
+                       <div className="flex gap-4">
+                          <input type="number" className="flex-1 px-4 py-3 bg-white dark:bg-gray-800 border dark:border-gray-600 rounded-xl outline-none font-bold text-sm dark:text-white" value={qrStartRange} onChange={e => setQrStartRange(e.target.value)} placeholder="Start" />
+                          <input type="number" className="flex-1 px-4 py-3 bg-white dark:bg-gray-800 border dark:border-gray-600 rounded-xl outline-none font-bold text-sm dark:text-white" value={qrEndRange} onChange={e => setQrEndRange(e.target.value)} placeholder="End" />
+                       </div>
+                    )}
+                    <button onClick={handlePrintQr} className="w-full py-4 bg-orange-500 text-white rounded-xl font-black uppercase tracking-widest text-[10px] shadow-lg flex items-center justify-center gap-2"><Printer size={18} /> Print Labelling</button>
+                 </div>
+                 <div className="bg-white dark:bg-gray-900 rounded-2xl border-4 border-dashed border-gray-100 dark:border-gray-700 flex flex-col items-center justify-center p-8">
+                    {qrMode === 'SINGLE' ? (
+                      <>
+                        <img src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(getQrUrl(generatingQrHub.name, qrTableNo))}`} alt="QR" className="w-40 h-40 mb-4" />
+                        <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">{generatingQrHub.name}</span>
+                        <span className="text-2xl font-black text-orange-500 uppercase tracking-tighter">TABLE {qrTableNo}</span>
+                      </>
+                    ) : (
+                      <div className="text-center opacity-40">
+                        <Layers size={48} className="mx-auto mb-4 text-gray-300" />
+                        <p className="text-[10px] font-black uppercase tracking-widest">Multiple Print Nodes Ready</p>
+                      </div>
+                    )}
+                 </div>
+               </div>
+             </div>
+
+             {/* Print View Output (Hidden in Screen) */}
+             <div className="hidden print:block bg-white text-black p-0">
+               {qrMode === 'SINGLE' ? (
+                 <div className="flex flex-col items-center justify-center h-screen">
+                    <img src={`https://api.qrserver.com/v1/create-qr-code/?size=500x500&data=${encodeURIComponent(getQrUrl(generatingQrHub.name, qrTableNo))}`} className="w-80 h-80 mb-8" />
+                    <h1 className="text-4xl font-black uppercase">{generatingQrHub.name}</h1>
+                    <h2 className="text-6xl font-black text-orange-600">TABLE {qrTableNo}</h2>
+                 </div>
+               ) : (
+                 <div className="grid grid-cols-2 gap-8 p-8">
+                    {Array.from({ length: Math.max(0, parseInt(qrEndRange) - parseInt(qrStartRange) + 1) }).map((_, i) => {
+                       const num = parseInt(qrStartRange) + i;
+                       return (
+                         <div key={num} className="page-break-inside-avoid border-2 border-gray-200 p-8 flex flex-col items-center rounded-[2rem]">
+                            <img src={`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(getQrUrl(generatingQrHub.name, String(num)))}`} className="w-48 h-48 mb-4" />
+                            <p className="text-xs font-bold uppercase tracking-widest mb-1 text-gray-500">{generatingQrHub.name}</p>
+                            <p className="text-2xl font-black uppercase">TABLE {num}</p>
+                         </div>
+                       );
+                    })}
+                 </div>
+               )}
+             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Global Hub Selection for QR */}
+      {isHubSelectionModalOpen && (
+        <div className="fixed inset-0 z-[120] bg-black/70 backdrop-blur-md flex items-center justify-center p-4">
+           <div className="bg-white dark:bg-gray-800 rounded-3xl max-w-lg w-full p-8 shadow-2xl relative">
+              <button onClick={() => setIsHubSelectionModalOpen(false)} className="absolute top-6 right-6 p-2 text-gray-400 hover:text-red-500 transition-colors"><X size={24} /></button>
+              <h2 className="text-2xl font-black mb-6 dark:text-white uppercase tracking-tighter">Select Hub to Generate</h2>
+              <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-2 custom-scrollbar">
+                 {locations.filter(l => l.isActive !== false).map(loc => (
+                   <button key={loc.id} onClick={() => { setGeneratingQrHub(loc); setIsHubSelectionModalOpen(false); }} className="w-full flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700/50 hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded-2xl border dark:border-gray-700 group transition-all">
+                      <div className="flex items-center gap-3">
+                         <MapPin size={20} className="text-orange-500" />
+                         <span className="font-black dark:text-white uppercase tracking-tight text-sm">{loc.name}</span>
+                      </div>
+                      <ChevronRight size={18} className="text-gray-300 group-hover:text-orange-500 translate-x-0 group-hover:translate-x-1 transition-all" />
+                   </button>
+                 ))}
+              </div>
+           </div>
+        </div>
+      )}
+
       <style>{`
         .hide-scrollbar::-webkit-scrollbar {
           display: none;
@@ -470,6 +652,9 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
           -ms-overflow-style: none;
           scrollbar-width: none;
         }
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #e5e7eb; border-radius: 10px; }
       `}</style>
     </div>
   );

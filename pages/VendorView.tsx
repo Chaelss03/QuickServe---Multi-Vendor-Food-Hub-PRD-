@@ -695,7 +695,6 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
                       </button>
                     ))}
                   </div>
-                  {/* ... Rest of the menu display logic remains same ... */}
                   {currentMenu.length === 0 ? (
                     <div className="bg-white dark:bg-gray-800 rounded-3xl p-20 text-center border border-dashed border-gray-300 dark:border-gray-700">
                         <div className="w-16 h-16 bg-gray-50 dark:bg-gray-700 rounded-full flex items-center justify-center mx-auto mb-4 text-gray-300">
@@ -967,7 +966,142 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
         </div>
       )}
 
-      {/* ... Remaining modals follow similar pattern ... */}
+      {/* Menu Item Form Modal */}
+      {isFormModalOpen && (
+        <div className="fixed inset-0 z-[100] bg-black/70 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-3xl max-w-2xl w-full p-8 shadow-2xl relative animate-in zoom-in fade-in duration-300 max-h-[90vh] overflow-y-auto custom-scrollbar">
+            <button onClick={() => setIsFormModalOpen(false)} className="absolute top-6 right-6 p-2 text-gray-400 hover:text-red-500 transition-colors"><X size={24} /></button>
+            <h2 className="text-2xl font-black mb-8 dark:text-white uppercase tracking-tighter">{editingItem ? 'Edit Dish Profile' : 'New Dish Broadcast'}</h2>
+            
+            <form onSubmit={handleSaveItem} className="space-y-8">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div className="space-y-6">
+                  <div>
+                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Dish Identity</label>
+                    <input required type="text" className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none font-bold dark:text-white text-sm" value={formItem.name} onChange={e => setFormItem({...formItem, name: e.target.value})} placeholder="e.g. Signature Beef Burger" />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Composition Description</label>
+                    <textarea className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none font-bold dark:text-white text-sm resize-none" rows={3} value={formItem.description} onChange={e => setFormItem({...formItem, description: e.target.value})} placeholder="Describe the ingredients and preparation..." />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Base Cost</label>
+                      <input required type="number" step="0.01" className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none font-bold dark:text-white text-sm" value={formItem.price} onChange={e => setFormItem({...formItem, price: Number(e.target.value)})} />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Classification</label>
+                      <select className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none font-bold dark:text-white text-sm appearance-none cursor-pointer" value={formItem.category} onChange={e => setFormItem({...formItem, category: e.target.value})}>
+                        {categories.filter(c => c !== 'All').map(cat => <option key={cat} value={cat}>{cat}</option>)}
+                      </select>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="space-y-6">
+                   <div>
+                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Visual Asset</label>
+                    <div className="relative group aspect-video rounded-2xl overflow-hidden bg-gray-50 dark:bg-gray-700 border-2 border-dashed border-gray-200 dark:border-gray-600 flex items-center justify-center cursor-pointer" onClick={() => fileInputRef.current?.click()}>
+                      {formItem.image ? (
+                        <img src={formItem.image} className="w-full h-full object-cover group-hover:scale-105 transition-all" />
+                      ) : (
+                        <div className="text-center">
+                          <ImageIcon size={32} className="mx-auto text-gray-300 mb-2" />
+                          <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Upload Frame</span>
+                        </div>
+                      )}
+                      <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleImageUpload} />
+                    </div>
+                    <p className="mt-2 text-[8px] text-gray-400 font-bold uppercase tracking-widest">Recommended: 1200x800px (JPG/PNG)</p>
+                   </div>
+                </div>
+              </div>
+
+              {/* Sizes and Temperature Logic */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pt-6 border-t dark:border-gray-700">
+                 <div>
+                   <div className="flex items-center justify-between mb-4">
+                      <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Portion Variants</label>
+                      <button type="button" onClick={handleAddSize} className="p-1.5 text-orange-500 bg-orange-50 dark:bg-orange-900/20 rounded-lg"><Plus size={16} /></button>
+                   </div>
+                   <div className="space-y-3">
+                      {formItem.sizes?.map((size, idx) => (
+                        <div key={idx} className="flex gap-2 animate-in slide-in-from-right-2 duration-300">
+                          <input type="text" className="flex-1 px-3 py-2 bg-gray-50 dark:bg-gray-700 border-none rounded-lg text-xs font-bold dark:text-white" placeholder="Size Name (e.g. Large)" value={size.name} onChange={e => handleSizeChange(idx, 'name', e.target.value)} />
+                          <input type="number" step="0.01" className="w-24 px-3 py-2 bg-gray-50 dark:bg-gray-700 border-none rounded-lg text-xs font-bold dark:text-white" placeholder="+Price" value={size.price} onChange={e => handleSizeChange(idx, 'price', Number(e.target.value))} />
+                          <button type="button" onClick={() => handleRemoveSize(idx)} className="p-2 text-red-400 hover:bg-red-50 rounded-lg"><Trash2 size={14} /></button>
+                        </div>
+                      ))}
+                      {(!formItem.sizes || formItem.sizes.length === 0) && <p className="text-[9px] text-gray-400 italic">No variants established yet.</p>}
+                   </div>
+                 </div>
+
+                 <div>
+                   <div className="flex items-center justify-between mb-4">
+                      <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Thermal Options</label>
+                      <button type="button" onClick={() => setFormItem({...formItem, tempOptions: {...formItem.tempOptions!, enabled: !formItem.tempOptions?.enabled}})} className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${formItem.tempOptions?.enabled ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-400'}`}>
+                        {formItem.tempOptions?.enabled ? 'Activated' : 'Disabled'}
+                      </button>
+                   </div>
+                   {formItem.tempOptions?.enabled && (
+                     <div className="grid grid-cols-2 gap-4 animate-in fade-in zoom-in-95 duration-300">
+                        <div className="space-y-2">
+                           <div className="flex items-center gap-2 text-orange-500"><ThermometerSun size={14} /><span className="text-[9px] font-black uppercase tracking-widest">Hot Surcharge</span></div>
+                           <input type="number" step="0.01" className="w-full px-3 py-2 bg-orange-50 dark:bg-orange-900/10 border-none rounded-lg text-xs font-bold dark:text-white" value={formItem.tempOptions.hot} onChange={e => setFormItem({...formItem, tempOptions: {...formItem.tempOptions!, hot: Number(e.target.value)}})} />
+                        </div>
+                        <div className="space-y-2">
+                           <div className="flex items-center gap-2 text-blue-500"><Info size={14} /><span className="text-[9px] font-black uppercase tracking-widest">Cold Surcharge</span></div>
+                           <input type="number" step="0.01" className="w-full px-3 py-2 bg-blue-50 dark:bg-blue-900/10 border-none rounded-lg text-xs font-bold dark:text-white" value={formItem.tempOptions.cold} onChange={e => setFormItem({...formItem, tempOptions: {...formItem.tempOptions!, cold: Number(e.target.value)}})} />
+                        </div>
+                     </div>
+                   )}
+                 </div>
+              </div>
+
+              <div className="pt-8 border-t dark:border-gray-700">
+                <button type="submit" className="w-full py-5 bg-orange-500 text-white rounded-[2rem] font-black uppercase tracking-[0.2em] text-xs shadow-xl shadow-orange-100 dark:shadow-none hover:bg-orange-600 transition-all active:scale-95">Confirm Dish Broadcast</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Add Classification Modal */}
+      {showAddClassModal && (
+        <div className="fixed inset-0 z-[110] bg-black/70 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-3xl max-w-sm w-full p-8 shadow-2xl relative animate-in zoom-in fade-in duration-300">
+             <button onClick={() => setShowAddClassModal(false)} className="absolute top-6 right-6 p-2 text-gray-400 hover:text-red-500 transition-colors"><X size={20} /></button>
+             <h2 className="text-2xl font-black mb-6 dark:text-white uppercase tracking-tighter">New Classification</h2>
+             <div className="space-y-4">
+                <div>
+                   <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Classification Name</label>
+                   <input required type="text" className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none font-bold dark:text-white text-sm" value={newClassName} onChange={e => setNewClassName(e.target.value)} placeholder="e.g. Desserts" />
+                </div>
+                <button onClick={handleAddClassification} className="w-full py-4 bg-orange-500 text-white rounded-xl font-black uppercase tracking-widest text-xs shadow-lg hover:bg-orange-600 transition-all">Establish Class</button>
+             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Rename Classification Modal */}
+      {renamingClass && (
+        <div className="fixed inset-0 z-[110] bg-black/70 backdrop-blur-md flex items-center justify-center p-4">
+           <div className="bg-white dark:bg-gray-800 rounded-3xl max-w-sm w-full p-8 shadow-2xl relative animate-in zoom-in fade-in duration-300">
+              <button onClick={() => setRenamingClass(null)} className="absolute top-6 right-6 p-2 text-gray-400 hover:text-red-500 transition-colors"><X size={20} /></button>
+              <h2 className="text-2xl font-black mb-6 dark:text-white uppercase tracking-tighter">Modify Class</h2>
+              <div className="space-y-4">
+                 <div>
+                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Current: {renamingClass}</label>
+                    <input required type="text" className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none font-bold dark:text-white text-sm" value={renameValue} onChange={e => setRenameValue(e.target.value)} />
+                 </div>
+                 <div className="flex gap-4">
+                    <button onClick={() => setRenamingClass(null)} className="flex-1 py-3 bg-gray-100 dark:bg-gray-700 rounded-xl font-black uppercase text-[10px] tracking-widest text-gray-500">Cancel</button>
+                    <button onClick={() => handleRenameClassification(renamingClass, renameValue)} className="flex-1 py-3 bg-orange-500 text-white rounded-xl font-black uppercase text-[10px] tracking-widest shadow-lg">Confirm Change</button>
+                 </div>
+              </div>
+           </div>
+        </div>
+      )}
 
       <style>{`
         @media print {
@@ -985,6 +1119,9 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
           100% { transform: rotate(0); }
         }
         .animate-ring { animation: ring 1s infinite ease-in-out; }
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #e5e7eb; border-radius: 10px; }
       `}</style>
     </div>
   );
