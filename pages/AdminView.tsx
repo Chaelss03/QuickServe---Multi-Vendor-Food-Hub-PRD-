@@ -15,10 +15,11 @@ interface Props {
   onAddLocation: (area: Area) => void;
   onUpdateLocation: (area: Area) => void;
   onDeleteLocation: (areaId: string) => void;
+  onToggleOnline: (restaurantId: string, currentStatus: boolean) => void;
   onRemoveVendorFromHub: (restaurantId: string) => void;
 }
 
-const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, onAddVendor, onUpdateVendor, onImpersonateVendor, onAddLocation, onUpdateLocation, onDeleteLocation, onRemoveVendorFromHub }) => {
+const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, onAddVendor, onUpdateVendor, onImpersonateVendor, onAddLocation, onUpdateLocation, onDeleteLocation, onToggleOnline, onRemoveVendorFromHub }) => {
   const [activeTab, setActiveTab] = useState<'VENDORS' | 'LOCATIONS' | 'REPORTS' | 'SYSTEM'>('VENDORS');
   const [searchQuery, setSearchQuery] = useState('');
   const [hubSearchQuery, setHubSearchQuery] = useState('');
@@ -289,9 +290,9 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
                 <div className="relative flex-1 sm:flex-none">
                    <Filter size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
                    <select className="w-full pl-11 pr-8 py-2.5 bg-white dark:bg-gray-900 border dark:border-gray-700 rounded-xl text-sm appearance-none outline-none font-bold dark:text-white" value={vendorFilter} onChange={e => setVendorFilter(e.target.value as any)}>
-                      <option value="ALL">All Status</option>
-                      <option value="ACTIVE">Active</option>
-                      <option value="INACTIVE">Deactive</option>
+                      <option value="ALL">All Activation</option>
+                      <option value="ACTIVE">Master Active</option>
+                      <option value="INACTIVE">Master Deactive</option>
                    </select>
                 </div>
                 <button onClick={handleOpenAdd} className="w-full sm:w-auto px-6 py-2.5 bg-orange-500 text-white rounded-xl font-black uppercase tracking-widest text-[10px] shadow-lg transition-all active:scale-95">+ Register</button>
@@ -303,13 +304,15 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
                   <tr>
                     <th className="px-8 py-4 text-left">Kitchen</th>
                     <th className="px-8 py-4 text-left">Hub</th>
-                    <th className="px-8 py-4 text-center">Status</th>
+                    <th className="px-8 py-4 text-center">Master Activation</th>
+                    <th className="px-8 py-4 text-center">Live Status</th>
                     <th className="px-8 py-4 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y dark:divide-gray-700">
                   {filteredVendors.map(vendor => {
                     const res = restaurants.find(r => r.id === vendor.restaurantId);
+                    const isOnline = res?.isOnline ?? false;
                     return (
                       <tr key={vendor.id} className="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
                         <td className="px-8 py-5">
@@ -325,6 +328,14 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
                         <td className="px-8 py-5 text-center">
                           <button onClick={() => toggleVendorStatus(vendor)} className={`p-2 rounded-xl transition-all ${vendor.isActive ? 'text-green-500 bg-green-50 dark:bg-green-900/20' : 'text-gray-400 bg-gray-50 dark:bg-gray-700'}`}>
                              {vendor.isActive ? <CheckCircle2 size={20} /> : <Power size={20} />}
+                          </button>
+                        </td>
+                        <td className="px-8 py-5 text-center">
+                          <button 
+                            onClick={() => res && onToggleOnline(res.id, isOnline)} 
+                            className={`px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${isOnline ? 'bg-green-500 text-white shadow-lg' : 'bg-gray-100 dark:bg-gray-700 text-gray-400'}`}
+                          >
+                            {isOnline ? 'Online' : 'Offline'}
                           </button>
                         </td>
                         <td className="px-8 py-5 text-right">

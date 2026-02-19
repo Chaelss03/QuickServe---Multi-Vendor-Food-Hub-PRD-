@@ -333,6 +333,15 @@ const App: React.FC = () => {
   };
 
   const toggleVendorOnline = async (restaurantId: string, currentStatus: boolean) => {
+    const res = restaurants.find(r => r.id === restaurantId);
+    const vendor = allUsers.find(u => u.restaurantId === restaurantId);
+    
+    // If master activation is disabled, cannot turn online
+    if (!currentStatus && vendor && vendor.isActive === false) {
+      alert("Cannot turn online: Master Activation is disabled for this vendor.");
+      return;
+    }
+
     const newStatus = !currentStatus;
     isStatusLocked.current = true;
     setRestaurants(prev => prev.map(r => r.id === restaurantId ? { ...r, isOnline: newStatus } : r));
@@ -428,9 +437,18 @@ const App: React.FC = () => {
     const { error: userError } = await supabase.from('users').update({
       username: user.username, password: user.password, email: user.email, phone: user.phone, is_active: user.isActive
     }).eq('id', user.id);
-    const { error: resError } = await supabase.from('restaurants').update({
-      name: restaurant.name, logo: restaurant.logo, location_name: restaurant.location
-    }).eq('id', restaurant.id);
+    
+    // If deactivating vendor, also set restaurant offline
+    const resUpdate: any = {
+      name: restaurant.name, 
+      logo: restaurant.logo, 
+      location_name: restaurant.location
+    };
+    if (user.isActive === false) {
+      resUpdate.is_online = false;
+    }
+
+    const { error: resError } = await supabase.from('restaurants').update(resUpdate).eq('id', restaurant.id);
     if (userError || resError) alert("Error updating vendor");
     fetchUsers(); fetchRestaurants();
   };
@@ -500,7 +518,7 @@ const App: React.FC = () => {
       <main className="flex-1">
         {currentRole === 'CUSTOMER' && <CustomerView restaurants={restaurants.filter(r => r.location === sessionLocation && r.isOnline === true)} cart={cart} orders={orders} onAddToCart={addToCart} onRemoveFromCart={removeFromCart} onPlaceOrder={placeOrder} locationName={sessionLocation || undefined} tableNo={sessionTable || undefined} areaType={currentArea?.type || 'MULTI'} allRestaurants={restaurants} />}
         {currentRole === 'VENDOR' && activeVendorRes && <VendorView restaurant={activeVendorRes} orders={orders.filter(o => o.restaurantId === currentUser?.restaurantId)} onUpdateOrder={updateOrderStatus} onUpdateMenu={handleUpdateMenuItem} onAddMenuItem={handleAddMenuItem} onPermanentDeleteMenuItem={handleDeleteMenuItem} onToggleOnline={() => toggleVendorOnline(activeVendorRes.id, activeVendorRes.isOnline ?? true)} lastSyncTime={lastSyncTime} />}
-        {currentRole === 'ADMIN' && <AdminView vendors={allUsers.filter(u => u.role === 'VENDOR')} restaurants={restaurants} orders={orders} locations={locations} onAddVendor={handleAddVendor} onUpdateVendor={handleUpdateVendor} onImpersonateVendor={handleLogin} onAddLocation={handleAddLocation} onUpdateLocation={handleUpdateLocation} onDeleteLocation={handleDeleteLocation} onRemoveVendorFromHub={(rid) => supabase.from('restaurants').update({ location_name: null }).eq('id', rid).then(() => fetchRestaurants())} />}
+        {currentRole === 'ADMIN' && <AdminView vendors={allUsers.filter(u => u.role === 'VENDOR')} restaurants={restaurants} orders={orders} locations={locations} onAddVendor={handleAddVendor} onUpdateVendor={handleUpdateVendor} onImpersonateVendor={handleLogin} onAddLocation={handleAddLocation} onUpdateLocation={handleUpdateLocation} onDeleteLocation={handleDeleteLocation} onToggleOnline={toggleVendorOnline} onRemoveVendorFromHub={(rid) => supabase.from('restaurants').update({ location_name: null }).eq('id', rid).then(() => fetchRestaurants())} />}
       </main>
     </div>
   );
