@@ -367,7 +367,8 @@ const App: React.FC = () => {
       other_variants: item.otherVariants,
       other_variants_enabled: item.otherVariantsEnabled
     }).eq('id', item.id);
-    if (!error) fetchRestaurants();
+    if (error) alert("Error updating menu item: " + error.message);
+    else fetchRestaurants();
   };
 
   const handleAddMenuItem = async (restaurantId: string, item: MenuItem) => {
@@ -384,10 +385,10 @@ const App: React.FC = () => {
       temp_options: item.tempOptions,
       other_variant_name: item.otherVariantName,
       other_variants: item.otherVariants,
-      // Fix: Use correct camelCase property otherVariantsEnabled from MenuItem type
       other_variants_enabled: item.otherVariantsEnabled
     });
-    if (!error) fetchRestaurants();
+    if (error) alert("Error adding menu item: " + error.message);
+    else fetchRestaurants();
   };
 
   const handleDeleteMenuItem = async (restaurantId: string, itemId: string) => {
@@ -397,8 +398,8 @@ const App: React.FC = () => {
 
   // --- VENDOR & HUB HANDLERS ---
   const handleAddVendor = async (user: User, restaurant: Restaurant) => {
-    const userId = `u_${Date.now()}`;
-    const resId = `res_${Date.now()}`;
+    const userId = crypto.randomUUID();
+    const resId = crypto.randomUUID();
     const { error: userError } = await supabase.from('users').insert({
       id: userId, username: user.username, password: user.password, role: 'VENDOR',
       restaurant_id: resId, is_active: true, email: user.email, phone: user.phone
@@ -424,7 +425,7 @@ const App: React.FC = () => {
   };
 
   const handleAddLocation = async (area: Area) => {
-    const id = `loc_${Date.now()}`;
+    const id = crypto.randomUUID();
     const { error } = await supabase.from('areas').insert({
       id, name: area.name, city: area.city, state: area.state, code: area.code, is_active: true, type: area.type || 'MULTI'
     });

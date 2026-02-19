@@ -284,7 +284,7 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
     if (!formItem.name || !formItem.price) return;
 
     const itemToSave: MenuItem = {
-      id: editingItem ? editingItem.id : `m_${Date.now()}`,
+      id: editingItem ? editingItem.id : crypto.randomUUID(),
       name: formItem.name || '',
       description: formItem.description || '',
       price: Number(formItem.price),
