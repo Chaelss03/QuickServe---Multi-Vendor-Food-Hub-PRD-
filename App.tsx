@@ -137,16 +137,23 @@ const App: React.FC = () => {
         id: res.id, name: res.name, logo: res.logo, vendorId: res.vendor_id,
         location: res.location_name, created_at: res.created_at,
         isOnline: res.is_online === true || res.is_online === null,
-        menu: menuData.filter(m => m.restaurant_id === res.id).map(m => ({
-          id: m.id, name: m.name, description: m.description, price: Number(m.price),
-          image: m.image, category: m.category, isArchived: m.is_archived,
-          sizes: m.sizes, 
-          // Fix: Correct mapping from Supabase snake_case columns to MenuItem camelCase properties
-          tempOptions: m.temp_options,
-          otherVariantName: m.other_variant_name,
-          otherVariants: m.other_variants, 
-          otherVariantsEnabled: m.other_variants_enabled
-        }))
+        menu: menuData.filter(m => m.restaurant_id === res.id).map(m => {
+          const temp = m.temp_options || {};
+          const others = m.other_variants || {};
+          return {
+            id: m.id, name: m.name, description: m.description, price: Number(m.price),
+            image: m.image, category: m.category, isArchived: m.is_archived,
+            sizes: m.sizes,
+            tempOptions: {
+              enabled: temp.enabled ?? false,
+              hot: temp.hot ?? 0,
+              cold: temp.cold ?? 0
+            },
+            otherVariantName: others.name || '',
+            otherVariants: others.options || [],
+            otherVariantsEnabled: others.enabled ?? false
+          };
+        })
       }));
       setRestaurants(formatted);
       persistCache('qs_cache_restaurants', formatted);
@@ -362,10 +369,12 @@ const App: React.FC = () => {
       category: item.category,
       is_archived: item.isArchived,
       sizes: item.sizes,
-      temp_options: item.tempOptions,
-      other_variant_name: item.otherVariantName,
-      other_variants: item.otherVariants,
-      other_variants_enabled: item.otherVariantsEnabled
+      temp_options: item.tempOptions || { enabled: false, hot: 0, cold: 0 },
+      other_variants: {
+        name: item.otherVariantName,
+        options: item.otherVariants,
+        enabled: item.otherVariantsEnabled
+      }
     }).eq('id', item.id);
     if (error) alert("Error updating menu item: " + error.message);
     else fetchRestaurants();
@@ -382,10 +391,12 @@ const App: React.FC = () => {
       category: item.category,
       is_archived: false,
       sizes: item.sizes,
-      temp_options: item.tempOptions,
-      other_variant_name: item.otherVariantName,
-      other_variants: item.otherVariants,
-      other_variants_enabled: item.otherVariantsEnabled
+      temp_options: item.tempOptions || { enabled: false, hot: 0, cold: 0 },
+      other_variants: {
+        name: item.otherVariantName,
+        options: item.otherVariants,
+        enabled: item.otherVariantsEnabled
+      }
     });
     if (error) alert("Error adding menu item: " + error.message);
     else fetchRestaurants();
