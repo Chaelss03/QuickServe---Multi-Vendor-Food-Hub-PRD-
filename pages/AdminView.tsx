@@ -1,6 +1,7 @@
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { User, Restaurant, Order, Area, OrderStatus } from '../types';
+import { uploadImage } from '../lib/storage';
 import { Users, Store, TrendingUp, Settings, ShieldCheck, Mail, Search, Filter, X, Plus, MapPin, Power, CheckCircle2, AlertCircle, LogIn, Trash2, LayoutGrid, List, ChevronRight, Eye, EyeOff, Globe, Phone, ShoppingBag, Edit3, Hash, Download, Calendar, ChevronLeft, Database, Image as ImageIcon, Key, QrCode, Printer, Layers, Info, ExternalLink, XCircle, Upload, Link, ChevronLast, ChevronFirst } from 'lucide-react';
 
 interface Props {
@@ -172,14 +173,16 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
     setIsModalOpen(true);
   };
 
-  const handleVendorImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleVendorImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setFormVendor({ ...formVendor, logo: reader.result as string });
-      };
-      reader.readAsDataURL(file);
+      try {
+        const publicUrl = await uploadImage(file, 'quickserve', 'logos');
+        setFormVendor({ ...formVendor, logo: publicUrl });
+      } catch (error) {
+        console.error("Upload failed:", error);
+        alert("Failed to upload logo. Please try again.");
+      }
     }
   };
 

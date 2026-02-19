@@ -1,6 +1,7 @@
 
 import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { Restaurant, Order, OrderStatus, MenuItem, MenuItemVariant } from '../types';
+import { uploadImage } from '../lib/storage';
 import { ShoppingBag, BookOpen, BarChart3, Edit3, CheckCircle, Clock, X, Plus, Trash2, Image as ImageIcon, LayoutGrid, List, Filter, Archive, RotateCcw, Power, Eye, Upload, Hash, MessageSquare, Download, Calendar, Ban, ChevronLeft, ChevronRight, Bell, Activity, RefreshCw, Layers, Tag, Wifi, WifiOff, QrCode, Printer, ExternalLink, ThermometerSun, Info, Settings2, Menu, ToggleLeft, ToggleRight, Link, Search } from 'lucide-react';
 
 interface Props {
@@ -265,14 +266,16 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
     setFormItem({ ...formItem, otherVariants: updated });
   };
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setFormItem({ ...formItem, image: reader.result as string });
-      };
-      reader.readAsDataURL(file);
+      try {
+        const publicUrl = await uploadImage(file, 'quickserve', 'menu-items');
+        setFormItem({ ...formItem, image: publicUrl });
+      } catch (error) {
+        console.error("Upload failed:", error);
+        alert("Failed to upload image. Please try again.");
+      }
     }
   };
 
