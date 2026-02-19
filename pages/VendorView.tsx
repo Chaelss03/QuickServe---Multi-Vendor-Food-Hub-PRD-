@@ -109,13 +109,14 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
     prevPendingCount.current = pendingOrders.length;
   }, [pendingOrders.length]);
 
-  const [formItem, setFormItem] = useState<Partial<MenuItem>>({
+  const [formItem, setFormItem] = useState<Partial<MenuItem & { sizesEnabled?: boolean }>>({
     name: '',
     description: '',
     price: 0,
     image: '',
     category: 'Main Dish',
     sizes: [],
+    sizesEnabled: false,
     otherVariantName: '',
     otherVariants: [],
     otherVariantsEnabled: false,
@@ -205,6 +206,7 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
       image: '',
       category: initialCategory || 'Main Dish',
       sizes: [],
+      sizesEnabled: false,
       otherVariantName: '',
       otherVariants: [],
       otherVariantsEnabled: false,
@@ -218,6 +220,7 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
     setFormItem({
       ...item,
       sizes: item.sizes ? [...item.sizes] : [],
+      sizesEnabled: !!(item.sizes && item.sizes.length > 0),
       otherVariantName: item.otherVariantName || '',
       otherVariants: item.otherVariants ? [...item.otherVariants] : [],
       otherVariantsEnabled: !!item.otherVariantsEnabled,
@@ -281,17 +284,17 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
 
   const handleSaveItem = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formItem.name || !formItem.price) return;
+    if (!formItem.name) return;
 
     const itemToSave: MenuItem = {
       id: editingItem ? editingItem.id : crypto.randomUUID(),
       name: formItem.name || '',
       description: formItem.description || '',
-      price: Number(formItem.price),
+      price: Number(formItem.price || 0),
       image: formItem.image || `https://picsum.photos/seed/${formItem.name}/400/300`,
       category: formItem.category || 'Main Dish',
       isArchived: editingItem ? editingItem.isArchived : false,
-      sizes: formItem.sizes,
+      sizes: formItem.sizesEnabled ? formItem.sizes : [],
       otherVariantName: formItem.otherVariantName,
       otherVariants: formItem.otherVariants,
       otherVariantsEnabled: formItem.otherVariantsEnabled,
@@ -940,7 +943,7 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Base Cost</label>
-                      <input required type="number" step="0.01" className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none font-bold dark:text-white text-sm" value={formItem.price} onChange={e => setFormItem({...formItem, price: Number(e.target.value)})} />
+                      <input required type="number" step="0.01" className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none font-bold dark:text-white text-sm" value={formItem.price === 0 ? '' : formItem.price} onChange={e => setFormItem({...formItem, price: e.target.value === '' ? 0 : Number(e.target.value)})} placeholder="0.00" />
                     </div>
                     <div>
                       <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Classification</label>
@@ -977,49 +980,54 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
                  <div>
                    <div className="flex items-center justify-between mb-4">
                       <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Portion Variants</label>
-                      <button type="button" onClick={handleAddSize} className="p-1.5 text-orange-500 bg-orange-50 dark:bg-orange-900/20 rounded-lg"><Plus size={16} /></button>
+                      <button type="button" onClick={() => setFormItem({...formItem, sizesEnabled: !formItem.sizesEnabled})} className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${formItem.sizesEnabled ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-400'}`}>
+                        {formItem.sizesEnabled ? 'Activated' : 'Disabled'}
+                      </button>
                    </div>
-                   <div className="space-y-3">
-                      {formItem.sizes?.map((size, idx) => (
-                        <div key={idx} className="flex gap-2 animate-in slide-in-from-right-2 duration-300">
-                          <input type="text" className="flex-1 px-3 py-2 bg-gray-50 dark:bg-gray-700 border-none rounded-lg text-xs font-bold dark:text-white" placeholder="Portion Name" value={size.name} onChange={e => handleSizeChange(idx, 'name', e.target.value)} />
-                          <input type="number" step="0.01" className="w-24 px-3 py-2 bg-gray-50 dark:bg-gray-700 border-none rounded-lg text-xs font-bold dark:text-white" placeholder="+Price" value={size.price} onChange={e => handleSizeChange(idx, 'price', Number(e.target.value))} />
-                          <button type="button" onClick={() => handleRemoveSize(idx)} className="p-2 text-red-400 hover:bg-red-50 rounded-lg"><Trash2 size={14} /></button>
+                   {formItem.sizesEnabled && (
+                     <div className="space-y-3 animate-in fade-in zoom-in-95 duration-300">
+                        <div className="flex justify-between items-center mb-2">
+                           <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1">Options</label>
+                           <button type="button" onClick={handleAddSize} className="p-1.5 text-orange-500 bg-orange-50 dark:bg-orange-900/20 rounded-lg"><Plus size={16} /></button>
                         </div>
-                      ))}
-                      {(!formItem.sizes || formItem.sizes.length === 0) && <p className="text-[9px] text-gray-400 italic">No variants established yet.</p>}
-                   </div>
+                        {formItem.sizes?.map((size, idx) => (
+                          <div key={idx} className="flex gap-2 animate-in slide-in-from-right-2 duration-300">
+                            <input type="text" className="flex-1 px-3 py-2 bg-gray-50 dark:bg-gray-700 border-none rounded-lg text-xs font-bold dark:text-white" placeholder="Portion Name" value={size.name} onChange={e => handleSizeChange(idx, 'name', e.target.value)} />
+                            <input type="number" step="0.01" className="w-24 px-3 py-2 bg-gray-50 dark:bg-gray-700 border-none rounded-lg text-xs font-bold dark:text-white" placeholder="+Price" value={size.price === 0 ? '' : size.price} onChange={e => handleSizeChange(idx, 'price', e.target.value === '' ? 0 : Number(e.target.value))} />
+                            <button type="button" onClick={() => handleRemoveSize(idx)} className="p-2 text-red-400 hover:bg-red-50 rounded-lg"><Trash2 size={14} /></button>
+                          </div>
+                        ))}
+                        {(!formItem.sizes || formItem.sizes.length === 0) && <p className="text-[9px] text-gray-400 italic">No variants established yet.</p>}
+                     </div>
+                   )}
                  </div>
 
                  <div className="space-y-6">
                    <div>
                      <div className="flex items-center justify-between mb-4">
                         <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Other Variant Group</label>
-                        <button type="button" onClick={() => setFormItem({...formItem, otherVariantsEnabled: !formItem.otherVariantsEnabled})} className={`p-1 text-orange-500 rounded-lg transition-all ${formItem.otherVariantsEnabled ? 'bg-orange-500 text-white shadow-md' : 'bg-gray-100 dark:bg-gray-700 text-gray-400'}`}>
-                          {formItem.otherVariantsEnabled ? <ToggleRight size={24} /> : <ToggleLeft size={24} />}
-                        </button>
+                        <button type="button" onClick={handleAddOtherVariant} className="p-1.5 text-orange-500 bg-orange-50 dark:bg-orange-900/20 rounded-lg"><Plus size={16} /></button>
                      </div>
-                     {formItem.otherVariantsEnabled && (
-                       <div className="space-y-4 animate-in fade-in zoom-in-95 duration-300">
-                         <div>
-                            <label className="block text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Variant Title (e.g. Toppings)</label>
-                            <input type="text" className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none font-bold dark:text-white text-xs" value={formItem.otherVariantName} onChange={e => setFormItem({...formItem, otherVariantName: e.target.value})} placeholder="Milk Choice, Toppings, etc." />
-                         </div>
-                         <div className="space-y-3">
-                           <div className="flex justify-between items-center mb-2">
-                             <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1">Options</label>
-                             <button type="button" onClick={handleAddOtherVariant} className="px-2 py-1 bg-gray-900 dark:bg-white text-white dark:text-gray-900 rounded-lg text-[9px] font-black uppercase tracking-widest flex items-center gap-1">Add Option</button>
+                     <div className="space-y-4">
+                       {formItem.otherVariants && formItem.otherVariants.length > 0 && (
+                         <div className="animate-in fade-in zoom-in-95 duration-300 space-y-4">
+                           <div>
+                              <label className="block text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Variant Title (e.g. Toppings)</label>
+                              <input type="text" className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none font-bold dark:text-white text-xs" value={formItem.otherVariantName} onChange={e => setFormItem({...formItem, otherVariantName: e.target.value, otherVariantsEnabled: true})} placeholder="Milk Choice, Toppings, etc." />
                            </div>
-                           {formItem.otherVariants?.map((variant, idx) => (
-                             <div key={idx} className="flex gap-2 animate-in slide-in-from-right-2 duration-300">
-                               <input type="text" className="flex-1 px-3 py-2 bg-gray-50 dark:bg-gray-700 border-none rounded-lg text-xs font-bold dark:text-white" placeholder="Option Name" value={variant.name} onChange={e => handleOtherVariantChange(idx, 'name', e.target.value)} />
-                               <input type="number" step="0.01" className="w-24 px-3 py-2 bg-gray-50 dark:bg-gray-700 border-none rounded-lg text-xs font-bold dark:text-white" placeholder="+Price" value={variant.price} onChange={e => handleOtherVariantChange(idx, 'price', Number(e.target.value))} />
-                               <button type="button" onClick={() => handleRemoveOtherVariant(idx)} className="p-2 text-red-400 hover:bg-red-50 rounded-lg"><Trash2 size={14} /></button>
-                             </div>
-                           ))}
+                           <div className="space-y-3">
+                             {formItem.otherVariants?.map((variant, idx) => (
+                               <div key={idx} className="flex gap-2 animate-in slide-in-from-right-2 duration-300">
+                                 <input type="text" className="flex-1 px-3 py-2 bg-gray-50 dark:bg-gray-700 border-none rounded-lg text-xs font-bold dark:text-white" placeholder="Option Name" value={variant.name} onChange={e => handleOtherVariantChange(idx, 'name', e.target.value)} />
+                                 <input type="number" step="0.01" className="w-24 px-3 py-2 bg-gray-50 dark:bg-gray-700 border-none rounded-lg text-xs font-bold dark:text-white" placeholder="+Price" value={variant.price === 0 ? '' : variant.price} onChange={e => handleOtherVariantChange(idx, 'price', e.target.value === '' ? 0 : Number(e.target.value))} />
+                                 <button type="button" onClick={() => handleRemoveOtherVariant(idx)} className="p-2 text-red-400 hover:bg-red-50 rounded-lg"><Trash2 size={14} /></button>
+                               </div>
+                             ))}
+                           </div>
                          </div>
-                       </div>
-                     )}
+                       )}
+                       {(!formItem.otherVariants || formItem.otherVariants.length === 0) && <p className="text-[9px] text-gray-400 italic">No other variants established yet.</p>}
+                     </div>
                    </div>
 
                    <div>
@@ -1033,11 +1041,11 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
                        <div className="grid grid-cols-2 gap-4 animate-in fade-in zoom-in-95 duration-300">
                           <div className="space-y-2">
                              <div className="flex items-center gap-2 text-orange-500"><ThermometerSun size={14} /><span className="text-[9px] font-black uppercase tracking-widest">Hot Surcharge</span></div>
-                             <input type="number" step="0.01" className="w-full px-3 py-2 bg-orange-50 dark:bg-orange-900/10 border-none rounded-lg text-xs font-bold dark:text-white" value={formItem.tempOptions.hot} onChange={e => setFormItem({...formItem, tempOptions: {...formItem.tempOptions!, hot: Number(e.target.value)}})} />
+                             <input type="number" step="0.01" className="w-full px-3 py-2 bg-orange-50 dark:bg-orange-900/10 border-none rounded-lg text-xs font-bold dark:text-white" value={formItem.tempOptions.hot === 0 ? '' : formItem.tempOptions.hot} onChange={e => setFormItem({...formItem, tempOptions: {...formItem.tempOptions!, hot: e.target.value === '' ? 0 : Number(e.target.value)}})} placeholder="0.00" />
                           </div>
                           <div className="space-y-2">
                              <div className="flex items-center gap-2 text-blue-500"><Info size={14} /><span className="text-[9px] font-black uppercase tracking-widest">Cold Surcharge</span></div>
-                             <input type="number" step="0.01" className="w-full px-3 py-2 bg-blue-50 dark:bg-blue-900/10 border-none rounded-lg text-xs font-bold dark:text-white" value={formItem.tempOptions.cold} onChange={e => setFormItem({...formItem, tempOptions: {...formItem.tempOptions!, cold: Number(e.target.value)}})} />
+                             <input type="number" step="0.01" className="w-full px-3 py-2 bg-blue-50 dark:bg-blue-900/10 border-none rounded-lg text-xs font-bold dark:text-white" value={formItem.tempOptions.cold === 0 ? '' : formItem.tempOptions.cold} onChange={e => setFormItem({...formItem, tempOptions: {...formItem.tempOptions!, cold: e.target.value === '' ? 0 : Number(e.target.value)}})} placeholder="0.00" />
                           </div>
                        </div>
                      )}
