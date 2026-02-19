@@ -269,7 +269,7 @@ const CustomerView: React.FC<Props> = ({ restaurants, cart, orders, onAddToCart,
               </div>
 
               <div className={`grid gap-3 md:gap-6 ${gridColumns === 3 ? 'grid-cols-3' : 'grid-cols-2'}`}>
-                {res.menu.map(item => (
+                {res.menu.filter(item => !item.isArchived).map(item => (
                   <div key={item.id} className="group bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm hover:shadow-lg transition-all duration-300 overflow-hidden flex flex-col">
                     <div className="relative aspect-[4/3] overflow-hidden bg-gray-100 dark:bg-gray-700">
                       <img src={item.image} alt={item.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
