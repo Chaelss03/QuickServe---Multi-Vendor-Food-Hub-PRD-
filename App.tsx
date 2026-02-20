@@ -130,7 +130,17 @@ const App: React.FC = () => {
 
   const fetchRestaurants = useCallback(async () => {
     if (isStatusLocked.current) return;
-    const { data: resData, error: resError } = await supabase.from('restaurants').select('*');
+    
+    let query = supabase.from('restaurants').select('*');
+    
+    // Optimization: If customer, only fetch restaurants for their location
+    const savedRole = localStorage.getItem('qs_role');
+    const savedLoc = localStorage.getItem('qs_session_location');
+    if (savedRole === 'CUSTOMER' && savedLoc) {
+      query = query.eq('location_name', savedLoc);
+    }
+
+    const { data: resData, error: resError } = await query;
     const { data: menuData, error: menuError } = await supabase.from('menu_items').select('*');
     if (!resError && !menuError && resData && menuData) {
       const formatted: Restaurant[] = resData.map(res => ({
@@ -164,7 +174,18 @@ const App: React.FC = () => {
     if (isFetchingRef.current) return;
     isFetchingRef.current = true;
     try {
-      const { data, error } = await supabase.from('orders').select('*').order('timestamp', { ascending: false }).limit(200);
+      let query = supabase.from('orders').select('*').order('timestamp', { ascending: false }).limit(200);
+      
+      // Optimization: Vendors only need their own orders
+      const savedUser = localStorage.getItem('qs_user');
+      if (savedUser) {
+        const user = JSON.parse(savedUser);
+        if (user.role === 'VENDOR' && user.restaurantId) {
+          query = query.eq('restaurant_id', user.restaurantId);
+        }
+      }
+
+      const { data, error } = await query;
       if (!error && data) {
         setOrders(prev => {
           const mapped = data.map(o => {
@@ -175,7 +196,6 @@ const App: React.FC = () => {
               status: o.status as OrderStatus, 
               timestamp: parseTimestamp(o.timestamp),
               customerId: o.customer_id, 
-              // Fix: Removed invalid restaurant_id property, using correct restaurantId
               restaurantId: o.restaurant_id,
               tableNumber: o.table_number, 
               locationName: o.location_name,
@@ -233,20 +253,73 @@ const App: React.FC = () => {
     };
     initApp();
 
-    const interval = setInterval(() => {
-      refreshAppData();
-    }, 5000);
+    const channel = supabase.channel('qs-realtime')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'orders' }, (payload) => {
+        const o = payload.new;
+        const mappedOrder: Order = {
+          id: o.id, 
+          items: Array.isArray(o.items) ? o.items : (typeof o.items === 'string' ? JSON.parse(o.items) : []), 
+          total: Number(o.total || 0),
+          status: o.status as OrderStatus, 
+          timestamp: parseTimestamp(o.timestamp),
+          customerId: o.customer_id, 
+          restaurantId: o.restaurant_id,
+          tableNumber: o.table_number, 
+          locationName: o.location_name,
+          remark: o.remark, 
+          rejectionReason: o.rejection_reason, 
+          rejectionNote: o.rejection_note
+        };
+        
+        setOrders(prev => {
+          if (prev.some(existing => existing.id === mappedOrder.id)) return prev;
+          const updated = [mappedOrder, ...prev].slice(0, 200);
+          persistCache('qs_cache_orders', updated);
+          return updated;
+        });
+        setLastSyncTime(new Date());
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders' }, (payload) => {
+        const o = payload.new;
+        setOrders(prev => {
+          const updated = prev.map(existing => {
+            if (existing.id === o.id) {
+              // Only update if not locked or if the status matches what we expect
+              if (lockedOrderIds.current.has(o.id) && existing.status === o.status) {
+                lockedOrderIds.current.delete(o.id);
+              }
+              
+              if (lockedOrderIds.current.has(o.id)) return existing;
 
-    const channel = supabase.channel('order-updates')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => refreshAppData())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'restaurants' }, () => refreshAppData())
+              return {
+                ...existing,
+                status: o.status as OrderStatus,
+                rejectionReason: o.rejection_reason,
+                rejectionNote: o.rejection_note
+              };
+            }
+            return existing;
+          });
+          persistCache('qs_cache_orders', updated);
+          return updated;
+        });
+        setLastSyncTime(new Date());
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'restaurants' }, (payload) => {
+        const res = payload.new;
+        setRestaurants(prev => {
+          const updated = prev.map(r => r.id === res.id ? { ...r, isOnline: res.is_online === true || res.is_online === null } : r);
+          persistCache('qs_cache_restaurants', updated);
+          return updated;
+        });
+        setLastSyncTime(new Date());
+      })
       .subscribe();
 
     return () => { 
-      clearInterval(interval);
       supabase.removeChannel(channel); 
     };
-  }, [fetchUsers, fetchLocations, refreshAppData, fetchRestaurants, fetchOrders]);
+  }, [fetchUsers, fetchLocations, fetchRestaurants, fetchOrders]);
 
   useEffect(() => {
     if (isDarkMode) document.documentElement.classList.add('dark');
@@ -309,7 +382,7 @@ const App: React.FC = () => {
 
     const { error } = await supabase.from('orders').insert(ordersToInsert);
     if (error) alert("Placement Error: " + error.message);
-    else { setCart([]); refreshAppData(); alert(`Your order(s) have been placed! Reference: ${baseOrderId}`); }
+    else { setCart([]); alert(`Your order(s) have been placed! Reference: ${baseOrderId}`); }
   };
 
   const handleLogin = (user: User) => {
@@ -329,7 +402,6 @@ const App: React.FC = () => {
     setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status, rejectionReason: reason, rejectionNote: note } : o));
     await supabase.from('orders').update({ status, rejection_reason: reason, rejection_note: note }).eq('id', orderId);
     setTimeout(() => lockedOrderIds.current.delete(orderId), 3000);
-    refreshAppData();
   };
 
   const toggleVendorOnline = async (restaurantId: string, currentStatus: boolean) => {
