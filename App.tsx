@@ -53,6 +53,7 @@ const App: React.FC = () => {
   const lockedOrderIds = useRef<Set<string>>(new Set());
   const isStatusLocked = useRef<boolean>(false);
   const isFetchingRef = useRef(false);
+  const lastOrderTimestampRef = useRef<number>(0);
   
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
     try {
@@ -141,8 +142,14 @@ const App: React.FC = () => {
     }
 
     const { data: resData, error: resError } = await query;
-    const { data: menuData, error: menuError } = await supabase.from('menu_items').select('*');
-    if (!resError && !menuError && resData && menuData) {
+    if (resError || !resData) return;
+
+    const restaurantIds = resData.map(r => r.id);
+    const { data: menuData, error: menuError } = await supabase.from('menu_items')
+      .select('*')
+      .in('restaurant_id', restaurantIds);
+
+    if (!menuError && menuData) {
       const formatted: Restaurant[] = resData.map(res => ({
         id: res.id, name: res.name, logo: res.logo, vendorId: res.vendor_id,
         location: res.location_name, created_at: res.created_at,
@@ -209,12 +216,73 @@ const App: React.FC = () => {
             }
             return mappedOrder;
           });
+
+          if (mapped.length > 0) {
+            const maxTs = Math.max(...mapped.map(o => o.timestamp));
+            if (maxTs > lastOrderTimestampRef.current) {
+              lastOrderTimestampRef.current = maxTs;
+            }
+          }
+
           persistCache('qs_cache_orders', mapped);
           return mapped;
         });
       }
     } catch (e) {
       console.error("Fetch orders failed", e);
+    } finally {
+      isFetchingRef.current = false;
+    }
+  }, []);
+
+  const fetchNewOrders = useCallback(async () => {
+    if (isFetchingRef.current) return;
+    const savedUser = localStorage.getItem('qs_user');
+    if (!savedUser) return;
+    const user = JSON.parse(savedUser);
+    if (user.role !== 'VENDOR' || !user.restaurantId) return;
+
+    isFetchingRef.current = true;
+    try {
+      const { data, error } = await supabase.from('orders')
+        .select('*')
+        .eq('restaurant_id', user.restaurantId)
+        .gt('timestamp', lastOrderTimestampRef.current)
+        .order('timestamp', { ascending: false });
+
+      if (!error && data && data.length > 0) {
+        const newMapped = data.map(o => ({
+          id: o.id,
+          items: Array.isArray(o.items) ? o.items : (typeof o.items === 'string' ? JSON.parse(o.items) : []),
+          total: Number(o.total || 0),
+          status: o.status as OrderStatus,
+          timestamp: parseTimestamp(o.timestamp),
+          customerId: o.customer_id,
+          restaurantId: o.restaurant_id,
+          tableNumber: o.table_number,
+          locationName: o.location_name,
+          remark: o.remark,
+          rejectionReason: o.rejection_reason,
+          rejectionNote: o.rejection_note
+        }));
+
+        setOrders(prev => {
+          const filteredNew = newMapped.filter(n => !prev.some(p => p.id === n.id));
+          if (filteredNew.length === 0) return prev;
+          const updated = [...filteredNew, ...prev].slice(0, 200);
+          persistCache('qs_cache_orders', updated);
+          
+          const maxTs = Math.max(...updated.map(o => o.timestamp));
+          if (maxTs > lastOrderTimestampRef.current) {
+            lastOrderTimestampRef.current = maxTs;
+          }
+          
+          return updated;
+        });
+        setLastSyncTime(new Date());
+      }
+    } catch (e) {
+      console.error("Fetch new orders failed", e);
     } finally {
       isFetchingRef.current = false;
     }
@@ -275,6 +343,11 @@ const App: React.FC = () => {
           if (prev.some(existing => existing.id === mappedOrder.id)) return prev;
           const updated = [mappedOrder, ...prev].slice(0, 200);
           persistCache('qs_cache_orders', updated);
+          
+          if (mappedOrder.timestamp > lastOrderTimestampRef.current) {
+            lastOrderTimestampRef.current = mappedOrder.timestamp;
+          }
+          
           return updated;
         });
         setLastSyncTime(new Date());
@@ -316,10 +389,23 @@ const App: React.FC = () => {
       })
       .subscribe();
 
+    // Vendor-specific delta polling as a fallback/enhancement for "scanning"
+    let interval: any;
+    const savedUser = localStorage.getItem('qs_user');
+    if (savedUser) {
+      const user = JSON.parse(savedUser);
+      if (user.role === 'VENDOR') {
+        interval = setInterval(() => {
+          fetchNewOrders();
+        }, 5000);
+      }
+    }
+
     return () => { 
+      if (interval) clearInterval(interval);
       supabase.removeChannel(channel); 
     };
-  }, [fetchUsers, fetchLocations, fetchRestaurants, fetchOrders]);
+  }, [fetchUsers, fetchLocations, fetchRestaurants, fetchOrders, fetchNewOrders]);
 
   useEffect(() => {
     if (isDarkMode) document.documentElement.classList.add('dark');
