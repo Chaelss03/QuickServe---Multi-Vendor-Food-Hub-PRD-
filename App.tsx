@@ -9,7 +9,7 @@ import { supabase } from './lib/supabase';
 import { LogOut, Sun, Moon, MapPin, LogIn, Loader2 } from 'lucide-react';
 
 const App: React.FC = () => {
-  // ... (keep all existing state declarations the same)
+  // --- HYDRATED STATE ---
   const [allUsers, setAllUsers] = useState<User[]>(() => {
     try {
       const saved = localStorage.getItem('qs_cache_users');
@@ -184,6 +184,52 @@ const App: React.FC = () => {
     }
   }, []);
 
+  // --- NEW: Fetch historical orders for vendors/admins ---
+  const fetchHistoricalOrders = useCallback(async () => {
+    if (!currentUser) return;
+    
+    let query = supabase
+      .from('orders')
+      .select('*')
+      .order('timestamp', { ascending: false });
+
+    // Filter by role
+    if (currentUser.role === 'VENDOR' && currentUser.restaurantId) {
+      query = query.eq('restaurant_id', currentUser.restaurantId);
+    }
+    // Admins get all orders (limited to 100 for performance)
+
+    const { data, error } = await query.limit(100);
+
+    if (!error && data) {
+      const mappedOrders = data.map(o => ({
+        id: o.id, 
+        items: Array.isArray(o.items) ? o.items : (typeof o.items === 'string' ? JSON.parse(o.items) : []), 
+        total: Number(o.total || 0),
+        status: o.status as OrderStatus, 
+        timestamp: parseTimestamp(o.timestamp),
+        customerId: o.customer_id, 
+        restaurantId: o.restaurant_id,
+        tableNumber: o.table_number, 
+        locationName: o.location_name,
+        remark: o.remark, 
+        rejectionReason: o.rejection_reason, 
+        rejectionNote: o.rejection_note
+      }));
+
+      setOrders(mappedOrders);
+      
+      // Update last timestamp to the most recent order
+      if (mappedOrders.length > 0) {
+        const maxTimestamp = Math.max(...mappedOrders.map(o => o.timestamp));
+        lastOrderTimestamp.current = maxTimestamp;
+        mappedOrders.forEach(o => processedOrderIds.current.add(o.id));
+      }
+      
+      persistCache('qs_cache_orders', mappedOrders);
+    }
+  }, [currentUser]);
+
   // --- OPTIMIZED: Smart order fetching based on role ---
   const fetchNewOrders = useCallback(async () => {
     if (isFetchingRef.current) return;
@@ -201,7 +247,6 @@ const App: React.FC = () => {
       }
 
       // Only fetch orders newer than our last known timestamp
-      // This dramatically reduces payload size
       query = query.gt('timestamp', lastOrderTimestamp.current);
 
       const { data, error } = await query.limit(50);
@@ -342,13 +387,35 @@ const App: React.FC = () => {
     }
   }, []);
 
+  // Effect to load historical data when user logs in
+  useEffect(() => {
+    if (currentUser && (currentUser.role === 'VENDOR' || currentUser.role === 'ADMIN')) {
+      // When vendor/admin logs in, fetch their historical orders first
+      const loadHistoricalData = async () => {
+        setIsLoading(true);
+        await fetchHistoricalOrders();
+        // After historical data is loaded, set timestamp for future new orders
+        lastOrderTimestamp.current = Date.now();
+        setIsLoading(false);
+      };
+      loadHistoricalData();
+    } else if (currentUser?.role === 'CUSTOMER') {
+      // Customers don't need historical orders
+      lastOrderTimestamp.current = Date.now();
+    }
+  }, [currentUser]);
+
   // Global Data Polling - Now role-specific and optimized
   useEffect(() => {
     const initApp = async () => {
       await Promise.allSettled([fetchUsers(), fetchLocations(), fetchRestaurants(true)]);
       
-      // Initialize last order timestamp from cache
-      if (orders.length > 0) {
+      // Only load historical orders if user is already logged in (e.g., page refresh)
+      if (currentUser && (currentUser.role === 'VENDOR' || currentUser.role === 'ADMIN')) {
+        await fetchHistoricalOrders();
+        lastOrderTimestamp.current = Date.now();
+      } else if (orders.length > 0) {
+        // For cached orders on refresh
         const maxTimestamp = Math.max(...orders.map(o => o.timestamp));
         lastOrderTimestamp.current = maxTimestamp;
         orders.forEach(o => processedOrderIds.current.add(o.id));
@@ -356,6 +423,7 @@ const App: React.FC = () => {
       
       setIsLoading(false);
     };
+    
     initApp();
 
     // Set up polling intervals based on role
@@ -418,9 +486,9 @@ const App: React.FC = () => {
       if (interval) clearInterval(interval);
       supabase.removeChannel(channel); 
     };
-  }, [currentUser, fetchUsers, fetchLocations, fetchRestaurants, fetchNewOrders, fetchAllOrders, orders]);
+  }, [currentUser, fetchUsers, fetchLocations, fetchRestaurants, fetchNewOrders, fetchAllOrders, fetchHistoricalOrders, orders]);
 
-  // Dark mode effect (keep as is)
+  // Dark mode effect
   useEffect(() => {
     if (isDarkMode) document.documentElement.classList.add('dark');
     else document.documentElement.classList.remove('dark');
@@ -500,9 +568,9 @@ const App: React.FC = () => {
     localStorage.setItem('qs_role', user.role);
     localStorage.setItem('qs_view', 'APP');
     
-    // Reset last timestamp on login
-    lastOrderTimestamp.current = Date.now();
+    // Clear tracking refs but don't set timestamp yet
     processedOrderIds.current.clear();
+    pendingStatusUpdates.current.clear();
   };
 
   const handleLogout = () => {
@@ -590,7 +658,7 @@ const App: React.FC = () => {
     });
   };
 
-  // --- MENU ITEM HANDLERS (keep as is) ---
+  // --- MENU ITEM HANDLERS ---
   const handleUpdateMenuItem = async (restaurantId: string, item: MenuItem) => {
     const { error } = await supabase.from('menu_items').update({
       name: item.name,
@@ -638,7 +706,7 @@ const App: React.FC = () => {
     if (!error) fetchRestaurants(true);
   };
 
-  // --- VENDOR & HUB HANDLERS (keep as is) ---
+  // --- VENDOR & HUB HANDLERS ---
   const handleAddVendor = async (user: User, restaurant: Restaurant) => {
     const userId = crypto.randomUUID();
     const resId = crypto.randomUUID();
