@@ -227,26 +227,62 @@ const App: React.FC = () => {
   // Global Data Polling (Simplified Dependencies)
   useEffect(() => {
     const initApp = async () => {
-      await Promise.allSettled([fetchUsers(), fetchLocations(), fetchRestaurants(), fetchOrders()]);
+      // Fetch static/global data once
+      await Promise.allSettled([fetchUsers(), fetchLocations()]);
+      
+      // Initial fetch for current view if already set
+      if (currentRole === 'ADMIN') {
+        await Promise.allSettled([fetchRestaurants(), fetchOrders()]);
+      } else if (currentRole === 'CUSTOMER' && sessionLocation) {
+        // CustomerView will handle its own initial fetch, but we can do a quick one here too
+        await fetchRestaurants();
+      } else if (currentRole === 'VENDOR' && currentUser?.restaurantId) {
+        // VendorView will handle its own initial fetch
+        await fetchOrders();
+      }
+
       setLastSyncTime(new Date());
       setIsLoading(false);
     };
     initApp();
 
-    const interval = setInterval(() => {
-      refreshAppData();
-    }, 5000);
-
-    const channel = supabase.channel('order-updates')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => refreshAppData())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'restaurants' }, () => refreshAppData())
+    // Smart Real-time Subscriptions (Global but efficient)
+    // We keep these in App.tsx to ensure global state (restaurants, orders) 
+    // used by callbacks (onAddToCart, onPlaceOrder, updateOrderStatus) stays in sync.
+    const channel = supabase.channel('global-updates')
+      .on('postgres_changes', { 
+        event: 'INSERT', 
+        schema: 'public', 
+        table: 'orders' 
+      }, (payload) => {
+        // Only fetch if it's relevant to current view or if admin
+        if (currentRole === 'ADMIN' || 
+           (currentRole === 'VENDOR' && payload.new.restaurant_id === currentUser?.restaurantId) ||
+           (currentRole === 'CUSTOMER' && payload.new.location_name === sessionLocation)) {
+          fetchOrders();
+        }
+      })
+      .on('postgres_changes', { 
+        event: 'UPDATE', 
+        schema: 'public', 
+        table: 'orders' 
+      }, () => fetchOrders())
+      .on('postgres_changes', { 
+        event: 'UPDATE', 
+        schema: 'public', 
+        table: 'restaurants' 
+      }, () => fetchRestaurants())
+      .on('postgres_changes', { 
+        event: 'UPDATE', 
+        schema: 'public', 
+        table: 'menu_items' 
+      }, () => fetchRestaurants())
       .subscribe();
 
     return () => { 
-      clearInterval(interval);
       supabase.removeChannel(channel); 
     };
-  }, [fetchUsers, fetchLocations, refreshAppData, fetchRestaurants, fetchOrders]);
+  }, [fetchUsers, fetchLocations, fetchRestaurants, fetchOrders, currentRole, sessionLocation, currentUser?.restaurantId]);
 
   useEffect(() => {
     if (isDarkMode) document.documentElement.classList.add('dark');

@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Restaurant, CartItem, Order, OrderStatus, MenuItem } from '../types';
 import { ShoppingCart, Plus, Minus, X, CheckCircle, ChevronRight, Info, ThermometerSun, Maximize2, MapPin, Hash, LayoutGrid, Grid3X3, MessageSquare, AlertTriangle, UtensilsCrossed, LogIn, WifiOff, Layers } from 'lucide-react';
+import { supabase } from '../lib/supabase';
 
 interface Props {
   restaurants: Restaurant[];
@@ -17,7 +18,9 @@ interface Props {
   allRestaurants?: Restaurant[]; // For cart offline validation
 }
 
-const CustomerView: React.FC<Props> = ({ restaurants, cart, orders, onAddToCart, onRemoveFromCart, onPlaceOrder, locationName, tableNo, onLoginClick, areaType = 'MULTI', allRestaurants = [] }) => {
+const CustomerView: React.FC<Props> = ({ restaurants: initialRestaurants, cart, orders: initialOrders, onAddToCart, onRemoveFromCart, onPlaceOrder, locationName, tableNo, onLoginClick, areaType = 'MULTI', allRestaurants = [] }) => {
+  const [restaurants, setRestaurants] = useState<Restaurant[]>(initialRestaurants);
+  const [orders, setOrders] = useState<Order[]>(initialOrders);
   const [activeRestaurant, setActiveRestaurant] = useState('');
   const [showCart, setShowCart] = useState(false);
   const [selectedItemForVariants, setSelectedItemForVariants] = useState<{item: MenuItem, resId: string} | null>(null);
@@ -82,6 +85,108 @@ const CustomerView: React.FC<Props> = ({ restaurants, cart, orders, onAddToCart,
       setActiveRestaurant(restaurants[0].id);
     }
   }, [restaurants, activeRestaurant]);
+
+  // Component-Level Data Fetching & Subscriptions
+  useEffect(() => {
+    if (!locationName) return;
+
+    const fetchData = async () => {
+      // Fetch only online restaurants in current location
+      const { data: resData, error: resError } = await supabase
+        .from('restaurants')
+        .select('*')
+        .eq('location_name', locationName)
+        .eq('is_online', true);
+
+      // Fetch only non-archived menu items
+      const { data: menuData, error: menuError } = await supabase
+        .from('menu_items')
+        .select('*')
+        .eq('is_archived', false);
+
+      if (!resError && !menuError && resData && menuData) {
+        const formatted: Restaurant[] = resData.map(res => ({
+          id: res.id, name: res.name, logo: res.logo, vendorId: res.vendor_id,
+          location: res.location_name, created_at: res.created_at,
+          isOnline: res.is_online,
+          menu: menuData.filter(m => m.restaurant_id === res.id).map(m => {
+            const temp = m.temp_options || {};
+            const others = m.other_variants || {};
+            return {
+              id: m.id, name: m.name, description: m.description, price: Number(m.price),
+              image: m.image, category: m.category, isArchived: m.is_archived,
+              sizes: m.sizes,
+              tempOptions: {
+                enabled: temp.enabled ?? false,
+                hot: temp.hot ?? 0,
+                cold: temp.cold ?? 0
+              },
+              otherVariantName: others.name || '',
+              otherVariants: others.options || [],
+              otherVariantsEnabled: others.enabled ?? false
+            };
+          })
+        }));
+        setRestaurants(formatted);
+      }
+
+      // Fetch orders for current table and location
+      if (tableNo) {
+        const { data: orderData, error: orderError } = await supabase
+          .from('orders')
+          .select('*')
+          .eq('location_name', locationName)
+          .eq('table_number', tableNo)
+          .order('timestamp', { ascending: false })
+          .limit(50);
+
+        if (!orderError && orderData) {
+          const mapped: Order[] = orderData.map(o => ({
+            id: o.id,
+            items: Array.isArray(o.items) ? o.items : (typeof o.items === 'string' ? JSON.parse(o.items) : []),
+            total: Number(o.total || 0),
+            status: o.status as OrderStatus,
+            timestamp: typeof o.timestamp === 'string' ? new Date(o.timestamp).getTime() : o.timestamp,
+            customerId: o.customer_id,
+            restaurantId: o.restaurant_id,
+            tableNumber: o.table_number,
+            locationName: o.location_name,
+            remark: o.remark,
+            rejectionReason: o.rejection_reason,
+            rejectionNote: o.rejection_note
+          }));
+          setOrders(mapped);
+        }
+      }
+    };
+
+    fetchData();
+
+    // Subscriptions for this location
+    const channel = supabase.channel(`customer-${locationName}`)
+      .on('postgres_changes', { 
+        event: 'UPDATE', 
+        schema: 'public', 
+        table: 'restaurants',
+        filter: `location_name=eq.${locationName}`
+      }, () => fetchData())
+      .on('postgres_changes', { 
+        event: 'UPDATE', 
+        schema: 'public', 
+        table: 'menu_items'
+      }, () => fetchData())
+      .on('postgres_changes', { 
+        event: '*', 
+        schema: 'public', 
+        table: 'orders',
+        filter: `location_name=eq.${locationName}`
+      }, () => fetchData())
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [locationName, tableNo]);
 
   const handleInitialAdd = (item: MenuItem, resId: string) => {
     if ((item.sizes && item.sizes.length > 0) || (item.tempOptions && item.tempOptions.enabled) || (item.otherVariantsEnabled && item.otherVariants && item.otherVariants.length > 0)) {
