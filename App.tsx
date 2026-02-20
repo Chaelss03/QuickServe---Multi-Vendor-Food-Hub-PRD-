@@ -227,22 +227,31 @@ const App: React.FC = () => {
   // Global Data Polling (Simplified Dependencies)
   useEffect(() => {
     const initApp = async () => {
-      // Fetch static/global data once
-      await Promise.allSettled([fetchUsers(), fetchLocations()]);
-      
-      // Initial fetch for current view if already set
-      if (currentRole === 'ADMIN') {
-        await Promise.allSettled([fetchRestaurants(), fetchOrders()]);
-      } else if (currentRole === 'CUSTOMER' && sessionLocation) {
-        // CustomerView will handle its own initial fetch, but we can do a quick one here too
-        await fetchRestaurants();
-      } else if (currentRole === 'VENDOR' && currentUser?.restaurantId) {
-        // VendorView will handle its own initial fetch
-        await fetchOrders();
+      // 1. Check cache and show immediately if possible
+      const hasRes = localStorage.getItem('qs_cache_restaurants');
+      const hasLoc = localStorage.getItem('qs_cache_locations');
+      if (hasRes && hasLoc) {
+        setIsLoading(false);
       }
 
-      setLastSyncTime(new Date());
-      setIsLoading(false);
+      // 2. Background sync - don't await so UI shows cache immediately
+      const sync = async () => {
+        try {
+          await Promise.allSettled([
+            fetchUsers(), 
+            fetchLocations(),
+            currentRole === 'ADMIN' ? fetchRestaurants() : Promise.resolve(),
+            currentRole === 'ADMIN' ? fetchOrders() : Promise.resolve(),
+            (currentRole === 'CUSTOMER' && sessionLocation) ? fetchRestaurants() : Promise.resolve(),
+            (currentRole === 'VENDOR' && currentUser?.restaurantId) ? fetchOrders() : Promise.resolve()
+          ]);
+          setLastSyncTime(new Date());
+        } finally {
+          setIsLoading(false);
+        }
+      };
+      
+      sync();
     };
     initApp();
 
@@ -362,7 +371,11 @@ const App: React.FC = () => {
 
   const updateOrderStatus = async (orderId: string, status: OrderStatus, reason?: string, note?: string) => {
     lockedOrderIds.current.add(orderId);
-    setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status, rejectionReason: reason, rejectionNote: note } : o));
+    setOrders(prev => {
+      const updated = prev.map(o => o.id === orderId ? { ...o, status, rejectionReason: reason, rejectionNote: note } : o);
+      persistCache('qs_cache_orders', updated);
+      return updated;
+    });
     await supabase.from('orders').update({ status, rejection_reason: reason, rejection_note: note }).eq('id', orderId);
     setTimeout(() => lockedOrderIds.current.delete(orderId), 3000);
     refreshAppData();
@@ -380,7 +393,11 @@ const App: React.FC = () => {
 
     const newStatus = !currentStatus;
     isStatusLocked.current = true;
-    setRestaurants(prev => prev.map(r => r.id === restaurantId ? { ...r, isOnline: newStatus } : r));
+    setRestaurants(prev => {
+      const updated = prev.map(r => r.id === restaurantId ? { ...r, isOnline: newStatus } : r);
+      persistCache('qs_cache_restaurants', updated);
+      return updated;
+    });
     const { error } = await supabase.from('restaurants').update({ is_online: newStatus }).eq('id', restaurantId);
     if (error) fetchRestaurants();
     setTimeout(() => isStatusLocked.current = false, 3000);

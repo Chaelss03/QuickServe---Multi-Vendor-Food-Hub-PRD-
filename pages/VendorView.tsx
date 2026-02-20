@@ -105,6 +105,7 @@ const VendorView: React.FC<Props> = ({ restaurant, orders: initialOrders, onUpda
           rejectionNote: o.rejection_note
         }));
         setOrders(mapped);
+        localStorage.setItem('qs_cache_orders', JSON.stringify(mapped));
       }
     };
 

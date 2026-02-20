@@ -128,6 +128,7 @@ const CustomerView: React.FC<Props> = ({ restaurants: initialRestaurants, cart, 
           })
         }));
         setRestaurants(formatted);
+        localStorage.setItem('qs_cache_restaurants', JSON.stringify(formatted));
       }
 
       // Fetch orders for current table and location
@@ -156,6 +157,7 @@ const CustomerView: React.FC<Props> = ({ restaurants: initialRestaurants, cart, 
             rejectionNote: o.rejection_note
           }));
           setOrders(mapped);
+          localStorage.setItem('qs_cache_orders', JSON.stringify(mapped));
         }
       }
     };
