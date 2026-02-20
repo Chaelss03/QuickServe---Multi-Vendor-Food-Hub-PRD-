@@ -312,7 +312,7 @@ const App: React.FC = () => {
     }
   }, []);
 
-  // Global Data Polling (Simplified Dependencies)
+  // Global Data Initialization
   useEffect(() => {
     const initApp = async () => {
       await Promise.allSettled([fetchUsers(), fetchLocations(), fetchRestaurants(), fetchOrders()]);
@@ -320,10 +320,23 @@ const App: React.FC = () => {
       setIsLoading(false);
     };
     initApp();
+  }, [fetchUsers, fetchLocations, fetchRestaurants, fetchOrders]);
 
-    const channel = supabase.channel('qs-realtime')
+  // Real-time Subscriptions
+  useEffect(() => {
+    const channel = supabase.channel('qs-realtime-global')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'orders' }, (payload) => {
         const o = payload.new;
+        
+        // Optimization: If vendor, only add if it belongs to them
+        const savedUser = localStorage.getItem('qs_user');
+        if (savedUser) {
+          const user = JSON.parse(savedUser);
+          if (user.role === 'VENDOR' && o.restaurant_id !== user.restaurantId) {
+            return;
+          }
+        }
+
         const mappedOrder: Order = {
           id: o.id, 
           items: Array.isArray(o.items) ? o.items : (typeof o.items === 'string' ? JSON.parse(o.items) : []), 
@@ -357,11 +370,9 @@ const App: React.FC = () => {
         setOrders(prev => {
           const updated = prev.map(existing => {
             if (existing.id === o.id) {
-              // Only update if not locked or if the status matches what we expect
               if (lockedOrderIds.current.has(o.id) && existing.status === o.status) {
                 lockedOrderIds.current.delete(o.id);
               }
-              
               if (lockedOrderIds.current.has(o.id)) return existing;
 
               return {
@@ -389,23 +400,25 @@ const App: React.FC = () => {
       })
       .subscribe();
 
-    // Vendor-specific delta polling as a fallback/enhancement for "scanning"
-    let interval: any;
-    const savedUser = localStorage.getItem('qs_user');
-    if (savedUser) {
-      const user = JSON.parse(savedUser);
-      if (user.role === 'VENDOR') {
-        interval = setInterval(() => {
-          fetchNewOrders();
-        }, 5000);
-      }
-    }
-
     return () => { 
-      if (interval) clearInterval(interval);
       supabase.removeChannel(channel); 
     };
-  }, [fetchUsers, fetchLocations, fetchRestaurants, fetchOrders, fetchNewOrders]);
+  }, []);
+
+  // Vendor Polling Fallback
+  useEffect(() => {
+    let interval: any;
+    if (currentRole === 'VENDOR') {
+      // Initial fetch to ensure we have the latest before polling
+      fetchNewOrders();
+      interval = setInterval(() => {
+        fetchNewOrders();
+      }, 5000);
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [currentRole, fetchNewOrders]);
 
   useEffect(() => {
     if (isDarkMode) document.documentElement.classList.add('dark');
@@ -476,6 +489,8 @@ const App: React.FC = () => {
     localStorage.setItem('qs_user', JSON.stringify(user));
     localStorage.setItem('qs_role', user.role);
     localStorage.setItem('qs_view', 'APP');
+    // Refresh data for the new user context
+    refreshAppData();
   };
 
   const handleLogout = () => {
