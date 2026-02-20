@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { User, Role, Restaurant, Order, OrderStatus, CartItem, MenuItem, Area } from './types';
 import CustomerView from './pages/CustomerView';
@@ -10,7 +9,7 @@ import { supabase } from './lib/supabase';
 import { LogOut, Sun, Moon, MapPin, LogIn, Loader2 } from 'lucide-react';
 
 const App: React.FC = () => {
-  // --- HYDRATED STATE ---
+  // ... (keep all existing state declarations the same)
   const [allUsers, setAllUsers] = useState<User[]>(() => {
     try {
       const saved = localStorage.getItem('qs_cache_users');
@@ -48,6 +47,12 @@ const App: React.FC = () => {
   });
 
   const [lastSyncTime, setLastSyncTime] = useState<Date>(new Date());
+  
+  // --- NEW: Track last known states for smart updates ---
+  const lastOrderTimestamp = useRef<number>(Date.now());
+  const lastRestaurantUpdate = useRef<string>('');
+  const processedOrderIds = useRef<Set<string>>(new Set());
+  const pendingStatusUpdates = useRef<Map<string, OrderStatus>>(new Map());
   
   // --- TRANSACTION LOCKS ---
   const lockedOrderIds = useRef<Set<string>>(new Set());
@@ -128,10 +133,28 @@ const App: React.FC = () => {
     }
   }, []);
 
-  const fetchRestaurants = useCallback(async () => {
-    if (isStatusLocked.current) return;
+  // --- OPTIMIZED: Only fetch restaurants if they've changed ---
+  const fetchRestaurants = useCallback(async (force = false) => {
+    if (isStatusLocked.current && !force) return;
+    
+    // First, get the latest update timestamp
+    const { data: latestRestaurant } = await supabase
+      .from('restaurants')
+      .select('updated_at')
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .single();
+
+    const latestUpdate = latestRestaurant?.updated_at || '';
+    
+    // Skip if no changes (unless forced)
+    if (!force && latestUpdate === lastRestaurantUpdate.current) {
+      return;
+    }
+
     const { data: resData, error: resError } = await supabase.from('restaurants').select('*');
     const { data: menuData, error: menuError } = await supabase.from('menu_items').select('*');
+    
     if (!resError && !menuError && resData && menuData) {
       const formatted: Restaurant[] = resData.map(res => ({
         id: res.id, name: res.name, logo: res.logo, vendorId: res.vendor_id,
@@ -156,18 +179,42 @@ const App: React.FC = () => {
         })
       }));
       setRestaurants(formatted);
+      lastRestaurantUpdate.current = latestUpdate;
       persistCache('qs_cache_restaurants', formatted);
     }
   }, []);
 
-  const fetchOrders = useCallback(async () => {
+  // --- OPTIMIZED: Smart order fetching based on role ---
+  const fetchNewOrders = useCallback(async () => {
     if (isFetchingRef.current) return;
     isFetchingRef.current = true;
+
     try {
-      const { data, error } = await supabase.from('orders').select('*').order('timestamp', { ascending: false }).limit(200);
-      if (!error && data) {
+      let query = supabase
+        .from('orders')
+        .select('*')
+        .order('timestamp', { ascending: false });
+
+      // For vendors, only fetch their restaurant's orders
+      if (currentUser?.role === 'VENDOR' && currentUser.restaurantId) {
+        query = query.eq('restaurant_id', currentUser.restaurantId);
+      }
+
+      // Only fetch orders newer than our last known timestamp
+      // This dramatically reduces payload size
+      query = query.gt('timestamp', lastOrderTimestamp.current);
+
+      const { data, error } = await query.limit(50);
+
+      if (!error && data && data.length > 0) {
+        // Update the last timestamp to the most recent order
+        const newestTimestamp = Math.max(...data.map(o => parseTimestamp(o.timestamp)));
+        lastOrderTimestamp.current = Math.max(lastOrderTimestamp.current, newestTimestamp);
+
         setOrders(prev => {
-          const mapped = data.map(o => {
+          const existingOrders = new Map(prev.map(o => [o.id, o]));
+          
+          data.forEach(o => {
             const mappedOrder: Order = {
               id: o.id, 
               items: Array.isArray(o.items) ? o.items : (typeof o.items === 'string' ? JSON.parse(o.items) : []), 
@@ -175,7 +222,6 @@ const App: React.FC = () => {
               status: o.status as OrderStatus, 
               timestamp: parseTimestamp(o.timestamp),
               customerId: o.customer_id, 
-              // Fix: Removed invalid restaurant_id property, using correct restaurantId
               restaurantId: o.restaurant_id,
               tableNumber: o.table_number, 
               locationName: o.location_name,
@@ -183,14 +229,25 @@ const App: React.FC = () => {
               rejectionReason: o.rejection_reason, 
               rejectionNote: o.rejection_note
             };
-            if (lockedOrderIds.current.has(o.id)) {
-              const localOrder = prev.find(p => p.id === o.id);
-              if (localOrder) mappedOrder.status = localOrder.status;
+
+            // Check if this order has a pending status update
+            const pendingStatus = pendingStatusUpdates.current.get(o.id);
+            if (pendingStatus) {
+              mappedOrder.status = pendingStatus;
+            } else {
+              // Check if it's locked
+              const existingOrder = existingOrders.get(o.id);
+              if (existingOrder && lockedOrderIds.current.has(o.id)) {
+                mappedOrder.status = existingOrder.status;
+              }
             }
-            return mappedOrder;
+            
+            existingOrders.set(o.id, mappedOrder);
           });
-          persistCache('qs_cache_orders', mapped);
-          return mapped;
+
+          const updatedOrders = Array.from(existingOrders.values());
+          persistCache('qs_cache_orders', updatedOrders);
+          return updatedOrders;
         });
       }
     } catch (e) {
@@ -198,13 +255,74 @@ const App: React.FC = () => {
     } finally {
       isFetchingRef.current = false;
     }
-  }, []);
+  }, [currentUser]);
 
-  // Combined refresh function to ensure heartbeat works reliably
+  // --- OPTIMIZED: Full sync only when necessary (for admin view) ---
+  const fetchAllOrders = useCallback(async () => {
+    if (currentUser?.role !== 'ADMIN') return;
+    
+    const { data, error } = await supabase
+      .from('orders')
+      .select('*')
+      .order('timestamp', { ascending: false })
+      .limit(200);
+
+    if (!error && data) {
+      setOrders(prev => {
+        const mapped = data.map(o => {
+          const mappedOrder: Order = {
+            id: o.id, 
+            items: Array.isArray(o.items) ? o.items : (typeof o.items === 'string' ? JSON.parse(o.items) : []), 
+            total: Number(o.total || 0),
+            status: o.status as OrderStatus, 
+            timestamp: parseTimestamp(o.timestamp),
+            customerId: o.customer_id, 
+            restaurantId: o.restaurant_id,
+            tableNumber: o.table_number, 
+            locationName: o.location_name,
+            remark: o.remark, 
+            rejectionReason: o.rejection_reason, 
+            rejectionNote: o.rejection_note
+          };
+          
+          // Check for pending updates
+          const pendingStatus = pendingStatusUpdates.current.get(o.id);
+          if (pendingStatus) {
+            mappedOrder.status = pendingStatus;
+          } else if (lockedOrderIds.current.has(o.id)) {
+            const localOrder = prev.find(p => p.id === o.id);
+            if (localOrder) mappedOrder.status = localOrder.status;
+          }
+          
+          return mappedOrder;
+        });
+        
+        // Update last timestamp to most recent
+        const maxTimestamp = Math.max(...mapped.map(o => o.timestamp));
+        lastOrderTimestamp.current = maxTimestamp;
+        
+        persistCache('qs_cache_orders', mapped);
+        return mapped;
+      });
+    }
+  }, [currentUser]);
+
+  // Role-based refresh function
   const refreshAppData = useCallback(async () => {
-    await Promise.allSettled([fetchOrders(), fetchRestaurants()]);
+    // Always fetch restaurants (but optimized with timestamp check)
+    await fetchRestaurants();
+    
+    // Role-specific fetching
+    if (currentUser?.role === 'ADMIN') {
+      // Admins need full data occasionally
+      await fetchAllOrders();
+    } else {
+      // Vendors and customers only need new orders
+      await fetchNewOrders();
+    }
+    
     setLastSyncTime(new Date());
-  }, [fetchOrders, fetchRestaurants]);
+  }, [fetchRestaurants, fetchNewOrders, fetchAllOrders, currentUser]);
 
   // QR Redirection Logic
   useEffect(() => {
@@ -224,30 +342,85 @@ const App: React.FC = () => {
     }
   }, []);
 
-  // Global Data Polling (Simplified Dependencies)
+  // Global Data Polling - Now role-specific and optimized
   useEffect(() => {
     const initApp = async () => {
-      await Promise.allSettled([fetchUsers(), fetchLocations(), fetchRestaurants(), fetchOrders()]);
-      setLastSyncTime(new Date());
+      await Promise.allSettled([fetchUsers(), fetchLocations(), fetchRestaurants(true)]);
+      
+      // Initialize last order timestamp from cache
+      if (orders.length > 0) {
+        const maxTimestamp = Math.max(...orders.map(o => o.timestamp));
+        lastOrderTimestamp.current = maxTimestamp;
+        orders.forEach(o => processedOrderIds.current.add(o.id));
+      }
+      
       setIsLoading(false);
     };
     initApp();
 
-    const interval = setInterval(() => {
-      refreshAppData();
-    }, 5000);
+    // Set up polling intervals based on role
+    let interval: NodeJS.Timeout;
+    
+    if (currentUser?.role === 'VENDOR') {
+      // Vendors: Check for new orders every 3 seconds (lightweight)
+      interval = setInterval(() => {
+        fetchNewOrders();
+      }, 3000);
+    } else if (currentUser?.role === 'ADMIN') {
+      // Admins: Full sync every 10 seconds, but can be adjusted
+      interval = setInterval(() => {
+        fetchAllOrders();
+        fetchRestaurants();
+      }, 10000);
+    } else if (currentUser?.role === 'CUSTOMER') {
+      // Customers: Only sync restaurants occasionally (every 30 seconds)
+      interval = setInterval(() => {
+        fetchRestaurants();
+      }, 30000);
+    }
 
-    const channel = supabase.channel('order-updates')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => refreshAppData())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'restaurants' }, () => refreshAppData())
+    // Set up real-time subscriptions (still valuable for instant updates)
+    const channel = supabase.channel('db-changes')
+      .on('postgres_changes', 
+        { event: 'INSERT', schema: 'public', table: 'orders' }, 
+        (payload) => {
+          // For new orders, immediately update if relevant
+          if (currentUser?.role === 'VENDOR' && payload.new.restaurant_id === currentUser.restaurantId) {
+            fetchNewOrders();
+          } else if (currentUser?.role === 'ADMIN') {
+            fetchNewOrders();
+          }
+        }
+      )
+      .on('postgres_changes', 
+        { event: 'UPDATE', schema: 'public', table: 'orders' }, 
+        (payload) => {
+          // Only fetch if it's a relevant order
+          if (currentUser?.role === 'VENDOR' && payload.new.restaurant_id === currentUser.restaurantId) {
+            fetchNewOrders();
+          } else if (currentUser?.role === 'ADMIN') {
+            fetchNewOrders();
+          }
+        }
+      )
+      .on('postgres_changes', 
+        { event: '*', schema: 'public', table: 'restaurants' }, 
+        () => {
+          // Only vendors and admins care about restaurant changes
+          if (currentUser?.role !== 'CUSTOMER') {
+            fetchRestaurants();
+          }
+        }
+      )
       .subscribe();
 
     return () => { 
-      clearInterval(interval);
+      if (interval) clearInterval(interval);
       supabase.removeChannel(channel); 
     };
-  }, [fetchUsers, fetchLocations, refreshAppData, fetchRestaurants, fetchOrders]);
+  }, [currentUser, fetchUsers, fetchLocations, fetchRestaurants, fetchNewOrders, fetchAllOrders, orders]);
 
+  // Dark mode effect (keep as is)
   useEffect(() => {
     if (isDarkMode) document.documentElement.classList.add('dark');
     else document.documentElement.classList.remove('dark');
@@ -309,34 +482,83 @@ const App: React.FC = () => {
 
     const { error } = await supabase.from('orders').insert(ordersToInsert);
     if (error) alert("Placement Error: " + error.message);
-    else { setCart([]); refreshAppData(); alert(`Your order(s) have been placed! Reference: ${baseOrderId}`); }
+    else { 
+      setCart([]); 
+      // Update last timestamp to include new orders
+      lastOrderTimestamp.current = Date.now();
+      // Fetch new orders immediately
+      fetchNewOrders();
+      alert(`Your order(s) have been placed! Reference: ${baseOrderId}`); 
+    }
   };
 
   const handleLogin = (user: User) => {
-    setCurrentUser(user); setCurrentRole(user.role); setView('APP');
+    setCurrentUser(user); 
+    setCurrentRole(user.role); 
+    setView('APP');
     localStorage.setItem('qs_user', JSON.stringify(user));
     localStorage.setItem('qs_role', user.role);
     localStorage.setItem('qs_view', 'APP');
+    
+    // Reset last timestamp on login
+    lastOrderTimestamp.current = Date.now();
+    processedOrderIds.current.clear();
   };
 
   const handleLogout = () => {
-    setCurrentUser(null); setCurrentRole(null); setSessionLocation(null);
-    setSessionTable(null); setView('LANDING'); localStorage.clear();
+    setCurrentUser(null); 
+    setCurrentRole(null); 
+    setSessionLocation(null);
+    setSessionTable(null); 
+    setView('LANDING'); 
+    localStorage.clear();
+    
+    // Clear tracking refs
+    lastOrderTimestamp.current = Date.now();
+    processedOrderIds.current.clear();
+    pendingStatusUpdates.current.clear();
   };
 
+  // --- FIXED: Update order status without race conditions ---
   const updateOrderStatus = async (orderId: string, status: OrderStatus, reason?: string, note?: string) => {
+    // Lock the order to prevent overwrites
     lockedOrderIds.current.add(orderId);
-    setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status, rejectionReason: reason, rejectionNote: note } : o));
-    await supabase.from('orders').update({ status, rejection_reason: reason, rejection_note: note }).eq('id', orderId);
-    setTimeout(() => lockedOrderIds.current.delete(orderId), 3000);
-    refreshAppData();
+    
+    // Store pending update
+    pendingStatusUpdates.current.set(orderId, status);
+    
+    // Optimistic update
+    setOrders(prev => prev.map(o => 
+      o.id === orderId ? { ...o, status, rejectionReason: reason, rejectionNote: note } : o
+    ));
+    
+    // Update in database
+    const { error } = await supabase
+      .from('orders')
+      .update({ 
+        status, 
+        rejection_reason: reason, 
+        rejection_note: note 
+      })
+      .eq('id', orderId);
+    
+    if (error) {
+      // Revert on error
+      pendingStatusUpdates.current.delete(orderId);
+      fetchNewOrders();
+    }
+    
+    // Release lock after a delay
+    setTimeout(() => {
+      lockedOrderIds.current.delete(orderId);
+      pendingStatusUpdates.current.delete(orderId);
+    }, 3000);
   };
 
   const toggleVendorOnline = async (restaurantId: string, currentStatus: boolean) => {
     const res = restaurants.find(r => r.id === restaurantId);
     const vendor = allUsers.find(u => u.restaurantId === restaurantId);
     
-    // If master activation is disabled, cannot turn online
     if (!currentStatus && vendor && vendor.isActive === false) {
       alert("Cannot turn online: Master Activation is disabled for this vendor.");
       return;
@@ -346,7 +568,7 @@ const App: React.FC = () => {
     isStatusLocked.current = true;
     setRestaurants(prev => prev.map(r => r.id === restaurantId ? { ...r, isOnline: newStatus } : r));
     const { error } = await supabase.from('restaurants').update({ is_online: newStatus }).eq('id', restaurantId);
-    if (error) fetchRestaurants();
+    if (error) fetchRestaurants(true);
     setTimeout(() => isStatusLocked.current = false, 3000);
   };
 
@@ -368,7 +590,7 @@ const App: React.FC = () => {
     });
   };
 
-  // --- MENU ITEM HANDLERS ---
+  // --- MENU ITEM HANDLERS (keep as is) ---
   const handleUpdateMenuItem = async (restaurantId: string, item: MenuItem) => {
     const { error } = await supabase.from('menu_items').update({
       name: item.name,
@@ -386,7 +608,7 @@ const App: React.FC = () => {
       }
     }).eq('id', item.id);
     if (error) alert("Error updating menu item: " + error.message);
-    else fetchRestaurants();
+    else fetchRestaurants(true);
   };
 
   const handleAddMenuItem = async (restaurantId: string, item: MenuItem) => {
@@ -408,15 +630,15 @@ const App: React.FC = () => {
       }
     });
     if (error) alert("Error adding menu item: " + error.message);
-    else fetchRestaurants();
+    else fetchRestaurants(true);
   };
 
   const handleDeleteMenuItem = async (restaurantId: string, itemId: string) => {
     const { error } = await supabase.from('menu_items').delete().eq('id', itemId);
-    if (!error) fetchRestaurants();
+    if (!error) fetchRestaurants(true);
   };
 
-  // --- VENDOR & HUB HANDLERS ---
+  // --- VENDOR & HUB HANDLERS (keep as is) ---
   const handleAddVendor = async (user: User, restaurant: Restaurant) => {
     const userId = crypto.randomUUID();
     const resId = crypto.randomUUID();
@@ -430,7 +652,7 @@ const App: React.FC = () => {
       location_name: restaurant.location, is_online: true
     });
     if (resError) alert("Error adding restaurant: " + resError.message);
-    fetchUsers(); fetchRestaurants();
+    fetchUsers(); fetchRestaurants(true);
   };
 
   const handleUpdateVendor = async (user: User, restaurant: Restaurant) => {
@@ -438,7 +660,6 @@ const App: React.FC = () => {
       username: user.username, password: user.password, email: user.email, phone: user.phone, is_active: user.isActive
     }).eq('id', user.id);
     
-    // If deactivating vendor, also set restaurant offline
     const resUpdate: any = {
       name: restaurant.name, 
       logo: restaurant.logo, 
@@ -450,7 +671,7 @@ const App: React.FC = () => {
 
     const { error: resError } = await supabase.from('restaurants').update(resUpdate).eq('id', restaurant.id);
     if (userError || resError) alert("Error updating vendor");
-    fetchUsers(); fetchRestaurants();
+    fetchUsers(); fetchRestaurants(true);
   };
 
   const handleAddLocation = async (area: Area) => {
@@ -516,9 +737,42 @@ const App: React.FC = () => {
         </div>
       </header>
       <main className="flex-1">
-        {currentRole === 'CUSTOMER' && <CustomerView restaurants={restaurants.filter(r => r.location === sessionLocation && r.isOnline === true)} cart={cart} orders={orders} onAddToCart={addToCart} onRemoveFromCart={removeFromCart} onPlaceOrder={placeOrder} locationName={sessionLocation || undefined} tableNo={sessionTable || undefined} areaType={currentArea?.type || 'MULTI'} allRestaurants={restaurants} />}
-        {currentRole === 'VENDOR' && activeVendorRes && <VendorView restaurant={activeVendorRes} orders={orders.filter(o => o.restaurantId === currentUser?.restaurantId)} onUpdateOrder={updateOrderStatus} onUpdateMenu={handleUpdateMenuItem} onAddMenuItem={handleAddMenuItem} onPermanentDeleteMenuItem={handleDeleteMenuItem} onToggleOnline={() => toggleVendorOnline(activeVendorRes.id, activeVendorRes.isOnline ?? true)} lastSyncTime={lastSyncTime} />}
-        {currentRole === 'ADMIN' && <AdminView vendors={allUsers.filter(u => u.role === 'VENDOR')} restaurants={restaurants} orders={orders} locations={locations} onAddVendor={handleAddVendor} onUpdateVendor={handleUpdateVendor} onImpersonateVendor={handleLogin} onAddLocation={handleAddLocation} onUpdateLocation={handleUpdateLocation} onDeleteLocation={handleDeleteLocation} onToggleOnline={toggleVendorOnline} onRemoveVendorFromHub={(rid) => supabase.from('restaurants').update({ location_name: null }).eq('id', rid).then(() => fetchRestaurants())} />}
+        {currentRole === 'CUSTOMER' && <CustomerView 
+          restaurants={restaurants.filter(r => r.location === sessionLocation && r.isOnline === true)} 
+          cart={cart} 
+          orders={orders.filter(o => o.locationName === sessionLocation && o.tableNumber === sessionTable)} 
+          onAddToCart={addToCart} 
+          onRemoveFromCart={removeFromCart} 
+          onPlaceOrder={placeOrder} 
+          locationName={sessionLocation || undefined} 
+          tableNo={sessionTable || undefined} 
+          areaType={currentArea?.type || 'MULTI'} 
+          allRestaurants={restaurants} 
+        />}
+        {currentRole === 'VENDOR' && activeVendorRes && <VendorView 
+          restaurant={activeVendorRes} 
+          orders={orders.filter(o => o.restaurantId === currentUser?.restaurantId)} 
+          onUpdateOrder={updateOrderStatus} 
+          onUpdateMenu={handleUpdateMenuItem} 
+          onAddMenuItem={handleAddMenuItem} 
+          onPermanentDeleteMenuItem={handleDeleteMenuItem} 
+          onToggleOnline={() => toggleVendorOnline(activeVendorRes.id, activeVendorRes.isOnline ?? true)} 
+          lastSyncTime={lastSyncTime} 
+        />}
+        {currentRole === 'ADMIN' && <AdminView 
+          vendors={allUsers.filter(u => u.role === 'VENDOR')} 
+          restaurants={restaurants} 
+          orders={orders} 
+          locations={locations} 
+          onAddVendor={handleAddVendor} 
+          onUpdateVendor={handleUpdateVendor} 
+          onImpersonateVendor={handleLogin} 
+          onAddLocation={handleAddLocation} 
+          onUpdateLocation={handleUpdateLocation} 
+          onDeleteLocation={handleDeleteLocation} 
+          onToggleOnline={toggleVendorOnline} 
+          onRemoveVendorFromHub={(rid) => supabase.from('restaurants').update({ location_name: null }).eq('id', rid).then(() => fetchRestaurants(true))} 
+        />}
       </main>
     </div>
   );
