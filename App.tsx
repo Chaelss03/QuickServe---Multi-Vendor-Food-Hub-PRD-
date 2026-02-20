@@ -111,7 +111,6 @@ const App: React.FC = () => {
     return Date.now();
   };
 
-  // Only fetch users if needed (rarely changes)
   const fetchUsers = useCallback(async (force = false) => {
     if (!force && allUsers.length > 0) return allUsers;
     
@@ -129,7 +128,6 @@ const App: React.FC = () => {
     return allUsers;
   }, [allUsers]);
 
-  // Only fetch locations if needed (rarely changes)
   const fetchLocations = useCallback(async (force = false) => {
     if (!force && locations.length > 0) return locations;
     
@@ -145,7 +143,6 @@ const App: React.FC = () => {
     return locations;
   }, [locations]);
 
-  // OPTIMIZED: Only fetch restaurants if they've changed
   const fetchRestaurants = useCallback(async (force = false) => {
     if (isFetchingRestaurantsRef.current) return;
     if (isStatusLocked.current && !force) return;
@@ -153,21 +150,6 @@ const App: React.FC = () => {
     isFetchingRestaurantsRef.current = true;
     
     try {
-      // First, get the latest update timestamp
-      const { data: latestRestaurant } = await supabase
-        .from('restaurants')
-        .select('updated_at')
-        .order('updated_at', { ascending: false })
-        .limit(1)
-        .single();
-
-      const latestUpdate = latestRestaurant?.updated_at || '';
-      
-      // Skip if no changes (unless forced)
-      if (!force && latestUpdate === lastRestaurantUpdate.current) {
-        return;
-      }
-
       const { data: resData, error: resError } = await supabase.from('restaurants').select('*');
       const { data: menuData, error: menuError } = await supabase.from('menu_items').select('*');
       
@@ -195,7 +177,6 @@ const App: React.FC = () => {
           })
         }));
         setRestaurants(formatted);
-        lastRestaurantUpdate.current = latestUpdate;
         persistCache('qs_cache_restaurants', formatted);
       }
     } finally {
@@ -203,10 +184,9 @@ const App: React.FC = () => {
     }
   }, []);
 
-  // Load historical orders for vendors/admins (only once)
+  // Load historical orders for vendors/admins
   const loadHistoricalOrders = useCallback(async () => {
     if (!currentUser) return;
-    if (processedOrderIds.current.size > 0 && orders.length > 0) return; // Already loaded
     
     let query = supabase
       .from('orders')
@@ -245,10 +225,10 @@ const App: React.FC = () => {
       
       persistCache('qs_cache_orders', mappedOrders);
     }
-  }, [currentUser, orders.length]);
+  }, [currentUser]);
 
-  // OPTIMIZED: Only fetch new orders
-  const fetchNewOrders = useCallback(async () => {
+  // CRITICAL FIX: Always fetch latest orders, not just new ones
+  const fetchLatestOrders = useCallback(async () => {
     if (isFetchingRef.current) return;
     if (!currentUser) return;
     
@@ -258,18 +238,20 @@ const App: React.FC = () => {
       let query = supabase
         .from('orders')
         .select('*')
-        .gt('timestamp', lastOrderTimestamp.current)
         .order('timestamp', { ascending: false });
 
       if (currentUser.role === 'VENDOR' && currentUser.restaurantId) {
         query = query.eq('restaurant_id', currentUser.restaurantId);
       }
 
-      const { data, error } = await query.limit(20);
+      const { data, error } = await query.limit(50);
 
-      if (!error && data && data.length > 0) {
-        const newestTimestamp = Math.max(...data.map(o => parseTimestamp(o.timestamp)));
-        lastOrderTimestamp.current = Math.max(lastOrderTimestamp.current, newestTimestamp);
+      if (!error && data) {
+        // Update last timestamp for future incremental fetches
+        if (data.length > 0) {
+          const newestTimestamp = Math.max(...data.map(o => parseTimestamp(o.timestamp)));
+          lastOrderTimestamp.current = Math.max(lastOrderTimestamp.current, newestTimestamp);
+        }
 
         setOrders(prev => {
           const existingOrders = new Map(prev.map(o => [o.id, o]));
@@ -290,14 +272,10 @@ const App: React.FC = () => {
               rejectionNote: o.rejection_note
             };
 
+            // Apply any pending status updates
             const pendingStatus = pendingStatusUpdates.current.get(o.id);
             if (pendingStatus) {
               mappedOrder.status = pendingStatus;
-            } else {
-              const existingOrder = existingOrders.get(o.id);
-              if (existingOrder && lockedOrderIds.current.has(o.id)) {
-                mappedOrder.status = existingOrder.status;
-              }
             }
             
             existingOrders.set(o.id, mappedOrder);
@@ -333,14 +311,14 @@ const App: React.FC = () => {
     }
   }, []);
 
-  // Initialize app - load essential data once
+  // Initialize app
   useEffect(() => {
     const initApp = async () => {
       if (initialLoadDone.current) return;
       
       setIsLoading(true);
       
-      // Load essential data in parallel
+      // Load essential data
       await Promise.allSettled([
         fetchUsers(),
         fetchLocations(),
@@ -349,14 +327,8 @@ const App: React.FC = () => {
       
       // Load orders based on user role
       if (currentUser) {
-        if (currentUser.role === 'VENDOR' || currentUser.role === 'ADMIN') {
-          await loadHistoricalOrders();
-        }
+        await loadHistoricalOrders();
         lastOrderTimestamp.current = Date.now();
-      } else if (orders.length > 0) {
-        const maxTimestamp = Math.max(...orders.map(o => o.timestamp));
-        lastOrderTimestamp.current = maxTimestamp;
-        orders.forEach(o => processedOrderIds.current.add(o.id));
       }
       
       initialLoadDone.current = true;
@@ -364,67 +336,109 @@ const App: React.FC = () => {
     };
     
     initApp();
-  }, [currentUser]); // Only re-run when user changes
+  }, [currentUser]);
 
-  // Set up polling based on role
+  // CRITICAL FIX: Set up aggressive polling for vendors
   useEffect(() => {
     if (!currentUser || !initialLoadDone.current) return;
 
     let interval: NodeJS.Timeout;
     
-    // Different polling intervals based on role
-    switch (currentUser.role) {
-      case 'VENDOR':
-        interval = setInterval(fetchNewOrders, 5000);
-        break;
-      case 'ADMIN':
-        interval = setInterval(() => {
-          fetchNewOrders();
-          fetchRestaurants();
-        }, 8000);
-        break;
-      case 'CUSTOMER':
-        interval = setInterval(fetchRestaurants, 30000);
-        break;
+    // More frequent polling for vendors
+    if (currentUser.role === 'VENDOR') {
+      // Poll every 2 seconds to ensure vendors see orders quickly
+      interval = setInterval(() => {
+        fetchLatestOrders();
+      }, 2000);
+    } else if (currentUser.role === 'ADMIN') {
+      interval = setInterval(() => {
+        fetchLatestOrders();
+        fetchRestaurants();
+      }, 5000);
+    } else if (currentUser.role === 'CUSTOMER') {
+      interval = setInterval(fetchRestaurants, 30000);
     }
 
-    // Real-time subscriptions (replaces some polling)
-    const channel = supabase.channel('db-changes')
+    return () => { 
+      if (interval) clearInterval(interval); 
+    };
+  }, [currentUser, fetchLatestOrders, fetchRestaurants]);
+
+  // CRITICAL FIX: Real-time subscriptions with immediate updates
+  useEffect(() => {
+    if (!currentUser) return;
+
+    // Create a unique channel name to avoid conflicts
+    const channel = supabase.channel(`orders-${currentUser.id}-${Date.now()}`)
       .on('postgres_changes', 
-        { event: 'INSERT', schema: 'public', table: 'orders' }, 
+        { 
+          event: 'INSERT', 
+          schema: 'public', 
+          table: 'orders' 
+        }, 
         (payload) => {
-          if (currentUser.role === 'VENDOR' && payload.new.restaurant_id === currentUser.restaurantId) {
-            fetchNewOrders();
-          } else if (currentUser.role === 'ADMIN') {
-            fetchNewOrders();
+          console.log('New order received:', payload);
+          
+          // Check if this order is relevant to the current user
+          const isRelevant = 
+            currentUser.role === 'ADMIN' ||
+            (currentUser.role === 'VENDOR' && payload.new.restaurant_id === currentUser.restaurantId);
+
+          if (isRelevant) {
+            // Fetch immediately to get the full order details
+            fetchLatestOrders();
           }
         }
       )
       .on('postgres_changes', 
-        { event: 'UPDATE', schema: 'public', table: 'orders' }, 
+        { 
+          event: 'UPDATE', 
+          schema: 'public', 
+          table: 'orders' 
+        }, 
         (payload) => {
-          if (currentUser.role === 'VENDOR' && payload.new.restaurant_id === currentUser.restaurantId) {
-            fetchNewOrders();
-          } else if (currentUser.role === 'ADMIN') {
-            fetchNewOrders();
+          console.log('Order updated:', payload);
+          
+          // Check if this order is relevant
+          const isRelevant = 
+            currentUser.role === 'ADMIN' ||
+            (currentUser.role === 'VENDOR' && payload.new.restaurant_id === currentUser.restaurantId);
+
+          if (isRelevant) {
+            // Update the specific order immediately
+            setOrders(prev => prev.map(o => 
+              o.id === payload.new.id 
+                ? { 
+                    ...o, 
+                    status: payload.new.status as OrderStatus,
+                    rejectionReason: payload.new.rejection_reason,
+                    rejectionNote: payload.new.rejection_note
+                  } 
+                : o
+            ));
           }
         }
       )
       .on('postgres_changes', 
-        { event: '*', schema: 'public', table: 'restaurants' }, 
+        { 
+          event: '*', 
+          schema: 'public', 
+          table: 'restaurants' 
+        }, 
         () => {
           if (currentUser.role !== 'CUSTOMER') {
             fetchRestaurants();
           }
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log('Subscription status:', status);
+      });
 
     return () => { 
-      if (interval) clearInterval(interval);
       supabase.removeChannel(channel); 
     };
-  }, [currentUser, fetchNewOrders, fetchRestaurants]);
+  }, [currentUser, fetchLatestOrders, fetchRestaurants]);
 
   // Dark mode effect
   useEffect(() => {
@@ -501,8 +515,8 @@ const App: React.FC = () => {
       alert("Placement Error: " + error.message);
     } else { 
       setCart([]); 
-      lastOrderTimestamp.current = Date.now();
-      fetchNewOrders();
+      // Immediately fetch latest orders to show the new one
+      fetchLatestOrders();
       alert(`Your order(s) have been placed! Reference: ${baseOrderId}`); 
     }
   };
@@ -515,7 +529,7 @@ const App: React.FC = () => {
     localStorage.setItem('qs_role', user.role);
     localStorage.setItem('qs_view', 'APP');
     
-    // Reset tracking but mark that we need to reload
+    // Reset tracking
     processedOrderIds.current.clear();
     pendingStatusUpdates.current.clear();
     initialLoadDone.current = false; // Force reload on login
@@ -540,11 +554,13 @@ const App: React.FC = () => {
     lockedOrderIds.current.add(orderId);
     pendingStatusUpdates.current.set(orderId, status);
     
+    // Optimistic update
     setOrders(prev => prev.map(o => 
       o.id === orderId ? { ...o, status, rejectionReason: reason, rejectionNote: note } : o
     ));
     
-    await supabase
+    // Update in database
+    const { error } = await supabase
       .from('orders')
       .update({ 
         status, 
@@ -552,6 +568,12 @@ const App: React.FC = () => {
         rejection_note: note 
       })
       .eq('id', orderId);
+    
+    if (error) {
+      // Revert on error
+      pendingStatusUpdates.current.delete(orderId);
+      fetchLatestOrders();
+    }
     
     setTimeout(() => {
       lockedOrderIds.current.delete(orderId);
@@ -617,7 +639,7 @@ const App: React.FC = () => {
     });
   };
 
-  // Menu item handlers (keep as is)
+  // Menu item handlers
   const handleUpdateMenuItem = async (restaurantId: string, item: MenuItem) => {
     const { error } = await supabase.from('menu_items').update({
       name: item.name,
@@ -667,7 +689,7 @@ const App: React.FC = () => {
     if (!error) fetchRestaurants(true);
   };
 
-  // Vendor & Hub handlers (keep as is)
+  // Vendor & Hub handlers
   const handleAddVendor = async (user: User, restaurant: Restaurant) => {
     const userId = crypto.randomUUID();
     const resId = crypto.randomUUID();
