@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { User, Role, Restaurant, Order, OrderStatus, CartItem, MenuItem, Area } from './types';
 import CustomerView from './pages/CustomerView';
@@ -47,13 +48,6 @@ const App: React.FC = () => {
   });
 
   const [lastSyncTime, setLastSyncTime] = useState<Date>(new Date());
-  
-  // --- TRACKING REFS ---
-  const lastOrderTimestamp = useRef<number>(Date.now());
-  const processedOrderIds = useRef<Set<string>>(new Set());
-  const pendingStatusUpdates = useRef<Map<string, OrderStatus>>(new Map());
-  const initialLoadDone = useRef<boolean>(false);
-  const channelRef = useRef<any>(null);
   
   // --- TRANSACTION LOCKS ---
   const lockedOrderIds = useRef<Set<string>>(new Set());
@@ -110,9 +104,6 @@ const App: React.FC = () => {
     return Date.now();
   };
 
-  // ========== DATA FETCHING FUNCTIONS ==========
-
-  // Fetch users (rarely changes)
   const fetchUsers = useCallback(async () => {
     const { data, error } = await supabase.from('users').select('*');
     if (!error && data) {
@@ -126,7 +117,6 @@ const App: React.FC = () => {
     }
   }, []);
 
-  // Fetch locations (rarely changes)
   const fetchLocations = useCallback(async () => {
     const { data, error } = await supabase.from('areas').select('*').order('name');
     if (!error && data) {
@@ -138,63 +128,10 @@ const App: React.FC = () => {
     }
   }, []);
 
-  // Fetch restaurants and menu (for customers - only online status and menu)
-  const fetchRestaurantsForCustomer = useCallback(async () => {
-    if (!sessionLocation) return;
-    
-    const { data: resData, error: resError } = await supabase
-      .from('restaurants')
-      .select(`
-        id,
-        name,
-        logo,
-        location_name,
-        is_online,
-        menu_items (
-          id, name, description, price, image, category, 
-          is_archived, sizes, temp_options, other_variants
-        )
-      `)
-      .eq('location_name', sessionLocation)
-      .eq('is_online', true);
-
-    if (!resError && resData) {
-      const formatted: Restaurant[] = resData.map(res => ({
-        id: res.id,
-        name: res.name,
-        logo: res.logo,
-        vendorId: '',
-        location: res.location_name,
-        isOnline: res.is_online,
-        menu: (res.menu_items || [])
-          .filter((m: any) => !m.is_archived)
-          .map((m: any) => {
-            const temp = m.temp_options || {};
-            const others = m.other_variants || {};
-            return {
-              id: m.id, name: m.name, description: m.description, price: Number(m.price),
-              image: m.image, category: m.category, isArchived: m.is_archived,
-              sizes: m.sizes,
-              tempOptions: {
-                enabled: temp.enabled ?? false,
-                hot: temp.hot ?? 0,
-                cold: temp.cold ?? 0
-              },
-              otherVariantName: others.name || '',
-              otherVariants: others.options || [],
-              otherVariantsEnabled: others.enabled ?? false
-            };
-          })
-      }));
-      setRestaurants(formatted);
-    }
-  }, [sessionLocation]);
-
-  // Fetch all restaurants (for vendors/admins)
-  const fetchAllRestaurants = useCallback(async () => {
+  const fetchRestaurants = useCallback(async () => {
+    if (isStatusLocked.current) return;
     const { data: resData, error: resError } = await supabase.from('restaurants').select('*');
     const { data: menuData, error: menuError } = await supabase.from('menu_items').select('*');
-    
     if (!resError && !menuError && resData && menuData) {
       const formatted: Restaurant[] = resData.map(res => ({
         id: res.id, name: res.name, logo: res.logo, vendorId: res.vendor_id,
@@ -223,125 +160,51 @@ const App: React.FC = () => {
     }
   }, []);
 
-  // Load ALL historical orders for vendors/admins (complete report)
-  const loadAllHistoricalOrders = useCallback(async () => {
-    if (!currentUser) return;
-    
-    let query = supabase
-      .from('orders')
-      .select('*')
-      .order('timestamp', { ascending: false });
-
-    if (currentUser.role === 'VENDOR' && currentUser.restaurantId) {
-      query = query.eq('restaurant_id', currentUser.restaurantId);
-    }
-    // Admins get ALL orders (no limit for reports)
-
-    const { data, error } = await query;
-
-    if (!error && data) {
-      const mappedOrders = data.map(o => ({
-        id: o.id, 
-        items: Array.isArray(o.items) ? o.items : (typeof o.items === 'string' ? JSON.parse(o.items) : []), 
-        total: Number(o.total || 0),
-        status: o.status as OrderStatus, 
-        timestamp: parseTimestamp(o.timestamp),
-        customerId: o.customer_id, 
-        restaurantId: o.restaurant_id,
-        tableNumber: o.table_number, 
-        locationName: o.location_name,
-        remark: o.remark, 
-        rejectionReason: o.rejection_reason, 
-        rejectionNote: o.rejection_note
-      }));
-
-      setOrders(mappedOrders);
-      
-      // Track processed order IDs and latest timestamp
-      if (mappedOrders.length > 0) {
-        const maxTimestamp = Math.max(...mappedOrders.map(o => o.timestamp));
-        lastOrderTimestamp.current = maxTimestamp;
-        mappedOrders.forEach(o => processedOrderIds.current.add(o.id));
-      }
-      
-      persistCache('qs_cache_orders', mappedOrders);
-    }
-  }, [currentUser]);
-
-  // OPTIMIZED: Only fetch NEW orders (minimal bandwidth)
-  const checkForNewOrders = useCallback(async () => {
+  const fetchOrders = useCallback(async () => {
     if (isFetchingRef.current) return;
-    if (!currentUser) return;
-    
     isFetchingRef.current = true;
-
     try {
-      let query = supabase
-        .from('orders')
-        .select('id, restaurant_id, status, timestamp') // Only fetch minimal fields first
-        .gt('timestamp', lastOrderTimestamp.current)
-        .order('timestamp', { ascending: false });
-
-      if (currentUser.role === 'VENDOR' && currentUser.restaurantId) {
-        query = query.eq('restaurant_id', currentUser.restaurantId);
-      }
-
-      const { data: newOrdersList, error } = await query.limit(10);
-
-      if (!error && newOrdersList && newOrdersList.length > 0) {
-        // Filter out already processed orders
-        const trulyNewOrders = newOrdersList.filter(o => !processedOrderIds.current.has(o.id));
-        
-        if (trulyNewOrders.length > 0) {
-          // Fetch full details for new orders only
-          const newOrderIds = trulyNewOrders.map(o => o.id);
-          const { data: fullOrders, error: fullError } = await supabase
-            .from('orders')
-            .select('*')
-            .in('id', newOrderIds);
-
-          if (!fullError && fullOrders) {
-            const newestTimestamp = Math.max(...fullOrders.map(o => parseTimestamp(o.timestamp)));
-            lastOrderTimestamp.current = Math.max(lastOrderTimestamp.current, newestTimestamp);
-
-            setOrders(prev => {
-              const existingOrders = new Map(prev.map(o => [o.id, o]));
-              
-              fullOrders.forEach(o => {
-                const mappedOrder: Order = {
-                  id: o.id, 
-                  items: Array.isArray(o.items) ? o.items : (typeof o.items === 'string' ? JSON.parse(o.items) : []), 
-                  total: Number(o.total || 0),
-                  status: o.status as OrderStatus, 
-                  timestamp: parseTimestamp(o.timestamp),
-                  customerId: o.customer_id, 
-                  restaurantId: o.restaurant_id,
-                  tableNumber: o.table_number, 
-                  locationName: o.location_name,
-                  remark: o.remark, 
-                  rejectionReason: o.rejection_reason, 
-                  rejectionNote: o.rejection_note
-                };
-                
-                existingOrders.set(o.id, mappedOrder);
-                processedOrderIds.current.add(o.id);
-              });
-
-              const updatedOrders = Array.from(existingOrders.values());
-              persistCache('qs_cache_orders', updatedOrders);
-              return updatedOrders;
-            });
-          }
-        }
+      const { data, error } = await supabase.from('orders').select('*').order('timestamp', { ascending: false }).limit(200);
+      if (!error && data) {
+        setOrders(prev => {
+          const mapped = data.map(o => {
+            const mappedOrder: Order = {
+              id: o.id, 
+              items: Array.isArray(o.items) ? o.items : (typeof o.items === 'string' ? JSON.parse(o.items) : []), 
+              total: Number(o.total || 0),
+              status: o.status as OrderStatus, 
+              timestamp: parseTimestamp(o.timestamp),
+              customerId: o.customer_id, 
+              // Fix: Removed invalid restaurant_id property, using correct restaurantId
+              restaurantId: o.restaurant_id,
+              tableNumber: o.table_number, 
+              locationName: o.location_name,
+              remark: o.remark, 
+              rejectionReason: o.rejection_reason, 
+              rejectionNote: o.rejection_note
+            };
+            if (lockedOrderIds.current.has(o.id)) {
+              const localOrder = prev.find(p => p.id === o.id);
+              if (localOrder) mappedOrder.status = localOrder.status;
+            }
+            return mappedOrder;
+          });
+          persistCache('qs_cache_orders', mapped);
+          return mapped;
+        });
       }
     } catch (e) {
-      console.error("Check for new orders failed", e);
+      console.error("Fetch orders failed", e);
     } finally {
       isFetchingRef.current = false;
     }
-  }, [currentUser]);
+  }, []);
 
-  // ========== INITIALIZATION ==========
+  // Combined refresh function to ensure heartbeat works reliably
+  const refreshAppData = useCallback(async () => {
+    await Promise.allSettled([fetchOrders(), fetchRestaurants()]);
+    setLastSyncTime(new Date());
+  }, [fetchOrders, fetchRestaurants]);
 
   // QR Redirection Logic
   useEffect(() => {
@@ -361,141 +224,35 @@ const App: React.FC = () => {
     }
   }, []);
 
-  // Initialize app based on role
+  // Global Data Polling (Simplified Dependencies)
   useEffect(() => {
     const initApp = async () => {
-      if (initialLoadDone.current) return;
-      
-      setIsLoading(true);
-      
-      // Always fetch users and locations (these rarely change)
-      await Promise.allSettled([fetchUsers(), fetchLocations()]);
-      
-      // Role-specific initialization
-      if (currentUser) {
-        if (currentUser.role === 'CUSTOMER') {
-          // Customers: only fetch their location's restaurants
-          await fetchRestaurantsForCustomer();
-        } else {
-          // Vendors/Admins: fetch all restaurants and ALL historical orders
-          await Promise.allSettled([
-            fetchAllRestaurants(),
-            loadAllHistoricalOrders()
-          ]);
-        }
-      } else if (sessionLocation) {
-        // Guest customer (from QR scan)
-        await fetchRestaurantsForCustomer();
-      }
-      
-      initialLoadDone.current = true;
+      await Promise.allSettled([fetchUsers(), fetchLocations(), fetchRestaurants(), fetchOrders()]);
+      setLastSyncTime(new Date());
       setIsLoading(false);
     };
-    
     initApp();
-  }, [currentUser, sessionLocation]);
 
-  // ========== REAL-TIME UPDATES ==========
+    const interval = setInterval(() => {
+      refreshAppData();
+    }, 5000);
 
-  // Set up real-time subscriptions (minimal polling fallback)
-  useEffect(() => {
-    if (!currentUser || !initialLoadDone.current) return;
-
-    // Clean up previous subscription
-    if (channelRef.current) {
-      supabase.removeChannel(channelRef.current);
-    }
-
-    // Create subscription based on role
-    const channel = supabase.channel(`app-${currentUser.id}`);
-
-    if (currentUser.role === 'VENDOR' || currentUser.role === 'ADMIN') {
-      // Subscribe to new orders
-      channel.on('postgres_changes', 
-        { 
-          event: 'INSERT', 
-          schema: 'public', 
-          table: 'orders' 
-        }, 
-        (payload) => {
-          // Check if this order is relevant
-          const isRelevant = 
-            currentUser.role === 'ADMIN' ||
-            (currentUser.role === 'VENDOR' && payload.new.restaurant_id === currentUser.restaurantId);
-
-          if (isRelevant && !processedOrderIds.current.has(payload.new.id)) {
-            // Fetch full order details
-            checkForNewOrders();
-          }
-        }
-      );
-
-      // Subscribe to order updates
-      channel.on('postgres_changes', 
-        { 
-          event: 'UPDATE', 
-          schema: 'public', 
-          table: 'orders' 
-        }, 
-        (payload) => {
-          const isRelevant = 
-            currentUser.role === 'ADMIN' ||
-            (currentUser.role === 'VENDOR' && payload.new.restaurant_id === currentUser.restaurantId);
-
-          if (isRelevant) {
-            // Update order status in real-time
-            setOrders(prev => prev.map(o => 
-              o.id === payload.new.id 
-                ? { 
-                    ...o, 
-                    status: payload.new.status as OrderStatus,
-                    rejectionReason: payload.new.rejection_reason,
-                    rejectionNote: payload.new.rejection_note
-                  } 
-                : o
-            ));
-          }
-        }
-      );
-    }
-
-    // Subscribe to restaurant changes (for all roles)
-    channel.on('postgres_changes', 
-      { event: 'UPDATE', schema: 'public', table: 'restaurants' }, 
-      () => {
-        if (currentUser.role === 'CUSTOMER') {
-          fetchRestaurantsForCustomer();
-        } else {
-          fetchAllRestaurants();
-        }
-      }
-    );
-
-    channel.subscribe();
-    channelRef.current = channel;
-
-    // Minimal polling as fallback (only for vendors/admins)
-    let interval: NodeJS.Timeout;
-    if (currentUser.role === 'VENDOR' || currentUser.role === 'ADMIN') {
-      interval = setInterval(checkForNewOrders, 10000); // Check every 10 seconds as fallback
-    }
+    const channel = supabase.channel('order-updates')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => refreshAppData())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'restaurants' }, () => refreshAppData())
+      .subscribe();
 
     return () => { 
-      if (interval) clearInterval(interval);
-      if (channelRef.current) {
-        supabase.removeChannel(channelRef.current);
-      }
+      clearInterval(interval);
+      supabase.removeChannel(channel); 
     };
-  }, [currentUser, checkForNewOrders, fetchRestaurantsForCustomer, fetchAllRestaurants]);
+  }, [fetchUsers, fetchLocations, refreshAppData, fetchRestaurants, fetchOrders]);
 
-  // Dark mode effect
   useEffect(() => {
     if (isDarkMode) document.documentElement.classList.add('dark');
     else document.documentElement.classList.remove('dark');
     localStorage.setItem('theme', isDarkMode ? 'dark' : 'light');
   }, [isDarkMode]);
-
-  // ========== EVENT HANDLERS ==========
 
   const handleScanSimulation = (locationName: string, tableNo: string) => {
     setSessionLocation(locationName);
@@ -510,13 +267,19 @@ const App: React.FC = () => {
 
   const placeOrder = async (remark: string) => {
     if (cart.length === 0) return;
-    
     const uniqueRestaurantIdsInCart = Array.from(new Set(cart.map(item => item.restaurantId)));
-    
+    const offlineRestaurants = uniqueRestaurantIdsInCart
+      .map(rid => restaurants.find(r => r.id === rid))
+      .filter(res => !res || res.isOnline === false);
+
+    if (offlineRestaurants.length > 0) {
+      alert(`Error: The following kitchen(s) are currently offline: ${offlineRestaurants.map(r => r?.name).join(', ')}. Please remove these items from your cart.`);
+      return;
+    }
+
     const area = locations.find(l => l.name === sessionLocation);
     const code = area?.code || 'QS';
     let nextNum = 1;
-    
     const { data: lastOrder } = await supabase.from('orders')
       .select('id')
       .ilike('id', `${code}%`)
@@ -530,7 +293,6 @@ const App: React.FC = () => {
       const parsed = parseInt(numPart);
       if (!isNaN(parsed)) nextNum = parsed + 1;
     }
-    
     const baseOrderId = `${code}${String(nextNum).padStart(7, '0')}`;
 
     const ordersToInsert = uniqueRestaurantIdsInCart.map((rid, index) => {
@@ -538,92 +300,43 @@ const App: React.FC = () => {
       const totalForThisRestaurant = itemsForThisRestaurant.reduce((acc, item) => acc + (item.price * item.quantity), 0);
       const finalOrderId = uniqueRestaurantIdsInCart.length > 1 ? `${baseOrderId}-${index + 1}` : baseOrderId;
       return {
-        id: finalOrderId, 
-        items: itemsForThisRestaurant, 
-        total: totalForThisRestaurant,
-        status: OrderStatus.PENDING, 
-        timestamp: Date.now(), 
-        customer_id: 'guest_user',
-        restaurant_id: rid, 
-        table_number: sessionTable || 'N/A', 
-        location_name: sessionLocation || 'Unspecified',
+        id: finalOrderId, items: itemsForThisRestaurant, total: totalForThisRestaurant,
+        status: OrderStatus.PENDING, timestamp: Date.now(), customer_id: 'guest_user',
+        restaurant_id: rid, table_number: sessionTable || 'N/A', location_name: sessionLocation || 'Unspecified',
         remark: remark
       };
     });
 
     const { error } = await supabase.from('orders').insert(ordersToInsert);
-    
-    if (error) {
-      alert("Placement Error: " + error.message);
-    } else { 
-      setCart([]); 
-      alert(`Your order(s) have been placed! Reference: ${baseOrderId}`); 
-    }
+    if (error) alert("Placement Error: " + error.message);
+    else { setCart([]); refreshAppData(); alert(`Your order(s) have been placed! Reference: ${baseOrderId}`); }
   };
 
   const handleLogin = (user: User) => {
-    setCurrentUser(user); 
-    setCurrentRole(user.role); 
-    setView('APP');
+    setCurrentUser(user); setCurrentRole(user.role); setView('APP');
     localStorage.setItem('qs_user', JSON.stringify(user));
     localStorage.setItem('qs_role', user.role);
     localStorage.setItem('qs_view', 'APP');
-    
-    // Reset tracking
-    processedOrderIds.current.clear();
-    pendingStatusUpdates.current.clear();
-    initialLoadDone.current = false;
   };
 
   const handleLogout = () => {
-    setCurrentUser(null); 
-    setCurrentRole(null); 
-    setSessionLocation(null);
-    setSessionTable(null); 
-    setView('LANDING'); 
-    localStorage.clear();
-    
-    // Reset tracking
-    lastOrderTimestamp.current = Date.now();
-    processedOrderIds.current.clear();
-    pendingStatusUpdates.current.clear();
-    initialLoadDone.current = false;
-    
-    // Clean up subscription
-    if (channelRef.current) {
-      supabase.removeChannel(channelRef.current);
-      channelRef.current = null;
-    }
+    setCurrentUser(null); setCurrentRole(null); setSessionLocation(null);
+    setSessionTable(null); setView('LANDING'); localStorage.clear();
   };
 
   const updateOrderStatus = async (orderId: string, status: OrderStatus, reason?: string, note?: string) => {
     lockedOrderIds.current.add(orderId);
-    pendingStatusUpdates.current.set(orderId, status);
-    
-    // Optimistic update
-    setOrders(prev => prev.map(o => 
-      o.id === orderId ? { ...o, status, rejectionReason: reason, rejectionNote: note } : o
-    ));
-    
-    // Update in database
-    await supabase
-      .from('orders')
-      .update({ 
-        status, 
-        rejection_reason: reason, 
-        rejection_note: note 
-      })
-      .eq('id', orderId);
-    
-    setTimeout(() => {
-      lockedOrderIds.current.delete(orderId);
-      pendingStatusUpdates.current.delete(orderId);
-    }, 3000);
+    setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status, rejectionReason: reason, rejectionNote: note } : o));
+    await supabase.from('orders').update({ status, rejection_reason: reason, rejection_note: note }).eq('id', orderId);
+    setTimeout(() => lockedOrderIds.current.delete(orderId), 3000);
+    refreshAppData();
   };
 
   const toggleVendorOnline = async (restaurantId: string, currentStatus: boolean) => {
+    const res = restaurants.find(r => r.id === restaurantId);
     const vendor = allUsers.find(u => u.restaurantId === restaurantId);
     
+    // If master activation is disabled, cannot turn online
     if (!currentStatus && vendor && vendor.isActive === false) {
       alert("Cannot turn online: Master Activation is disabled for this vendor.");
       return;
@@ -632,37 +345,17 @@ const App: React.FC = () => {
     const newStatus = !currentStatus;
     isStatusLocked.current = true;
     setRestaurants(prev => prev.map(r => r.id === restaurantId ? { ...r, isOnline: newStatus } : r));
-    
-    await supabase.from('restaurants').update({ is_online: newStatus }).eq('id', restaurantId);
-    
+    const { error } = await supabase.from('restaurants').update({ is_online: newStatus }).eq('id', restaurantId);
+    if (error) fetchRestaurants();
     setTimeout(() => isStatusLocked.current = false, 3000);
   };
 
   const addToCart = (item: CartItem) => {
     const res = restaurants.find(r => r.id === item.restaurantId);
-    if (res && res.isOnline === false) { 
-      alert("This kitchen is currently offline."); 
-      return; 
-    }
-    
+    if (res && res.isOnline === false) { alert("This kitchen is currently offline."); return; }
     setCart(prev => {
-      const existing = prev.find(i => 
-        i.id === item.id && 
-        i.selectedSize === item.selectedSize && 
-        i.selectedTemp === item.selectedTemp && 
-        i.selectedOtherVariant === item.selectedOtherVariant
-      );
-      
-      if (existing) {
-        return prev.map(i => 
-          (i.id === item.id && 
-           i.selectedSize === item.selectedSize && 
-           i.selectedTemp === item.selectedTemp && 
-           i.selectedOtherVariant === item.selectedOtherVariant) 
-            ? { ...i, quantity: i.quantity + 1 } 
-            : i
-        );
-      }
+      const existing = prev.find(i => i.id === item.id && i.selectedSize === item.selectedSize && i.selectedTemp === item.selectedTemp && i.selectedOtherVariant === item.selectedOtherVariant);
+      if (existing) return prev.map(i => (i.id === item.id && i.selectedSize === item.selectedSize && i.selectedTemp === item.selectedTemp && i.selectedOtherVariant === item.selectedOtherVariant) ? { ...i, quantity: i.quantity + 1 } : i);
       return [...prev, { ...item, quantity: 1 }];
     });
   };
@@ -670,14 +363,12 @@ const App: React.FC = () => {
   const removeFromCart = (itemId: string) => {
     setCart(prev => {
       const existing = prev.find(i => i.id === itemId);
-      if (existing && existing.quantity > 1) {
-        return prev.map(i => i.id === itemId ? { ...i, quantity: i.quantity - 1 } : i);
-      }
+      if (existing && existing.quantity > 1) return prev.map(i => i.id === itemId ? { ...i, quantity: i.quantity - 1 } : i);
       return prev.filter(i => i.id !== itemId);
     });
   };
 
-  // Menu item handlers
+  // --- MENU ITEM HANDLERS ---
   const handleUpdateMenuItem = async (restaurantId: string, item: MenuItem) => {
     const { error } = await supabase.from('menu_items').update({
       name: item.name,
@@ -694,9 +385,8 @@ const App: React.FC = () => {
         enabled: item.otherVariantsEnabled
       }
     }).eq('id', item.id);
-    
     if (error) alert("Error updating menu item: " + error.message);
-    else fetchAllRestaurants();
+    else fetchRestaurants();
   };
 
   const handleAddMenuItem = async (restaurantId: string, item: MenuItem) => {
@@ -717,102 +407,64 @@ const App: React.FC = () => {
         enabled: item.otherVariantsEnabled
       }
     });
-    
     if (error) alert("Error adding menu item: " + error.message);
-    else fetchAllRestaurants();
+    else fetchRestaurants();
   };
 
   const handleDeleteMenuItem = async (restaurantId: string, itemId: string) => {
     const { error } = await supabase.from('menu_items').delete().eq('id', itemId);
-    if (!error) fetchAllRestaurants();
+    if (!error) fetchRestaurants();
   };
 
-  // Vendor & Hub handlers
+  // --- VENDOR & HUB HANDLERS ---
   const handleAddVendor = async (user: User, restaurant: Restaurant) => {
     const userId = crypto.randomUUID();
     const resId = crypto.randomUUID();
-    
     const { error: userError } = await supabase.from('users').insert({
-      id: userId, 
-      username: user.username, 
-      password: user.password, 
-      role: 'VENDOR',
-      restaurant_id: resId, 
-      is_active: true, 
-      email: user.email, 
-      phone: user.phone
+      id: userId, username: user.username, password: user.password, role: 'VENDOR',
+      restaurant_id: resId, is_active: true, email: user.email, phone: user.phone
     });
-    
-    if (userError) { 
-      alert("Error adding user: " + userError.message); 
-      return; 
-    }
-    
+    if (userError) { alert("Error adding user: " + userError.message); return; }
     const { error: resError } = await supabase.from('restaurants').insert({
-      id: resId, 
-      name: restaurant.name, 
-      logo: restaurant.logo, 
-      vendor_id: userId,
-      location_name: restaurant.location, 
-      is_online: true
+      id: resId, name: restaurant.name, logo: restaurant.logo, vendor_id: userId,
+      location_name: restaurant.location, is_online: true
     });
-    
     if (resError) alert("Error adding restaurant: " + resError.message);
-    fetchUsers(); 
-    fetchAllRestaurants();
+    fetchUsers(); fetchRestaurants();
   };
 
   const handleUpdateVendor = async (user: User, restaurant: Restaurant) => {
     const { error: userError } = await supabase.from('users').update({
-      username: user.username, 
-      password: user.password, 
-      email: user.email, 
-      phone: user.phone, 
-      is_active: user.isActive
+      username: user.username, password: user.password, email: user.email, phone: user.phone, is_active: user.isActive
     }).eq('id', user.id);
     
+    // If deactivating vendor, also set restaurant offline
     const resUpdate: any = {
       name: restaurant.name, 
       logo: restaurant.logo, 
       location_name: restaurant.location
     };
-    
     if (user.isActive === false) {
       resUpdate.is_online = false;
     }
 
     const { error: resError } = await supabase.from('restaurants').update(resUpdate).eq('id', restaurant.id);
-    
     if (userError || resError) alert("Error updating vendor");
-    fetchUsers(); 
-    fetchAllRestaurants();
+    fetchUsers(); fetchRestaurants();
   };
 
   const handleAddLocation = async (area: Area) => {
     const id = crypto.randomUUID();
     const { error } = await supabase.from('areas').insert({
-      id, 
-      name: area.name, 
-      city: area.city, 
-      state: area.state, 
-      code: area.code, 
-      is_active: true, 
-      type: area.type || 'MULTI'
+      id, name: area.name, city: area.city, state: area.state, code: area.code, is_active: true, type: area.type || 'MULTI'
     });
-    
     if (!error) fetchLocations();
   };
 
   const handleUpdateLocation = async (area: Area) => {
     const { error } = await supabase.from('areas').update({
-      name: area.name, 
-      city: area.city, 
-      state: area.state, 
-      code: area.code, 
-      is_active: area.isActive, 
-      type: area.type
+      name: area.name, city: area.city, state: area.state, code: area.code, is_active: area.isActive, type: area.type
     }).eq('id', area.id);
-    
     if (!error) fetchLocations();
   };
 
@@ -834,21 +486,11 @@ const App: React.FC = () => {
   }
 
   if (view === 'LANDING') {
-    return <LandingPage 
-      onScan={handleScanSimulation} 
-      onLoginClick={() => setView('LOGIN')} 
-      isDarkMode={isDarkMode} 
-      onToggleDarkMode={() => setIsDarkMode(!isDarkMode)} 
-      locations={locations.filter(l => l.isActive !== false)} 
-    />;
+    return <LandingPage onScan={handleScanSimulation} onLoginClick={() => setView('LOGIN')} isDarkMode={isDarkMode} onToggleDarkMode={() => setIsDarkMode(!isDarkMode)} locations={locations.filter(l => l.isActive !== false)} />;
   }
 
   if (view === 'LOGIN') {
-    return <LoginPage 
-      allUsers={allUsers} 
-      onLogin={handleLogin} 
-      onBack={() => setView('LANDING')} 
-    />;
+    return <LoginPage allUsers={allUsers} onLogin={handleLogin} onBack={() => setView('LANDING')} />;
   }
 
   return (
@@ -868,58 +510,15 @@ const App: React.FC = () => {
                 <p className="text-[10px] text-gray-400 font-bold uppercase">{currentUser.role}</p>
                 <p className="text-xs font-black dark:text-white">{currentUser.username}</p>
               </div>
-              <button onClick={handleLogout} className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 dark:text-white">
-                <LogOut size={20} />
-              </button>
+              <button onClick={handleLogout} className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 dark:text-white"><LogOut size={20} /></button>
             </div>
           )}
         </div>
       </header>
       <main className="flex-1">
-        {currentRole === 'CUSTOMER' && (
-          <CustomerView 
-            restaurants={restaurants} 
-            cart={cart} 
-            orders={orders.filter(o => o.locationName === sessionLocation && o.tableNumber === sessionTable)} 
-            onAddToCart={addToCart} 
-            onRemoveFromCart={removeFromCart} 
-            onPlaceOrder={placeOrder} 
-            locationName={sessionLocation || undefined} 
-            tableNo={sessionTable || undefined} 
-            areaType={currentArea?.type || 'MULTI'} 
-            allRestaurants={restaurants} 
-          />
-        )}
-        
-        {currentRole === 'VENDOR' && activeVendorRes && (
-          <VendorView 
-            restaurant={activeVendorRes} 
-            orders={orders.filter(o => o.restaurantId === currentUser?.restaurantId)} 
-            onUpdateOrder={updateOrderStatus} 
-            onUpdateMenu={handleUpdateMenuItem} 
-            onAddMenuItem={handleAddMenuItem} 
-            onPermanentDeleteMenuItem={handleDeleteMenuItem} 
-            onToggleOnline={() => toggleVendorOnline(activeVendorRes.id, activeVendorRes.isOnline ?? true)} 
-            lastSyncTime={lastSyncTime} 
-          />
-        )}
-        
-        {currentRole === 'ADMIN' && (
-          <AdminView 
-            vendors={allUsers.filter(u => u.role === 'VENDOR')} 
-            restaurants={restaurants} 
-            orders={orders} 
-            locations={locations} 
-            onAddVendor={handleAddVendor} 
-            onUpdateVendor={handleUpdateVendor} 
-            onImpersonateVendor={handleLogin} 
-            onAddLocation={handleAddLocation} 
-            onUpdateLocation={handleUpdateLocation} 
-            onDeleteLocation={handleDeleteLocation} 
-            onToggleOnline={toggleVendorOnline} 
-            onRemoveVendorFromHub={(rid) => supabase.from('restaurants').update({ location_name: null }).eq('id', rid).then(() => fetchAllRestaurants())} 
-          />
-        )}
+        {currentRole === 'CUSTOMER' && <CustomerView restaurants={restaurants.filter(r => r.location === sessionLocation && r.isOnline === true)} cart={cart} orders={orders} onAddToCart={addToCart} onRemoveFromCart={removeFromCart} onPlaceOrder={placeOrder} locationName={sessionLocation || undefined} tableNo={sessionTable || undefined} areaType={currentArea?.type || 'MULTI'} allRestaurants={restaurants} />}
+        {currentRole === 'VENDOR' && activeVendorRes && <VendorView restaurant={activeVendorRes} orders={orders.filter(o => o.restaurantId === currentUser?.restaurantId)} onUpdateOrder={updateOrderStatus} onUpdateMenu={handleUpdateMenuItem} onAddMenuItem={handleAddMenuItem} onPermanentDeleteMenuItem={handleDeleteMenuItem} onToggleOnline={() => toggleVendorOnline(activeVendorRes.id, activeVendorRes.isOnline ?? true)} lastSyncTime={lastSyncTime} />}
+        {currentRole === 'ADMIN' && <AdminView vendors={allUsers.filter(u => u.role === 'VENDOR')} restaurants={restaurants} orders={orders} locations={locations} onAddVendor={handleAddVendor} onUpdateVendor={handleUpdateVendor} onImpersonateVendor={handleLogin} onAddLocation={handleAddLocation} onUpdateLocation={handleUpdateLocation} onDeleteLocation={handleDeleteLocation} onToggleOnline={toggleVendorOnline} onRemoveVendorFromHub={(rid) => supabase.from('restaurants').update({ location_name: null }).eq('id', rid).then(() => fetchRestaurants())} />}
       </main>
     </div>
   );
