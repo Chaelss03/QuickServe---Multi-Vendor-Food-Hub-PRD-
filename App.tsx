@@ -393,6 +393,7 @@ const App: React.FC = () => {
       
       setIsLoading(true);
       
+      // FIXED: Added 'false' argument to fetchUsers and fetchLocations
       await Promise.all([fetchUsers(false), fetchLocations(false)]);
       
       if (currentUser) {
@@ -413,7 +414,7 @@ const App: React.FC = () => {
     };
     
     initApp();
-  }, [currentUser, sessionLocation]);
+  }, [currentUser, sessionLocation, fetchUsers, fetchLocations, fetchRestaurantsForCustomer, fetchAllRestaurants, loadAllHistoricalOrders]);
 
   // ========== ORDER CHECKING SETUP ==========
   
@@ -767,6 +768,7 @@ const App: React.FC = () => {
     });
     
     if (resError) alert("Error adding restaurant: " + resError.message);
+    // FIXED: Added 'true' argument
     fetchUsers(true); 
     fetchAllRestaurants();
   };
@@ -793,6 +795,7 @@ const App: React.FC = () => {
     const { error: resError } = await supabase.from('restaurants').update(resUpdate).eq('id', restaurant.id);
     
     if (userError || resError) alert("Error updating vendor");
+    // FIXED: Added 'true' argument
     fetchUsers(true); 
     fetchAllRestaurants();
   };
@@ -809,6 +812,7 @@ const App: React.FC = () => {
       type: area.type || 'MULTI'
     });
     
+    // FIXED: Added 'true' argument
     if (!error) fetchLocations(true);
   };
 
@@ -822,11 +826,13 @@ const App: React.FC = () => {
       type: area.type
     }).eq('id', area.id);
     
+    // FIXED: Added 'true' argument
     if (!error) fetchLocations(true);
   };
 
   const handleDeleteLocation = async (areaId: string) => {
     const { error } = await supabase.from('areas').delete().eq('id', areaId);
+    // FIXED: Added 'true' argument
     if (!error) fetchLocations(true);
   };
 
