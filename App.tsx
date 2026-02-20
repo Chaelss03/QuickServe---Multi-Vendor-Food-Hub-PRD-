@@ -6,7 +6,7 @@ import AdminView from './pages/AdminView';
 import LandingPage from './pages/LandingPage';
 import LoginPage from './pages/LoginPage';
 import { supabase } from './lib/supabase';
-import { LogOut, Sun, Moon, Loader2 } from 'lucide-react';
+import { LogOut, Sun, Moon, MapPin, LogIn, Loader2 } from 'lucide-react';
 
 const App: React.FC = () => {
   // --- HYDRATED STATE ---
@@ -38,7 +38,14 @@ const App: React.FC = () => {
     } catch { return []; }
   });
 
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(() => {
+    try {
+      const hasRes = localStorage.getItem('qs_cache_restaurants');
+      const hasLoc = localStorage.getItem('qs_cache_locations');
+      return !(hasRes && hasLoc);
+    } catch { return true; }
+  });
+
   const [lastSyncTime, setLastSyncTime] = useState<Date>(new Date());
   
   // --- TRACKING REFS ---
@@ -47,12 +54,6 @@ const App: React.FC = () => {
   const pendingStatusUpdates = useRef<Map<string, OrderStatus>>(new Map());
   const initialLoadDone = useRef<boolean>(false);
   const channelRef = useRef<any>(null);
-  
-  // --- Order queue system for vendors ---
-  const orderCheckInterval = useRef<NodeJS.Timeout>();
-  const isCheckingOrders = useRef<boolean>(false);
-  const lastOrderCheck = useRef<number>(Date.now());
-  const pendingNewOrders = useRef<Set<string>>(new Set());
   
   // --- TRANSACTION LOCKS ---
   const lockedOrderIds = useRef<Set<string>>(new Set());
@@ -63,7 +64,7 @@ const App: React.FC = () => {
     try {
       const saved = localStorage.getItem('qs_user');
       return saved ? JSON.parse(saved) : null;
-    } catch { return null; }
+    } catch (e) { return null; }
   });
   
   const [currentRole, setCurrentRole] = useState<Role | null>(() => {
@@ -101,17 +102,18 @@ const App: React.FC = () => {
     if (typeof ts === 'string') {
       if (/^\d+$/.test(ts)) return parseInt(ts, 10);
       const date = new Date(ts);
-      return date.getTime();
+      const time = date.getTime();
+      return isNaN(time) ? Date.now() : time;
     }
     if (typeof ts === 'number') return ts;
+    if (typeof ts === 'bigint') return Number(ts);
     return Date.now();
   };
 
   // ========== DATA FETCHING FUNCTIONS ==========
 
-  const fetchUsers = useCallback(async (force = false) => {
-    if (!force && allUsers.length > 0) return;
-    
+  // Fetch users (rarely changes)
+  const fetchUsers = useCallback(async () => {
     const { data, error } = await supabase.from('users').select('*');
     if (!error && data) {
       const mapped = data.map(u => ({
@@ -122,23 +124,21 @@ const App: React.FC = () => {
       setAllUsers(mapped);
       persistCache('qs_cache_users', mapped);
     }
-  }, [allUsers.length]);
+  }, []);
 
-  const fetchLocations = useCallback(async (force = false) => {
-    if (!force && locations.length > 0) return;
-    
+  // Fetch locations (rarely changes)
+  const fetchLocations = useCallback(async () => {
     const { data, error } = await supabase.from('areas').select('*').order('name');
     if (!error && data) {
       const mapped = data.map(l => ({
-        id: l.id, name: l.name, city: l.city, state: l.state, 
-        code: l.code, isActive: l.is_active ?? true, 
-        type: l.type as 'MULTI' | 'SINGLE'
+        id: l.id, name: l.name, city: l.city, state: l.state, code: l.code, isActive: l.is_active ?? true, type: l.type as 'MULTI' | 'SINGLE'
       }));
       setLocations(mapped);
       persistCache('qs_cache_locations', mapped);
     }
-  }, [locations.length]);
+  }, []);
 
+  // Fetch restaurants and menu (for customers - only online status and menu)
   const fetchRestaurantsForCustomer = useCallback(async () => {
     if (!sessionLocation) return;
     
@@ -190,6 +190,7 @@ const App: React.FC = () => {
     }
   }, [sessionLocation]);
 
+  // Fetch all restaurants (for vendors/admins)
   const fetchAllRestaurants = useCallback(async () => {
     const { data: resData, error: resError } = await supabase.from('restaurants').select('*');
     const { data: menuData, error: menuError } = await supabase.from('menu_items').select('*');
@@ -222,6 +223,7 @@ const App: React.FC = () => {
     }
   }, []);
 
+  // Load ALL historical orders for vendors/admins (complete report)
   const loadAllHistoricalOrders = useCallback(async () => {
     if (!currentUser) return;
     
@@ -233,6 +235,7 @@ const App: React.FC = () => {
     if (currentUser.role === 'VENDOR' && currentUser.restaurantId) {
       query = query.eq('restaurant_id', currentUser.restaurantId);
     }
+    // Admins get ALL orders (no limit for reports)
 
     const { data, error } = await query;
 
@@ -254,6 +257,7 @@ const App: React.FC = () => {
 
       setOrders(mappedOrders);
       
+      // Track processed order IDs and latest timestamp
       if (mappedOrders.length > 0) {
         const maxTimestamp = Math.max(...mappedOrders.map(o => o.timestamp));
         lastOrderTimestamp.current = maxTimestamp;
@@ -264,107 +268,78 @@ const App: React.FC = () => {
     }
   }, [currentUser]);
 
-  // ========== NEW ORDER CHECKING SYSTEM ==========
-  
+  // OPTIMIZED: Only fetch NEW orders (minimal bandwidth)
   const checkForNewOrders = useCallback(async () => {
-    if (isCheckingOrders.current || !currentUser) return;
-    if (currentUser.role !== 'VENDOR' && currentUser.role !== 'ADMIN') return;
+    if (isFetchingRef.current) return;
+    if (!currentUser) return;
     
-    isCheckingOrders.current = true;
-    
+    isFetchingRef.current = true;
+
     try {
-      let countQuery = supabase
+      let query = supabase
         .from('orders')
-        .select('id', { count: 'exact', head: true })
-        .gt('timestamp', lastOrderTimestamp.current);
+        .select('id, restaurant_id, status, timestamp') // Only fetch minimal fields first
+        .gt('timestamp', lastOrderTimestamp.current)
+        .order('timestamp', { ascending: false });
 
       if (currentUser.role === 'VENDOR' && currentUser.restaurantId) {
-        countQuery = countQuery.eq('restaurant_id', currentUser.restaurantId);
+        query = query.eq('restaurant_id', currentUser.restaurantId);
       }
 
-      const { count, error: countError } = await countQuery;
+      const { data: newOrdersList, error } = await query.limit(10);
 
-      if (!countError && count && count > 0) {
-        let idQuery = supabase
-          .from('orders')
-          .select('id, restaurant_id, timestamp')
-          .gt('timestamp', lastOrderTimestamp.current)
-          .order('timestamp', { ascending: false })
-          .limit(10);
+      if (!error && newOrdersList && newOrdersList.length > 0) {
+        // Filter out already processed orders
+        const trulyNewOrders = newOrdersList.filter(o => !processedOrderIds.current.has(o.id));
+        
+        if (trulyNewOrders.length > 0) {
+          // Fetch full details for new orders only
+          const newOrderIds = trulyNewOrders.map(o => o.id);
+          const { data: fullOrders, error: fullError } = await supabase
+            .from('orders')
+            .select('*')
+            .in('id', newOrderIds);
 
-        if (currentUser.role === 'VENDOR' && currentUser.restaurantId) {
-          idQuery = idQuery.eq('restaurant_id', currentUser.restaurantId);
-        }
+          if (!fullError && fullOrders) {
+            const newestTimestamp = Math.max(...fullOrders.map(o => parseTimestamp(o.timestamp)));
+            lastOrderTimestamp.current = Math.max(lastOrderTimestamp.current, newestTimestamp);
 
-        const { data: newOrderIds, error: idsError } = await idQuery;
-
-        if (!idsError && newOrderIds && newOrderIds.length > 0) {
-          const trulyNewOrderIds = newOrderIds
-            .filter(o => !processedOrderIds.current.has(o.id))
-            .map(o => o.id);
-
-          if (trulyNewOrderIds.length > 0) {
-            trulyNewOrderIds.forEach(id => pendingNewOrders.current.add(id));
-            
-            const { data: fullOrders, error: fullError } = await supabase
-              .from('orders')
-              .select('*')
-              .in('id', trulyNewOrderIds);
-
-            if (!fullError && fullOrders) {
-              const newestTimestamp = Math.max(...fullOrders.map(o => parseTimestamp(o.timestamp)));
-              lastOrderTimestamp.current = Math.max(lastOrderTimestamp.current, newestTimestamp);
-
-              setOrders(prev => {
-                const existingOrders = new Map(prev.map(o => [o.id, o]));
+            setOrders(prev => {
+              const existingOrders = new Map(prev.map(o => [o.id, o]));
+              
+              fullOrders.forEach(o => {
+                const mappedOrder: Order = {
+                  id: o.id, 
+                  items: Array.isArray(o.items) ? o.items : (typeof o.items === 'string' ? JSON.parse(o.items) : []), 
+                  total: Number(o.total || 0),
+                  status: o.status as OrderStatus, 
+                  timestamp: parseTimestamp(o.timestamp),
+                  customerId: o.customer_id, 
+                  restaurantId: o.restaurant_id,
+                  tableNumber: o.table_number, 
+                  locationName: o.location_name,
+                  remark: o.remark, 
+                  rejectionReason: o.rejection_reason, 
+                  rejectionNote: o.rejection_note
+                };
                 
-                fullOrders.forEach(o => {
-                  const mappedOrder: Order = {
-                    id: o.id, 
-                    items: Array.isArray(o.items) ? o.items : (typeof o.items === 'string' ? JSON.parse(o.items) : []), 
-                    total: Number(o.total || 0),
-                    status: o.status as OrderStatus, 
-                    timestamp: parseTimestamp(o.timestamp),
-                    customerId: o.customer_id, 
-                    restaurantId: o.restaurant_id,
-                    tableNumber: o.table_number, 
-                    locationName: o.location_name,
-                    remark: o.remark, 
-                    rejectionReason: o.rejection_reason, 
-                    rejectionNote: o.rejection_note
-                  };
-                  
-                  existingOrders.set(o.id, mappedOrder);
-                  processedOrderIds.current.add(o.id);
-                  pendingNewOrders.current.delete(o.id);
-                });
-
-                const updatedOrders = Array.from(existingOrders.values());
-                persistCache('qs_cache_orders', updatedOrders);
-                setLastSyncTime(new Date());
-                
-                return updatedOrders;
+                existingOrders.set(o.id, mappedOrder);
+                processedOrderIds.current.add(o.id);
               });
-            }
+
+              const updatedOrders = Array.from(existingOrders.values());
+              persistCache('qs_cache_orders', updatedOrders);
+              return updatedOrders;
+            });
           }
         }
       }
-      
-      lastOrderCheck.current = Date.now();
     } catch (e) {
-      console.error("Order check failed:", e);
+      console.error("Check for new orders failed", e);
     } finally {
-      isCheckingOrders.current = false;
+      isFetchingRef.current = false;
     }
   }, [currentUser]);
-
-  const forceOrderCheck = useCallback(() => {
-    if (currentUser?.role === 'VENDOR' || currentUser?.role === 'ADMIN') {
-      const timeSinceLastCheck = Date.now() - lastOrderCheck.current;
-      if (timeSinceLastCheck < 1000) return;
-      checkForNewOrders();
-    }
-  }, [currentUser, checkForNewOrders]);
 
   // ========== INITIALIZATION ==========
 
@@ -393,19 +368,23 @@ const App: React.FC = () => {
       
       setIsLoading(true);
       
-      // *** FIXED: Added 'false' arguments to fetchUsers and fetchLocations ***
-      await Promise.all([fetchUsers(false), fetchLocations(false)]);
+      // Always fetch users and locations (these rarely change)
+      await Promise.allSettled([fetchUsers(), fetchLocations()]);
       
+      // Role-specific initialization
       if (currentUser) {
         if (currentUser.role === 'CUSTOMER') {
+          // Customers: only fetch their location's restaurants
           await fetchRestaurantsForCustomer();
         } else {
-          await Promise.all([
+          // Vendors/Admins: fetch all restaurants and ALL historical orders
+          await Promise.allSettled([
             fetchAllRestaurants(),
             loadAllHistoricalOrders()
           ]);
         }
       } else if (sessionLocation) {
+        // Guest customer (from QR scan)
         await fetchRestaurantsForCustomer();
       }
       
@@ -414,47 +393,57 @@ const App: React.FC = () => {
     };
     
     initApp();
-  }, [currentUser, sessionLocation, fetchUsers, fetchLocations, fetchRestaurantsForCustomer, fetchAllRestaurants, loadAllHistoricalOrders]);
+  }, [currentUser, sessionLocation]);
 
-  // ========== ORDER CHECKING SETUP ==========
-  
+  // ========== REAL-TIME UPDATES ==========
+
+  // Set up real-time subscriptions (minimal polling fallback)
   useEffect(() => {
     if (!currentUser || !initialLoadDone.current) return;
-    if (currentUser.role !== 'VENDOR' && currentUser.role !== 'ADMIN') return;
 
-    if (orderCheckInterval.current) {
-      clearInterval(orderCheckInterval.current);
-    }
-
-    orderCheckInterval.current = setInterval(() => {
-      checkForNewOrders();
-    }, 3000);
-
+    // Clean up previous subscription
     if (channelRef.current) {
       supabase.removeChannel(channelRef.current);
     }
 
-    const channel = supabase.channel(`orders-${currentUser.id}`)
-      .on('postgres_changes', 
-        { event: 'INSERT', schema: 'public', table: 'orders' }, 
+    // Create subscription based on role
+    const channel = supabase.channel(`app-${currentUser.id}`);
+
+    if (currentUser.role === 'VENDOR' || currentUser.role === 'ADMIN') {
+      // Subscribe to new orders
+      channel.on('postgres_changes', 
+        { 
+          event: 'INSERT', 
+          schema: 'public', 
+          table: 'orders' 
+        }, 
         (payload) => {
+          // Check if this order is relevant
           const isRelevant = 
             currentUser.role === 'ADMIN' ||
             (currentUser.role === 'VENDOR' && payload.new.restaurant_id === currentUser.restaurantId);
 
           if (isRelevant && !processedOrderIds.current.has(payload.new.id)) {
-            forceOrderCheck();
+            // Fetch full order details
+            checkForNewOrders();
           }
         }
-      )
-      .on('postgres_changes', 
-        { event: 'UPDATE', schema: 'public', table: 'orders' }, 
+      );
+
+      // Subscribe to order updates
+      channel.on('postgres_changes', 
+        { 
+          event: 'UPDATE', 
+          schema: 'public', 
+          table: 'orders' 
+        }, 
         (payload) => {
           const isRelevant = 
             currentUser.role === 'ADMIN' ||
             (currentUser.role === 'VENDOR' && payload.new.restaurant_id === currentUser.restaurantId);
 
           if (isRelevant) {
+            // Update order status in real-time
             setOrders(prev => prev.map(o => 
               o.id === payload.new.id 
                 ? { 
@@ -467,35 +456,37 @@ const App: React.FC = () => {
             ));
           }
         }
-      )
-      .subscribe();
+      );
+    }
 
+    // Subscribe to restaurant changes (for all roles)
+    channel.on('postgres_changes', 
+      { event: 'UPDATE', schema: 'public', table: 'restaurants' }, 
+      () => {
+        if (currentUser.role === 'CUSTOMER') {
+          fetchRestaurantsForCustomer();
+        } else {
+          fetchAllRestaurants();
+        }
+      }
+    );
+
+    channel.subscribe();
     channelRef.current = channel;
 
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        forceOrderCheck();
-      }
-    };
-    
-    const handleFocus = () => {
-      forceOrderCheck();
-    };
-    
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    window.addEventListener('focus', handleFocus);
+    // Minimal polling as fallback (only for vendors/admins)
+    let interval: NodeJS.Timeout;
+    if (currentUser.role === 'VENDOR' || currentUser.role === 'ADMIN') {
+      interval = setInterval(checkForNewOrders, 10000); // Check every 10 seconds as fallback
+    }
 
     return () => { 
-      if (orderCheckInterval.current) {
-        clearInterval(orderCheckInterval.current);
-      }
+      if (interval) clearInterval(interval);
       if (channelRef.current) {
         supabase.removeChannel(channelRef.current);
       }
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-      window.removeEventListener('focus', handleFocus);
     };
-  }, [currentUser, checkForNewOrders, forceOrderCheck]);
+  }, [currentUser, checkForNewOrders, fetchRestaurantsForCustomer, fetchAllRestaurants]);
 
   // Dark mode effect
   useEffect(() => {
@@ -566,7 +557,6 @@ const App: React.FC = () => {
       alert("Placement Error: " + error.message);
     } else { 
       setCart([]); 
-      setTimeout(() => forceOrderCheck(), 500);
       alert(`Your order(s) have been placed! Reference: ${baseOrderId}`); 
     }
   };
@@ -579,9 +569,9 @@ const App: React.FC = () => {
     localStorage.setItem('qs_role', user.role);
     localStorage.setItem('qs_view', 'APP');
     
+    // Reset tracking
     processedOrderIds.current.clear();
     pendingStatusUpdates.current.clear();
-    pendingNewOrders.current.clear();
     initialLoadDone.current = false;
   };
 
@@ -593,15 +583,13 @@ const App: React.FC = () => {
     setView('LANDING'); 
     localStorage.clear();
     
+    // Reset tracking
     lastOrderTimestamp.current = Date.now();
     processedOrderIds.current.clear();
     pendingStatusUpdates.current.clear();
-    pendingNewOrders.current.clear();
     initialLoadDone.current = false;
     
-    if (orderCheckInterval.current) {
-      clearInterval(orderCheckInterval.current);
-    }
+    // Clean up subscription
     if (channelRef.current) {
       supabase.removeChannel(channelRef.current);
       channelRef.current = null;
@@ -612,10 +600,12 @@ const App: React.FC = () => {
     lockedOrderIds.current.add(orderId);
     pendingStatusUpdates.current.set(orderId, status);
     
+    // Optimistic update
     setOrders(prev => prev.map(o => 
       o.id === orderId ? { ...o, status, rejectionReason: reason, rejectionNote: note } : o
     ));
     
+    // Update in database
     await supabase
       .from('orders')
       .update({ 
@@ -768,7 +758,7 @@ const App: React.FC = () => {
     });
     
     if (resError) alert("Error adding restaurant: " + resError.message);
-    fetchUsers(true); 
+    fetchUsers(); 
     fetchAllRestaurants();
   };
 
@@ -794,7 +784,7 @@ const App: React.FC = () => {
     const { error: resError } = await supabase.from('restaurants').update(resUpdate).eq('id', restaurant.id);
     
     if (userError || resError) alert("Error updating vendor");
-    fetchUsers(true); 
+    fetchUsers(); 
     fetchAllRestaurants();
   };
 
@@ -810,7 +800,7 @@ const App: React.FC = () => {
       type: area.type || 'MULTI'
     });
     
-    if (!error) fetchLocations(true);
+    if (!error) fetchLocations();
   };
 
   const handleUpdateLocation = async (area: Area) => {
@@ -823,15 +813,15 @@ const App: React.FC = () => {
       type: area.type
     }).eq('id', area.id);
     
-    if (!error) fetchLocations(true);
+    if (!error) fetchLocations();
   };
 
   const handleDeleteLocation = async (areaId: string) => {
     const { error } = await supabase.from('areas').delete().eq('id', areaId);
-    if (!error) fetchLocations(true);
+    if (!error) fetchLocations();
   };
 
-  const activeVendorRes = currentUser?.role === 'VENDOR' ? restaurants.find(r => r.id === currentUser?.restaurantId) : null;
+  const activeVendorRes = currentUser?.role === 'VENDOR' ? restaurants.find(r => r.id === currentUser.restaurantId) : null;
   const currentArea = locations.find(l => l.name === sessionLocation);
 
   if (isLoading) {
