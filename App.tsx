@@ -46,18 +46,15 @@ const App: React.FC = () => {
   const processedOrderIds = useRef<Set<string>>(new Set());
   const pendingStatusUpdates = useRef<Map<string, OrderStatus>>(new Map());
   const initialLoadDone = useRef<boolean>(false);
-  const channelRef = useRef<any>(null);
   
   // --- Order queue system for vendors ---
   const orderCheckInterval = useRef<NodeJS.Timeout>();
   const isCheckingOrders = useRef<boolean>(false);
   const lastOrderCheck = useRef<number>(Date.now());
-  const pendingNewOrders = useRef<Set<string>>(new Set());
   
   // --- TRANSACTION LOCKS ---
   const lockedOrderIds = useRef<Set<string>>(new Set());
   const isStatusLocked = useRef<boolean>(false);
-  const isFetchingRef = useRef(false);
   
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
     try {
@@ -107,11 +104,9 @@ const App: React.FC = () => {
     return Date.now();
   };
 
-  // ========== DATA FETCHING FUNCTIONS ==========
+  // ========== SIMPLE DATA FETCHING FUNCTIONS (NO PARAMETERS) ==========
 
-  const fetchUsers = useCallback(async (force = false) => {
-    if (!force && allUsers.length > 0) return;
-    
+  const fetchUsers = useCallback(async () => {
     const { data, error } = await supabase.from('users').select('*');
     if (!error && data) {
       const mapped = data.map(u => ({
@@ -122,11 +117,9 @@ const App: React.FC = () => {
       setAllUsers(mapped);
       persistCache('qs_cache_users', mapped);
     }
-  }, [allUsers.length]);
+  }, []);
 
-  const fetchLocations = useCallback(async (force = false) => {
-    if (!force && locations.length > 0) return;
-    
+  const fetchLocations = useCallback(async () => {
     const { data, error } = await supabase.from('areas').select('*').order('name');
     if (!error && data) {
       const mapped = data.map(l => ({
@@ -137,7 +130,7 @@ const App: React.FC = () => {
       setLocations(mapped);
       persistCache('qs_cache_locations', mapped);
     }
-  }, [locations.length]);
+  }, []);
 
   const fetchRestaurantsForCustomer = useCallback(async () => {
     if (!sessionLocation) return;
@@ -264,7 +257,7 @@ const App: React.FC = () => {
     }
   }, [currentUser]);
 
-  // ========== NEW ORDER CHECKING SYSTEM ==========
+  // ========== SIMPLE NEW ORDER CHECKING ==========
   
   const checkForNewOrders = useCallback(async () => {
     if (isCheckingOrders.current || !currentUser) return;
@@ -273,81 +266,55 @@ const App: React.FC = () => {
     isCheckingOrders.current = true;
     
     try {
-      let countQuery = supabase
+      // Simple query: just get orders newer than last timestamp
+      let query = supabase
         .from('orders')
-        .select('id', { count: 'exact', head: true })
-        .gt('timestamp', lastOrderTimestamp.current);
+        .select('*')
+        .gt('timestamp', lastOrderTimestamp.current)
+        .order('timestamp', { ascending: false })
+        .limit(10);
 
       if (currentUser.role === 'VENDOR' && currentUser.restaurantId) {
-        countQuery = countQuery.eq('restaurant_id', currentUser.restaurantId);
+        query = query.eq('restaurant_id', currentUser.restaurantId);
       }
 
-      const { count, error: countError } = await countQuery;
+      const { data: newOrders, error } = await query;
 
-      if (!countError && count && count > 0) {
-        let idQuery = supabase
-          .from('orders')
-          .select('id, restaurant_id, timestamp')
-          .gt('timestamp', lastOrderTimestamp.current)
-          .order('timestamp', { ascending: false })
-          .limit(10);
+      if (!error && newOrders && newOrders.length > 0) {
+        const newestTimestamp = Math.max(...newOrders.map(o => parseTimestamp(o.timestamp)));
+        lastOrderTimestamp.current = Math.max(lastOrderTimestamp.current, newestTimestamp);
 
-        if (currentUser.role === 'VENDOR' && currentUser.restaurantId) {
-          idQuery = idQuery.eq('restaurant_id', currentUser.restaurantId);
-        }
-
-        const { data: newOrderIds, error: idsError } = await idQuery;
-
-        if (!idsError && newOrderIds && newOrderIds.length > 0) {
-          const trulyNewOrderIds = newOrderIds
-            .filter(o => !processedOrderIds.current.has(o.id))
-            .map(o => o.id);
-
-          if (trulyNewOrderIds.length > 0) {
-            trulyNewOrderIds.forEach(id => pendingNewOrders.current.add(id));
-            
-            const { data: fullOrders, error: fullError } = await supabase
-              .from('orders')
-              .select('*')
-              .in('id', trulyNewOrderIds);
-
-            if (!fullError && fullOrders) {
-              const newestTimestamp = Math.max(...fullOrders.map(o => parseTimestamp(o.timestamp)));
-              lastOrderTimestamp.current = Math.max(lastOrderTimestamp.current, newestTimestamp);
-
-              setOrders(prev => {
-                const existingOrders = new Map(prev.map(o => [o.id, o]));
-                
-                fullOrders.forEach(o => {
-                  const mappedOrder: Order = {
-                    id: o.id, 
-                    items: Array.isArray(o.items) ? o.items : (typeof o.items === 'string' ? JSON.parse(o.items) : []), 
-                    total: Number(o.total || 0),
-                    status: o.status as OrderStatus, 
-                    timestamp: parseTimestamp(o.timestamp),
-                    customerId: o.customer_id, 
-                    restaurantId: o.restaurant_id,
-                    tableNumber: o.table_number, 
-                    locationName: o.location_name,
-                    remark: o.remark, 
-                    rejectionReason: o.rejection_reason, 
-                    rejectionNote: o.rejection_note
-                  };
-                  
-                  existingOrders.set(o.id, mappedOrder);
-                  processedOrderIds.current.add(o.id);
-                  pendingNewOrders.current.delete(o.id);
-                });
-
-                const updatedOrders = Array.from(existingOrders.values());
-                persistCache('qs_cache_orders', updatedOrders);
-                setLastSyncTime(new Date());
-                
-                return updatedOrders;
-              });
+        setOrders(prev => {
+          const existingOrders = new Map(prev.map(o => [o.id, o]));
+          
+          newOrders.forEach(o => {
+            if (!processedOrderIds.current.has(o.id)) {
+              const mappedOrder: Order = {
+                id: o.id, 
+                items: Array.isArray(o.items) ? o.items : (typeof o.items === 'string' ? JSON.parse(o.items) : []), 
+                total: Number(o.total || 0),
+                status: o.status as OrderStatus, 
+                timestamp: parseTimestamp(o.timestamp),
+                customerId: o.customer_id, 
+                restaurantId: o.restaurant_id,
+                tableNumber: o.table_number, 
+                locationName: o.location_name,
+                remark: o.remark, 
+                rejectionReason: o.rejection_reason, 
+                rejectionNote: o.rejection_note
+              };
+              
+              existingOrders.set(o.id, mappedOrder);
+              processedOrderIds.current.add(o.id);
             }
-          }
-        }
+          });
+
+          const updatedOrders = Array.from(existingOrders.values());
+          persistCache('qs_cache_orders', updatedOrders);
+          setLastSyncTime(new Date());
+          
+          return updatedOrders;
+        });
       }
       
       lastOrderCheck.current = Date.now();
@@ -393,8 +360,8 @@ const App: React.FC = () => {
       
       setIsLoading(true);
       
-      // FIXED: Added 'false' argument to fetchUsers and fetchLocations
-      await Promise.all([fetchUsers(false), fetchLocations(false)]);
+      // NO PARAMETERS NEEDED NOW
+      await Promise.all([fetchUsers(), fetchLocations()]);
       
       if (currentUser) {
         if (currentUser.role === 'CUSTOMER') {
@@ -414,7 +381,7 @@ const App: React.FC = () => {
     };
     
     initApp();
-  }, [currentUser, sessionLocation, fetchUsers, fetchLocations, fetchRestaurantsForCustomer, fetchAllRestaurants, loadAllHistoricalOrders]);
+  }, [currentUser, sessionLocation]);
 
   // ========== ORDER CHECKING SETUP ==========
   
@@ -429,48 +396,6 @@ const App: React.FC = () => {
     orderCheckInterval.current = setInterval(() => {
       checkForNewOrders();
     }, 3000);
-
-    if (channelRef.current) {
-      supabase.removeChannel(channelRef.current);
-    }
-
-    const channel = supabase.channel(`orders-${currentUser.id}`)
-      .on('postgres_changes', 
-        { event: 'INSERT', schema: 'public', table: 'orders' }, 
-        (payload) => {
-          const isRelevant = 
-            currentUser.role === 'ADMIN' ||
-            (currentUser.role === 'VENDOR' && payload.new.restaurant_id === currentUser.restaurantId);
-
-          if (isRelevant && !processedOrderIds.current.has(payload.new.id)) {
-            forceOrderCheck();
-          }
-        }
-      )
-      .on('postgres_changes', 
-        { event: 'UPDATE', schema: 'public', table: 'orders' }, 
-        (payload) => {
-          const isRelevant = 
-            currentUser.role === 'ADMIN' ||
-            (currentUser.role === 'VENDOR' && payload.new.restaurant_id === currentUser.restaurantId);
-
-          if (isRelevant) {
-            setOrders(prev => prev.map(o => 
-              o.id === payload.new.id 
-                ? { 
-                    ...o, 
-                    status: payload.new.status as OrderStatus,
-                    rejectionReason: payload.new.rejection_reason,
-                    rejectionNote: payload.new.rejection_note
-                  } 
-                : o
-            ));
-          }
-        }
-      )
-      .subscribe();
-
-    channelRef.current = channel;
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
@@ -488,9 +413,6 @@ const App: React.FC = () => {
     return () => { 
       if (orderCheckInterval.current) {
         clearInterval(orderCheckInterval.current);
-      }
-      if (channelRef.current) {
-        supabase.removeChannel(channelRef.current);
       }
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('focus', handleFocus);
@@ -581,7 +503,6 @@ const App: React.FC = () => {
     
     processedOrderIds.current.clear();
     pendingStatusUpdates.current.clear();
-    pendingNewOrders.current.clear();
     initialLoadDone.current = false;
   };
 
@@ -596,15 +517,10 @@ const App: React.FC = () => {
     lastOrderTimestamp.current = Date.now();
     processedOrderIds.current.clear();
     pendingStatusUpdates.current.clear();
-    pendingNewOrders.current.clear();
     initialLoadDone.current = false;
     
     if (orderCheckInterval.current) {
       clearInterval(orderCheckInterval.current);
-    }
-    if (channelRef.current) {
-      supabase.removeChannel(channelRef.current);
-      channelRef.current = null;
     }
   };
 
@@ -768,8 +684,7 @@ const App: React.FC = () => {
     });
     
     if (resError) alert("Error adding restaurant: " + resError.message);
-    // FIXED: Added 'true' argument
-    fetchUsers(true); 
+    fetchUsers(); 
     fetchAllRestaurants();
   };
 
@@ -795,8 +710,7 @@ const App: React.FC = () => {
     const { error: resError } = await supabase.from('restaurants').update(resUpdate).eq('id', restaurant.id);
     
     if (userError || resError) alert("Error updating vendor");
-    // FIXED: Added 'true' argument
-    fetchUsers(true); 
+    fetchUsers(); 
     fetchAllRestaurants();
   };
 
@@ -812,8 +726,7 @@ const App: React.FC = () => {
       type: area.type || 'MULTI'
     });
     
-    // FIXED: Added 'true' argument
-    if (!error) fetchLocations(true);
+    if (!error) fetchLocations();
   };
 
   const handleUpdateLocation = async (area: Area) => {
@@ -826,14 +739,12 @@ const App: React.FC = () => {
       type: area.type
     }).eq('id', area.id);
     
-    // FIXED: Added 'true' argument
-    if (!error) fetchLocations(true);
+    if (!error) fetchLocations();
   };
 
   const handleDeleteLocation = async (areaId: string) => {
     const { error } = await supabase.from('areas').delete().eq('id', areaId);
-    // FIXED: Added 'true' argument
-    if (!error) fetchLocations(true);
+    if (!error) fetchLocations();
   };
 
   const activeVendorRes = currentUser?.role === 'VENDOR' ? restaurants.find(r => r.id === currentUser?.restaurantId) : null;
