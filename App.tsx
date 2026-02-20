@@ -55,6 +55,12 @@ const App: React.FC = () => {
   const initialLoadDone = useRef<boolean>(false);
   const channelRef = useRef<any>(null);
   
+  // --- NEW: Order queue system for vendors ---
+  const orderCheckInterval = useRef<NodeJS.Timeout>();
+  const isCheckingOrders = useRef<boolean>(false);
+  const lastOrderCheck = useRef<number>(Date.now());
+  const pendingNewOrders = useRef<Set<string>>(new Set());
+  
   // --- TRANSACTION LOCKS ---
   const lockedOrderIds = useRef<Set<string>>(new Set());
   const isStatusLocked = useRef<boolean>(false);
@@ -112,7 +118,6 @@ const App: React.FC = () => {
 
   // ========== DATA FETCHING FUNCTIONS ==========
 
-  // Fetch users (rarely changes)
   const fetchUsers = useCallback(async () => {
     const { data, error } = await supabase.from('users').select('*');
     if (!error && data) {
@@ -126,7 +131,6 @@ const App: React.FC = () => {
     }
   }, []);
 
-  // Fetch locations (rarely changes)
   const fetchLocations = useCallback(async () => {
     const { data, error } = await supabase.from('areas').select('*').order('name');
     if (!error && data) {
@@ -138,7 +142,6 @@ const App: React.FC = () => {
     }
   }, []);
 
-  // Fetch restaurants and menu (for customers - only online status and menu)
   const fetchRestaurantsForCustomer = useCallback(async () => {
     if (!sessionLocation) return;
     
@@ -190,7 +193,6 @@ const App: React.FC = () => {
     }
   }, [sessionLocation]);
 
-  // Fetch all restaurants (for vendors/admins)
   const fetchAllRestaurants = useCallback(async () => {
     const { data: resData, error: resError } = await supabase.from('restaurants').select('*');
     const { data: menuData, error: menuError } = await supabase.from('menu_items').select('*');
@@ -223,7 +225,6 @@ const App: React.FC = () => {
     }
   }, []);
 
-  // Load ALL historical orders for vendors/admins (complete report)
   const loadAllHistoricalOrders = useCallback(async () => {
     if (!currentUser) return;
     
@@ -235,7 +236,6 @@ const App: React.FC = () => {
     if (currentUser.role === 'VENDOR' && currentUser.restaurantId) {
       query = query.eq('restaurant_id', currentUser.restaurantId);
     }
-    // Admins get ALL orders (no limit for reports)
 
     const { data, error } = await query;
 
@@ -257,7 +257,6 @@ const App: React.FC = () => {
 
       setOrders(mappedOrders);
       
-      // Track processed order IDs and latest timestamp
       if (mappedOrders.length > 0) {
         const maxTimestamp = Math.max(...mappedOrders.map(o => o.timestamp));
         lastOrderTimestamp.current = maxTimestamp;
@@ -268,78 +267,126 @@ const App: React.FC = () => {
     }
   }, [currentUser]);
 
-  // OPTIMIZED: Only fetch NEW orders (minimal bandwidth)
+  // ========== ENHANCED NEW ORDER CHECKING SYSTEM ==========
+  
+  // Check for new orders - will be called frequently for vendors
   const checkForNewOrders = useCallback(async () => {
-    if (isFetchingRef.current) return;
+    // Prevent multiple simultaneous checks
+    if (isCheckingOrders.current) return;
     if (!currentUser) return;
     
-    isFetchingRef.current = true;
-
+    // Only vendors and admins need to check for new orders
+    if (currentUser.role !== 'VENDOR' && currentUser.role !== 'ADMIN') return;
+    
+    isCheckingOrders.current = true;
+    
     try {
-      let query = supabase
+      // First, quickly check if there are ANY new orders (minimal query)
+      let countQuery = supabase
         .from('orders')
-        .select('id, restaurant_id, status, timestamp') // Only fetch minimal fields first
-        .gt('timestamp', lastOrderTimestamp.current)
-        .order('timestamp', { ascending: false });
+        .select('id', { count: 'exact', head: true })
+        .gt('timestamp', lastOrderTimestamp.current);
 
       if (currentUser.role === 'VENDOR' && currentUser.restaurantId) {
-        query = query.eq('restaurant_id', currentUser.restaurantId);
+        countQuery = countQuery.eq('restaurant_id', currentUser.restaurantId);
       }
 
-      const { data: newOrdersList, error } = await query.limit(10);
+      const { count, error: countError } = await countQuery;
 
-      if (!error && newOrdersList && newOrdersList.length > 0) {
-        // Filter out already processed orders
-        const trulyNewOrders = newOrdersList.filter(o => !processedOrderIds.current.has(o.id));
-        
-        if (trulyNewOrders.length > 0) {
-          // Fetch full details for new orders only
-          const newOrderIds = trulyNewOrders.map(o => o.id);
-          const { data: fullOrders, error: fullError } = await supabase
-            .from('orders')
-            .select('*')
-            .in('id', newOrderIds);
+      if (!countError && count && count > 0) {
+        // We have new orders! Now fetch just the IDs first
+        let idQuery = supabase
+          .from('orders')
+          .select('id, restaurant_id, timestamp')
+          .gt('timestamp', lastOrderTimestamp.current)
+          .order('timestamp', { ascending: false })
+          .limit(10);
 
-          if (!fullError && fullOrders) {
-            const newestTimestamp = Math.max(...fullOrders.map(o => parseTimestamp(o.timestamp)));
-            lastOrderTimestamp.current = Math.max(lastOrderTimestamp.current, newestTimestamp);
+        if (currentUser.role === 'VENDOR' && currentUser.restaurantId) {
+          idQuery = idQuery.eq('restaurant_id', currentUser.restaurantId);
+        }
 
-            setOrders(prev => {
-              const existingOrders = new Map(prev.map(o => [o.id, o]));
-              
-              fullOrders.forEach(o => {
-                const mappedOrder: Order = {
-                  id: o.id, 
-                  items: Array.isArray(o.items) ? o.items : (typeof o.items === 'string' ? JSON.parse(o.items) : []), 
-                  total: Number(o.total || 0),
-                  status: o.status as OrderStatus, 
-                  timestamp: parseTimestamp(o.timestamp),
-                  customerId: o.customer_id, 
-                  restaurantId: o.restaurant_id,
-                  tableNumber: o.table_number, 
-                  locationName: o.location_name,
-                  remark: o.remark, 
-                  rejectionReason: o.rejection_reason, 
-                  rejectionNote: o.rejection_note
-                };
+        const { data: newOrderIds, error: idsError } = await idQuery;
+
+        if (!idsError && newOrderIds && newOrderIds.length > 0) {
+          // Filter out already processed orders
+          const trulyNewOrderIds = newOrderIds
+            .filter(o => !processedOrderIds.current.has(o.id))
+            .map(o => o.id);
+
+          if (trulyNewOrderIds.length > 0) {
+            // Mark them as pending immediately to prevent duplicate fetches
+            trulyNewOrderIds.forEach(id => pendingNewOrders.current.add(id));
+            
+            // Now fetch the full details for new orders
+            const { data: fullOrders, error: fullError } = await supabase
+              .from('orders')
+              .select('*')
+              .in('id', trulyNewOrderIds);
+
+            if (!fullError && fullOrders) {
+              // Update timestamp to the newest order
+              const newestTimestamp = Math.max(...fullOrders.map(o => parseTimestamp(o.timestamp)));
+              lastOrderTimestamp.current = Math.max(lastOrderTimestamp.current, newestTimestamp);
+
+              setOrders(prev => {
+                const existingOrders = new Map(prev.map(o => [o.id, o]));
                 
-                existingOrders.set(o.id, mappedOrder);
-                processedOrderIds.current.add(o.id);
+                fullOrders.forEach(o => {
+                  const mappedOrder: Order = {
+                    id: o.id, 
+                    items: Array.isArray(o.items) ? o.items : (typeof o.items === 'string' ? JSON.parse(o.items) : []), 
+                    total: Number(o.total || 0),
+                    status: o.status as OrderStatus, 
+                    timestamp: parseTimestamp(o.timestamp),
+                    customerId: o.customer_id, 
+                    restaurantId: o.restaurant_id,
+                    tableNumber: o.table_number, 
+                    locationName: o.location_name,
+                    remark: o.remark, 
+                    rejectionReason: o.rejection_reason, 
+                    rejectionNote: o.rejection_note
+                  };
+                  
+                  existingOrders.set(o.id, mappedOrder);
+                  processedOrderIds.current.add(o.id);
+                  pendingNewOrders.current.delete(o.id);
+                });
+
+                const updatedOrders = Array.from(existingOrders.values());
+                persistCache('qs_cache_orders', updatedOrders);
+                
+                // Update sync time to show something changed
+                setLastSyncTime(new Date());
+                
+                return updatedOrders;
               });
 
-              const updatedOrders = Array.from(existingOrders.values());
-              persistCache('qs_cache_orders', updatedOrders);
-              return updatedOrders;
-            });
+              console.log(`✅ Found ${fullOrders.length} new orders`);
+            }
           }
         }
       }
+      
+      lastOrderCheck.current = Date.now();
     } catch (e) {
-      console.error("Check for new orders failed", e);
+      console.error("Order check failed:", e);
     } finally {
-      isFetchingRef.current = false;
+      isCheckingOrders.current = false;
     }
   }, [currentUser]);
+
+  // Force immediate order check (called from multiple triggers)
+  const forceOrderCheck = useCallback(() => {
+    if (currentUser?.role === 'VENDOR' || currentUser?.role === 'ADMIN') {
+      // Debounce: don't check more than once per second
+      const timeSinceLastCheck = Date.now() - lastOrderCheck.current;
+      if (timeSinceLastCheck < 1000) {
+        return;
+      }
+      checkForNewOrders();
+    }
+  }, [currentUser, checkForNewOrders]);
 
   // ========== INITIALIZATION ==========
 
@@ -368,23 +415,18 @@ const App: React.FC = () => {
       
       setIsLoading(true);
       
-      // Always fetch users and locations (these rarely change)
       await Promise.allSettled([fetchUsers(), fetchLocations()]);
       
-      // Role-specific initialization
       if (currentUser) {
         if (currentUser.role === 'CUSTOMER') {
-          // Customers: only fetch their location's restaurants
           await fetchRestaurantsForCustomer();
         } else {
-          // Vendors/Admins: fetch all restaurants and ALL historical orders
           await Promise.allSettled([
             fetchAllRestaurants(),
             loadAllHistoricalOrders()
           ]);
         }
       } else if (sessionLocation) {
-        // Guest customer (from QR scan)
         await fetchRestaurantsForCustomer();
       }
       
@@ -395,43 +437,51 @@ const App: React.FC = () => {
     initApp();
   }, [currentUser, sessionLocation]);
 
-  // ========== REAL-TIME UPDATES ==========
-
-  // Set up real-time subscriptions (minimal polling fallback)
+  // ========== AGGRESSIVE ORDER CHECKING FOR VENDORS ==========
+  
+  // Set up multiple triggers for order checking
   useEffect(() => {
     if (!currentUser || !initialLoadDone.current) return;
+    
+    // Only set up for vendors and admins
+    if (currentUser.role !== 'VENDOR' && currentUser.role !== 'ADMIN') return;
 
-    // Clean up previous subscription
+    // 1. Clear any existing interval
+    if (orderCheckInterval.current) {
+      clearInterval(orderCheckInterval.current);
+    }
+
+    // 2. Set up aggressive polling (every 3 seconds)
+    orderCheckInterval.current = setInterval(() => {
+      checkForNewOrders();
+    }, 3000);
+
+    // 3. Set up real-time subscription as primary trigger
     if (channelRef.current) {
       supabase.removeChannel(channelRef.current);
     }
 
-    // Create subscription based on role
-    const channel = supabase.channel(`app-${currentUser.id}`);
-
-    if (currentUser.role === 'VENDOR' || currentUser.role === 'ADMIN') {
-      // Subscribe to new orders
-      channel.on('postgres_changes', 
+    const channel = supabase.channel(`orders-${currentUser.id}-${Date.now()}`)
+      .on('postgres_changes', 
         { 
           event: 'INSERT', 
           schema: 'public', 
           table: 'orders' 
         }, 
         (payload) => {
-          // Check if this order is relevant
+          // Check if this order is for this vendor
           const isRelevant = 
             currentUser.role === 'ADMIN' ||
             (currentUser.role === 'VENDOR' && payload.new.restaurant_id === currentUser.restaurantId);
 
           if (isRelevant && !processedOrderIds.current.has(payload.new.id)) {
-            // Fetch full order details
-            checkForNewOrders();
+            console.log('🔔 New order notification received:', payload.new.id);
+            // Force an immediate check
+            forceOrderCheck();
           }
         }
-      );
-
-      // Subscribe to order updates
-      channel.on('postgres_changes', 
+      )
+      .on('postgres_changes', 
         { 
           event: 'UPDATE', 
           schema: 'public', 
@@ -456,37 +506,40 @@ const App: React.FC = () => {
             ));
           }
         }
-      );
-    }
+      )
+      .subscribe((status) => {
+        console.log('📡 Subscription status:', status);
+      });
 
-    // Subscribe to restaurant changes (for all roles)
-    channel.on('postgres_changes', 
-      { event: 'UPDATE', schema: 'public', table: 'restaurants' }, 
-      () => {
-        if (currentUser.role === 'CUSTOMER') {
-          fetchRestaurantsForCustomer();
-        } else {
-          fetchAllRestaurants();
-        }
-      }
-    );
-
-    channel.subscribe();
     channelRef.current = channel;
 
-    // Minimal polling as fallback (only for vendors/admins)
-    let interval: NodeJS.Timeout;
-    if (currentUser.role === 'VENDOR' || currentUser.role === 'ADMIN') {
-      interval = setInterval(checkForNewOrders, 10000); // Check every 10 seconds as fallback
-    }
+    // 4. Add visibility change listener (when user comes back to tab)
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        console.log('👁️ Tab became visible, checking for orders');
+        forceOrderCheck();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    // 5. Add focus listener (when window gets focus)
+    const handleFocus = () => {
+      console.log('✨ Window focused, checking for orders');
+      forceOrderCheck();
+    };
+    window.addEventListener('focus', handleFocus);
 
     return () => { 
-      if (interval) clearInterval(interval);
+      if (orderCheckInterval.current) {
+        clearInterval(orderCheckInterval.current);
+      }
       if (channelRef.current) {
         supabase.removeChannel(channelRef.current);
       }
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleFocus);
     };
-  }, [currentUser, checkForNewOrders, fetchRestaurantsForCustomer, fetchAllRestaurants]);
+  }, [currentUser, checkForNewOrders, forceOrderCheck]);
 
   // Dark mode effect
   useEffect(() => {
@@ -557,6 +610,12 @@ const App: React.FC = () => {
       alert("Placement Error: " + error.message);
     } else { 
       setCart([]); 
+      
+      // Force an immediate order check for vendors
+      if (currentUser?.role === 'VENDOR') {
+        setTimeout(() => forceOrderCheck(), 500);
+      }
+      
       alert(`Your order(s) have been placed! Reference: ${baseOrderId}`); 
     }
   };
@@ -572,6 +631,7 @@ const App: React.FC = () => {
     // Reset tracking
     processedOrderIds.current.clear();
     pendingStatusUpdates.current.clear();
+    pendingNewOrders.current.clear();
     initialLoadDone.current = false;
   };
 
@@ -587,9 +647,12 @@ const App: React.FC = () => {
     lastOrderTimestamp.current = Date.now();
     processedOrderIds.current.clear();
     pendingStatusUpdates.current.clear();
+    pendingNewOrders.current.clear();
     initialLoadDone.current = false;
     
-    // Clean up subscription
+    if (orderCheckInterval.current) {
+      clearInterval(orderCheckInterval.current);
+    }
     if (channelRef.current) {
       supabase.removeChannel(channelRef.current);
       channelRef.current = null;
@@ -600,12 +663,10 @@ const App: React.FC = () => {
     lockedOrderIds.current.add(orderId);
     pendingStatusUpdates.current.set(orderId, status);
     
-    // Optimistic update
     setOrders(prev => prev.map(o => 
       o.id === orderId ? { ...o, status, rejectionReason: reason, rejectionNote: note } : o
     ));
     
-    // Update in database
     await supabase
       .from('orders')
       .update({ 
