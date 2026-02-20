@@ -227,71 +227,26 @@ const App: React.FC = () => {
   // Global Data Polling (Simplified Dependencies)
   useEffect(() => {
     const initApp = async () => {
-      // 1. Check cache and show immediately if possible
-      const hasRes = localStorage.getItem('qs_cache_restaurants');
-      const hasLoc = localStorage.getItem('qs_cache_locations');
-      if (hasRes && hasLoc) {
-        setIsLoading(false);
-      }
-
-      // 2. Background sync - don't await so UI shows cache immediately
-      const sync = async () => {
-        try {
-          await Promise.allSettled([
-            fetchUsers(), 
-            fetchLocations(),
-            currentRole === 'ADMIN' ? fetchRestaurants() : Promise.resolve(),
-            currentRole === 'ADMIN' ? fetchOrders() : Promise.resolve(),
-            (currentRole === 'CUSTOMER' && sessionLocation) ? fetchRestaurants() : Promise.resolve(),
-            (currentRole === 'VENDOR' && currentUser?.restaurantId) ? fetchOrders() : Promise.resolve()
-          ]);
-          setLastSyncTime(new Date());
-        } finally {
-          setIsLoading(false);
-        }
-      };
-      
-      sync();
+      await Promise.allSettled([fetchUsers(), fetchLocations(), fetchRestaurants(), fetchOrders()]);
+      setLastSyncTime(new Date());
+      setIsLoading(false);
     };
     initApp();
 
-    // Smart Real-time Subscriptions (Global but efficient)
-    // We keep these in App.tsx to ensure global state (restaurants, orders) 
-    // used by callbacks (onAddToCart, onPlaceOrder, updateOrderStatus) stays in sync.
-    const channel = supabase.channel('global-updates')
-      .on('postgres_changes', { 
-        event: 'INSERT', 
-        schema: 'public', 
-        table: 'orders' 
-      }, (payload) => {
-        // Only fetch if it's relevant to current view or if admin
-        if (currentRole === 'ADMIN' || 
-           (currentRole === 'VENDOR' && payload.new.restaurant_id === currentUser?.restaurantId) ||
-           (currentRole === 'CUSTOMER' && payload.new.location_name === sessionLocation)) {
-          fetchOrders();
-        }
-      })
-      .on('postgres_changes', { 
-        event: 'UPDATE', 
-        schema: 'public', 
-        table: 'orders' 
-      }, () => fetchOrders())
-      .on('postgres_changes', { 
-        event: 'UPDATE', 
-        schema: 'public', 
-        table: 'restaurants' 
-      }, () => fetchRestaurants())
-      .on('postgres_changes', { 
-        event: 'UPDATE', 
-        schema: 'public', 
-        table: 'menu_items' 
-      }, () => fetchRestaurants())
+    const interval = setInterval(() => {
+      refreshAppData();
+    }, 5000);
+
+    const channel = supabase.channel('order-updates')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => refreshAppData())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'restaurants' }, () => refreshAppData())
       .subscribe();
 
     return () => { 
+      clearInterval(interval);
       supabase.removeChannel(channel); 
     };
-  }, [fetchUsers, fetchLocations, fetchRestaurants, fetchOrders, currentRole, sessionLocation, currentUser?.restaurantId]);
+  }, [fetchUsers, fetchLocations, refreshAppData, fetchRestaurants, fetchOrders]);
 
   useEffect(() => {
     if (isDarkMode) document.documentElement.classList.add('dark');
@@ -371,11 +326,7 @@ const App: React.FC = () => {
 
   const updateOrderStatus = async (orderId: string, status: OrderStatus, reason?: string, note?: string) => {
     lockedOrderIds.current.add(orderId);
-    setOrders(prev => {
-      const updated = prev.map(o => o.id === orderId ? { ...o, status, rejectionReason: reason, rejectionNote: note } : o);
-      persistCache('qs_cache_orders', updated);
-      return updated;
-    });
+    setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status, rejectionReason: reason, rejectionNote: note } : o));
     await supabase.from('orders').update({ status, rejection_reason: reason, rejection_note: note }).eq('id', orderId);
     setTimeout(() => lockedOrderIds.current.delete(orderId), 3000);
     refreshAppData();
@@ -393,11 +344,7 @@ const App: React.FC = () => {
 
     const newStatus = !currentStatus;
     isStatusLocked.current = true;
-    setRestaurants(prev => {
-      const updated = prev.map(r => r.id === restaurantId ? { ...r, isOnline: newStatus } : r);
-      persistCache('qs_cache_restaurants', updated);
-      return updated;
-    });
+    setRestaurants(prev => prev.map(r => r.id === restaurantId ? { ...r, isOnline: newStatus } : r));
     const { error } = await supabase.from('restaurants').update({ is_online: newStatus }).eq('id', restaurantId);
     if (error) fetchRestaurants();
     setTimeout(() => isStatusLocked.current = false, 3000);

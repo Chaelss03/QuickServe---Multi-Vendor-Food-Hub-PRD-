@@ -1,25 +1,28 @@
 
+import { supabase } from './supabase';
+
 /**
- * Uploads a file to Vercel Blob via our server API and returns the public URL.
+ * Uploads a file to Supabase Storage and returns the public URL.
  * @param file The file to upload
- * @param _bucket Unused (kept for compatibility)
- * @param path The path prefix for the filename
+ * @param bucket The storage bucket name (default: 'quickserve')
+ * @param path The path within the bucket (e.g., 'menu-items' or 'logos')
  */
-export const uploadImage = async (file: File, _bucket: string = 'quickserve', path: string = 'uploads'): Promise<string> => {
-  const formData = new FormData();
-  formData.append('file', file);
-  formData.append('filename', `${path}/${Date.now()}-${file.name}`);
+export const uploadImage = async (file: File, bucket: string = 'quickserve', path: string = 'uploads'): Promise<string> => {
+  const fileExt = file.name.split('.').pop();
+  const fileName = `${Math.random().toString(36).substring(2)}_${Date.now()}.${fileExt}`;
+  const filePath = `${path}/${fileName}`;
 
-  const response = await fetch('/api/upload', {
-    method: 'POST',
-    body: formData,
-  });
+  const { error: uploadError } = await supabase.storage
+    .from(bucket)
+    .upload(filePath, file);
 
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error || 'Upload failed');
+  if (uploadError) {
+    throw uploadError;
   }
 
-  const data = await response.json();
-  return data.url;
+  const { data } = supabase.storage
+    .from(bucket)
+    .getPublicUrl(filePath);
+
+  return data.publicUrl;
 };
