@@ -696,13 +696,20 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
                </div>
 
                {/* Password (7) */}
-               <div className="md:col-span-2">
-                 <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Secret Key (Password)</label>
-                 <div className="relative">
-                   <input required type={showPassword ? "text" : "password"} className="w-full pl-4 pr-11 py-3 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none font-bold dark:text-white text-sm" value={formVendor.password} onChange={e => setFormVendor({...formVendor, password: e.target.value})} />
-                   <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">{showPassword ? <EyeOff size={18} /> : <Eye size={18} />}</button>
-                 </div>
-               </div>
+                <div className="md:col-span-2">
+                  <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Secret Key (Password)</label>
+                  <div className="relative">
+                    <input 
+                      required={!editingVendor} 
+                      type={showPassword ? "text" : "password"} 
+                      className="w-full pl-4 pr-11 py-3 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none font-bold dark:text-white text-sm" 
+                      value={formVendor.password} 
+                      onChange={e => setFormVendor({...formVendor, password: e.target.value})} 
+                      placeholder={editingVendor ? "Leave blank to keep current password" : "Enter password"}
+                    />
+                    <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">{showPassword ? <EyeOff size={18} /> : <Eye size={18} />}</button>
+                  </div>
+                </div>
 
                <div className="md:col-span-2 pt-4">
                   <button type="submit" className="w-full py-4 bg-orange-500 text-white rounded-2xl font-black uppercase tracking-widest text-xs shadow-xl hover:bg-orange-600 transition-all active:scale-95">Save Changes</button>

@@ -4,32 +4,42 @@ import { User } from '../types';
 import { User as UserIcon, Lock, ChevronLeft, AlertCircle } from 'lucide-react';
 
 interface Props {
-  allUsers: User[];
   onLogin: (user: User) => void;
   onBack: () => void;
 }
 
-const LoginPage: React.FC<Props> = ({ allUsers, onLogin, onBack }) => {
+const LoginPage: React.FC<Props> = ({ onLogin, onBack }) => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setIsSubmitting(true);
 
-    const user = allUsers.find(
-      (u) => u.username === username && u.password === password
-    );
+    try {
+      const response = await fetch('/api/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ username, password }),
+      });
 
-    if (user) {
-      if (user.isActive === false) {
-        setError('Your account has been deactivated. Please contact the administrator.');
+      const data = await response.json();
+
+      if (!response.ok) {
+        setError(data.error || 'Invalid username or password. Please try again.');
         return;
       }
-      onLogin(user);
-    } else {
-      setError('Invalid username or password. Please try again.');
+
+      onLogin(data);
+    } catch (err) {
+      setError('Connection error. Please try again later.');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -95,9 +105,10 @@ const LoginPage: React.FC<Props> = ({ allUsers, onLogin, onBack }) => {
 
             <button
               type="submit"
-              className="w-full py-4 bg-orange-500 text-white rounded-2xl font-black text-lg shadow-xl shadow-orange-100 dark:shadow-none hover:bg-orange-600 hover:scale-[1.02] active:scale-95 transition-all"
+              disabled={isSubmitting}
+              className="w-full py-4 bg-orange-500 text-white rounded-2xl font-black text-lg shadow-xl shadow-orange-100 dark:shadow-none hover:bg-orange-600 hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
-              Sign In
+              {isSubmitting ? 'Signing In...' : 'Sign In'}
             </button>
           </form>
         </div>

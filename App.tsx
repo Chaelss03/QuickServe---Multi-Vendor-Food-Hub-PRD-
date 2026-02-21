@@ -126,20 +126,20 @@ const App: React.FC = () => {
   };
 
   const fetchUsers = useCallback(async () => {
-    // Allow fetching if we are on the login page or if the user is not a customer
-    if (currentRole === 'CUSTOMER' || (!currentRole && view !== 'LOGIN')) return;
+    // Only fetch users if the user is an admin
+    if (currentRole !== 'ADMIN') return;
     
-    const { data, error } = await supabase.from('users').select('*');
+    const { data, error } = await supabase.from('users').select('id, username, role, restaurant_id, is_active, email, phone');
     if (!error && data) {
       const mapped = data.map(u => ({
         id: u.id, username: u.username, role: u.role as Role,
-        restaurantId: u.restaurant_id, password: u.password,
+        restaurantId: u.restaurant_id,
         isActive: u.is_active, email: u.email, phone: u.phone
       }));
       setAllUsers(mapped);
       persistCache('qs_cache_users', mapped);
     }
-  }, [currentRole, view]);
+  }, [currentRole]);
 
   const fetchLocations = useCallback(async () => {
     const { data, error } = await supabase.from('areas').select('*').order('name');
@@ -666,9 +666,19 @@ const App: React.FC = () => {
   };
 
   const handleUpdateVendor = async (user: User, restaurant: Restaurant) => {
-    const { error: userError } = await supabase.from('users').update({
-      username: user.username, password: user.password, email: user.email, phone: user.phone, is_active: user.isActive
-    }).eq('id', user.id);
+    const userUpdate: any = {
+      username: user.username,
+      email: user.email,
+      phone: user.phone,
+      is_active: user.isActive
+    };
+    
+    // Only update password if a new one is provided
+    if (user.password) {
+      userUpdate.password = user.password;
+    }
+
+    const { error: userError } = await supabase.from('users').update(userUpdate).eq('id', user.id);
     
     // If deactivating vendor, also set restaurant offline
     const resUpdate: any = {
@@ -726,7 +736,7 @@ const App: React.FC = () => {
   }
 
   if (view === 'LOGIN') {
-    return <LoginPage allUsers={allUsers} onLogin={handleLogin} onBack={() => setView('LANDING')} />;
+    return <LoginPage onLogin={handleLogin} onBack={() => setView('LANDING')} />;
   }
 
   return (

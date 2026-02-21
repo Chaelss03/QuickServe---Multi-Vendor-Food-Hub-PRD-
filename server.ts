@@ -3,15 +3,49 @@ import { createServer as createViteServer } from 'vite';
 import { put } from '@vercel/blob';
 import multer from 'multer';
 import path from 'path';
+import { createClient } from '@supabase/supabase-js';
 
 async function startServer() {
   const app = express();
   const PORT = 3000;
 
+  app.use(express.json());
+
+  const supabaseUrl = 'https://thqocawdihcsvtkluddy.supabase.co';
+  const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRocW9jYXdkaWhjc3Z0a2x1ZGR5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA3NDMwODMsImV4cCI6MjA4NjMxOTA4M30.qecVHx2IaW8dOdzHNS3K7d-2hBwvh7EMI9pOP4crMjQ';
+  const supabase = createClient(supabaseUrl, supabaseAnonKey);
+
   // Configure Multer for memory storage
   const upload = multer({ storage: multer.memoryStorage() });
 
   // API Routes
+  app.post('/api/login', async (req, res) => {
+    const { username, password } = req.body;
+    
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .select('id, username, role, restaurant_id, is_active, email, phone, password')
+        .eq('username', username)
+        .eq('password', password)
+        .single();
+
+      if (error || !data) {
+        return res.status(401).json({ error: 'Invalid username or password' });
+      }
+
+      if (data.is_active === false) {
+        return res.status(403).json({ error: 'Account deactivated' });
+      }
+
+      // Remove password before sending back to client
+      const { password: _, ...userWithoutPassword } = data;
+      res.json(userWithoutPassword);
+    } catch (error) {
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
   app.post('/api/upload', upload.single('file'), async (req, res) => {
     try {
       if (!req.file) {
