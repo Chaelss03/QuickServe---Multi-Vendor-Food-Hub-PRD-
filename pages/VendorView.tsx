@@ -13,7 +13,6 @@ interface Props {
   onAddMenuItem: (restaurantId: string, newItem: MenuItem) => void;
   onPermanentDeleteMenuItem: (restaurantId: string, itemId: string) => void;
   onToggleOnline: () => void;
-  onFetchReport: (filters: any) => Promise<{ orders: Order[], totalCount: number, stats: any }>;
   lastSyncTime?: Date;
 }
 
@@ -24,7 +23,7 @@ const REJECTION_REASONS = [
   'Other'
 ];
 
-const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpdateMenu, onAddMenuItem, onPermanentDeleteMenuItem, onToggleOnline, onFetchReport, lastSyncTime }) => {
+const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpdateMenu, onAddMenuItem, onPermanentDeleteMenuItem, onToggleOnline, lastSyncTime }) => {
   const [activeTab, setActiveTab] = useState<'ORDERS' | 'MENU' | 'REPORTS' | 'QR'>('ORDERS');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [orderFilter, setOrderFilter] = useState<OrderStatus | 'ONGOING_ALL' | 'ALL'>('ONGOING_ALL');
@@ -42,7 +41,6 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
   const [classViewMode, setClassViewMode] = useState<'grid' | 'list'>('list');
   const [renamingClass, setRenamingClass] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
-  const [isDownloading, setIsDownloading] = useState(false);
 
   // QR State
   const [qrMode, setQrMode] = useState<'SINGLE' | 'BATCH'>('SINGLE');
@@ -64,6 +62,7 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
   const [reportSearchQuery, setReportSearchQuery] = useState('');
   const [reportStatus, setReportStatus] = useState<'ALL' | OrderStatus>('ALL');
   const [reportStart, setReportStart] = useState<string>(() => {
+    // Default to 30 days ago to ensure users see recent data by default
     const d = new Date();
     d.setDate(d.getDate() - 30); 
     return d.toISOString().split('T')[0];
@@ -72,12 +71,6 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
   const [entriesPerPage, setEntriesPerPage] = useState<number>(30);
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [selectedOrderForDetails, setSelectedOrderForDetails] = useState<Order | null>(null);
-  
-  // Server-side Report Data
-  const [reportOrders, setReportOrders] = useState<Order[]>([]);
-  const [reportTotalCount, setReportTotalCount] = useState(0);
-  const [reportStats, setReportStats] = useState({ totalRevenue: 0, orderVolume: 0, efficiency: 0 });
-  const [isReportLoading, setIsReportLoading] = useState(false);
 
   // New Order Alert State
   const [showNewOrderAlert, setShowNewOrderAlert] = useState(false);
@@ -166,76 +159,49 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
     return statusMatch && categoryMatch;
   });
 
-  // Fetch Report Data
+  const filteredReports = useMemo(() => {
+    return orders.filter(o => {
+      const d = new Date(o.timestamp);
+      if (isNaN(d.getTime())) return false;
+      const orderDate = d.toISOString().split('T')[0];
+      const matchesDate = orderDate >= reportStart && orderDate <= reportEnd;
+      const matchesStatus = reportStatus === 'ALL' || o.status === reportStatus;
+      const matchesSearch = o.id.toLowerCase().includes(reportSearchQuery.toLowerCase());
+      return matchesDate && matchesStatus && matchesSearch;
+    });
+  }, [orders, reportStart, reportEnd, reportStatus, reportSearchQuery]);
+
   useEffect(() => {
-    if (activeTab !== 'REPORTS') return;
-    
-    const loadReport = async () => {
-      setIsReportLoading(true);
-      try {
-        const result = await onFetchReport({
-          startDate: reportStart,
-          endDate: reportEnd,
-          status: reportStatus,
-          search: reportSearchQuery,
-          limit: entriesPerPage,
-          offset: (currentPage - 1) * entriesPerPage,
-          restaurantId: restaurant.id
-        });
-        setReportOrders(result.orders);
-        setReportTotalCount(result.totalCount);
-        setReportStats(result.stats);
-      } catch (error) {
-        console.error("Failed to fetch report", error);
-      } finally {
-        setIsReportLoading(false);
-      }
-    };
+    setCurrentPage(1);
+  }, [filteredReports.length, entriesPerPage, reportStatus, reportStart, reportEnd, reportSearchQuery]);
 
-    loadReport();
-  }, [activeTab, reportStart, reportEnd, reportStatus, reportSearchQuery, entriesPerPage, currentPage, restaurant.id, onFetchReport]);
+  const totalPages = Math.ceil(filteredReports.length / entriesPerPage);
+  const paginatedReports = useMemo(() => {
+    const startIdx = (currentPage - 1) * entriesPerPage;
+    return filteredReports.slice(startIdx, startIdx + entriesPerPage);
+  }, [filteredReports, currentPage, entriesPerPage]);
 
-  const totalPages = Math.ceil(reportTotalCount / entriesPerPage);
-
-  const handleDownloadReport = async () => {
-    setIsDownloading(true);
-    try {
-      const result = await onFetchReport({
-        startDate: reportStart,
-        endDate: reportEnd,
-        status: reportStatus,
-        search: reportSearchQuery,
-        limit: 10000, // Large limit for download
-        offset: 0,
-        restaurantId: restaurant.id,
-        isDownload: true
-      });
-
-      if (result.orders.length === 0) return;
-      const headers = ['Order ID', 'Table', 'Date', 'Time', 'Status', 'Items', 'Total'];
-      const rows = result.orders.map(o => [
-        o.id,
-        o.tableNumber,
-        new Date(o.timestamp).toLocaleDateString(),
-        new Date(o.timestamp).toLocaleTimeString(),
-        o.status,
-        o.items.map(i => `${i.name} (x${i.quantity})`).join('; '),
-        o.total.toFixed(2)
-      ]);
-      const csvContent = [headers, ...rows].map(e => e.join(',')).join('\n');
-      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.setAttribute('href', url);
-      link.setAttribute('download', `sales_report_${reportStart}_to_${reportEnd}.csv`);
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    } catch (error) {
-      console.error("Download failed", error);
-    } finally {
-      setIsDownloading(false);
-    }
+  const handleDownloadReport = () => {
+    if (filteredReports.length === 0) return;
+    const headers = ['Order ID', 'Table', 'Date', 'Time', 'Status', 'Items', 'Total'];
+    const rows = filteredReports.map(o => [
+      o.id,
+      o.tableNumber,
+      new Date(o.timestamp).toLocaleDateString(),
+      new Date(o.timestamp).toLocaleTimeString(),
+      o.status,
+      o.items.map(i => `${i.name} (x${i.quantity})`).join('; '),
+      o.total.toFixed(2)
+    ]);
+    const csvContent = [headers, ...rows].map(e => e.join(',')).join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', `sales_report_${reportStart}_to_${reportEnd}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   const handleConfirmRejection = () => {
@@ -911,20 +877,13 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
                   </div>
                   <div className="w-full sm:w-48"><label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 ml-1">Order Outcome</label><select value={reportStatus} onChange={(e) => setReportStatus(e.target.value as any)} className="w-full p-1.5 bg-gray-50 dark:bg-gray-700 border-none rounded-lg text-[10px] font-black dark:text-white appearance-none cursor-pointer"><option value="ALL">All Outcomes</option><option value={OrderStatus.COMPLETED}>Served</option><option value={OrderStatus.CANCELLED}>Rejected</option></select></div>
                 </div>
-                <button 
-                  onClick={handleDownloadReport} 
-                  disabled={isDownloading}
-                  className="w-full md:w-auto px-6 py-2 bg-black text-white dark:bg-white dark:text-gray-900 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-orange-500 transition-all disabled:opacity-50"
-                >
-                  {isDownloading ? <RefreshCw size={16} className="animate-spin" /> : <Download size={16} />} 
-                  {isDownloading ? 'Exporting...' : 'Export CSV'}
-                </button>
+                <button onClick={handleDownloadReport} className="w-full md:w-auto px-6 py-2 bg-black text-white dark:bg-white dark:text-gray-900 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-orange-500 transition-all"><Download size={16} /> Export CSV</button>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 md:gap-4 mb-6">
-                <div className="bg-white dark:bg-gray-800 p-3 md:p-4 rounded-2xl border dark:border-gray-700 shadow-sm"><p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-0.5">Total Revenue</p><p className="text-xl md:text-2xl font-black dark:text-white">RM{reportStats.totalRevenue.toFixed(2)}</p></div>
-                <div className="bg-white dark:bg-gray-800 p-3 md:p-4 rounded-2xl border dark:border-gray-700 shadow-sm"><p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-0.5">Order Volume</p><p className="text-xl md:text-2xl font-black dark:text-white">{reportStats.orderVolume}</p></div>
-                <div className="bg-white dark:bg-gray-800 p-3 md:p-4 rounded-2xl border dark:border-gray-700 shadow-sm"><p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-0.5">Efficiency</p><p className="text-xl md:text-2xl font-black text-green-500">{reportStats.efficiency}%</p></div>
+                <div className="bg-white dark:bg-gray-800 p-3 md:p-4 rounded-2xl border dark:border-gray-700 shadow-sm"><p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-0.5">Total Revenue</p><p className="text-xl md:text-2xl font-black dark:text-white">RM{filteredReports.filter(o => o.status === OrderStatus.COMPLETED).reduce((acc, o) => acc + o.total, 0).toFixed(2)}</p></div>
+                <div className="bg-white dark:bg-gray-800 p-3 md:p-4 rounded-2xl border dark:border-gray-700 shadow-sm"><p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-0.5">Order Volume</p><p className="text-xl md:text-2xl font-black dark:text-white">{filteredReports.length}</p></div>
+                <div className="bg-white dark:bg-gray-800 p-3 md:p-4 rounded-2xl border dark:border-gray-700 shadow-sm"><p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-0.5">Efficiency</p><p className="text-xl md:text-2xl font-black text-green-500">{filteredReports.length > 0 ? Math.round((filteredReports.filter(r => r.status === OrderStatus.COMPLETED).length / filteredReports.length) * 100) : 0}%</p></div>
               </div>
 
               <div className="bg-white dark:bg-gray-800 rounded-2xl border dark:border-gray-700 overflow-hidden shadow-sm">
@@ -965,13 +924,8 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
                         <th className="px-6 py-3 text-right">Bill</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y dark:divide-gray-700 relative">
-                      {isReportLoading && (
-                        <div className="absolute inset-0 bg-white/50 dark:bg-gray-800/50 backdrop-blur-[1px] flex items-center justify-center z-10">
-                          <RefreshCw className="w-6 h-6 text-orange-500 animate-spin" />
-                        </div>
-                      )}
-                      {reportOrders.map(report => (
+                    <tbody className="divide-y dark:divide-gray-700">
+                      {paginatedReports.map(report => (
                         <tr key={report.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors">
                           <td className="px-6 py-2.5">
                             <button 

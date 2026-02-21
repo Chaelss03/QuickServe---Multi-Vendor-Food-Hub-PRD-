@@ -93,9 +93,3 @@ export interface SalesData {
   name: string;
   sales: number;
 }
-
-export interface ReportStats {
-  totalRevenue: number;
-  orderVolume: number;
-  efficiency: number;
-}
