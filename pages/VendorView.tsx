@@ -366,6 +366,17 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
     setRenamingClass(null);
   };
 
+  const handleRemoveClassification = (name: string) => {
+    if (confirm(`Are you sure you want to remove the "${name}" classification? Items in this category will be moved to "Main Dish".`)) {
+      setExtraCategories(prev => prev.filter(c => c !== name));
+      
+      const affectedItems = restaurant.menu.filter(i => i.category === name);
+      affectedItems.forEach(item => {
+        onUpdateMenu(restaurant.id, { ...item, category: 'Main Dish' });
+      });
+    }
+  };
+
   const getQrUrl = (hubName: string, table: string) => {
     const baseUrl = window.location.origin + window.location.pathname;
     return `${baseUrl}?loc=${encodeURIComponent(hubName)}&table=${table}`;
@@ -658,33 +669,38 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
 
           {activeTab === 'MENU' && (
             <div className="max-w-6xl mx-auto">
-              <div className="flex flex-col lg:flex-row lg:items-center justify-between mb-8 gap-4">
-                <div className="flex flex-col md:flex-row md:items-center gap-4">
-                  <h1 className="text-2xl font-black dark:text-white uppercase tracking-tighter">Kitchen Menu Editor</h1>
-                  <div className="flex bg-white dark:bg-gray-800 rounded-xl p-1 border dark:border-gray-700 shadow-sm w-fit">
+              <div className="mb-8">
+                <h1 className="text-2xl font-black dark:text-white uppercase tracking-tighter mb-4">Kitchen Menu Editor</h1>
+                
+                <div className="flex flex-wrap items-center gap-4">
+                  {/* Sub-Tabs */}
+                  <div className="flex bg-white dark:bg-gray-800 rounded-xl p-1 border dark:border-gray-700 shadow-sm">
                     <button onClick={() => setMenuSubTab('KITCHEN')} className={`px-4 py-1.5 rounded-lg text-[10px] md:text-xs font-black uppercase tracking-widest transition-all ${menuSubTab === 'KITCHEN' ? 'bg-orange-500 text-white shadow-md' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50'}`}>Kitchen Menu</button>
                     <button onClick={() => setMenuSubTab('CLASSIFICATION')} className={`px-4 py-1.5 rounded-lg text-[10px] md:text-xs font-black uppercase tracking-widest transition-all ${menuSubTab === 'CLASSIFICATION' ? 'bg-orange-500 text-white shadow-md' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50'}`}>Classification</button>
                   </div>
-                </div>
 
-                {menuSubTab === 'KITCHEN' ? (
-                  <div className="flex flex-wrap items-center gap-2 md:gap-3 bg-white/50 dark:bg-gray-800/50 p-2 rounded-2xl border dark:border-gray-700 backdrop-blur-sm">
-                    <div className="flex bg-white dark:bg-gray-700 rounded-xl p-1 border dark:border-gray-600 shadow-inner">
-                      <button onClick={() => setMenuStatusFilter('ACTIVE')} className={`flex items-center gap-2 px-3 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${menuStatusFilter === 'ACTIVE' ? 'bg-orange-500 text-white shadow-md' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50'}`}><Eye size={14} /> <span className="hidden sm:inline">Active</span></button>
-                      <button onClick={() => setMenuStatusFilter('ARCHIVED')} className={`flex items-center gap-2 px-3 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${menuStatusFilter === 'ARCHIVED' ? 'bg-orange-500 text-white shadow-md' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50'}`}><Archive size={14} /> <span className="hidden sm:inline">Archived</span></button>
+                  {menuSubTab === 'KITCHEN' ? (
+                    <div className="flex flex-wrap items-center gap-3">
+                      <div className="flex bg-white dark:bg-gray-800 rounded-xl p-1 border dark:border-gray-700 shadow-sm">
+                        <button onClick={() => setMenuStatusFilter('ACTIVE')} className={`flex items-center gap-2 px-3 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${menuStatusFilter === 'ACTIVE' ? 'bg-orange-500 text-white shadow-md' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50'}`}><Eye size={14} /> <span className="hidden sm:inline">Active</span></button>
+                        <button onClick={() => setMenuStatusFilter('ARCHIVED')} className={`flex items-center gap-2 px-3 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${menuStatusFilter === 'ARCHIVED' ? 'bg-orange-500 text-white shadow-md' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50'}`}><Archive size={14} /> <span className="hidden sm:inline">Archived</span></button>
+                      </div>
+                      <div className="flex bg-white dark:bg-gray-800 rounded-xl p-1 border dark:border-gray-700 shadow-sm">
+                        <button onClick={() => setMenuViewMode('grid')} className={`p-2 rounded-lg transition-all ${menuViewMode === 'grid' ? 'bg-orange-500 text-white shadow-sm' : 'text-gray-400'}`}><LayoutGrid size={18} /></button>
+                        <button onClick={() => setMenuViewMode('list')} className={`p-2 rounded-lg transition-all ${menuViewMode === 'list' ? 'bg-orange-500 text-white shadow-sm' : 'text-gray-400'}`}><List size={18} /></button>
+                      </div>
+                      <button onClick={() => handleOpenAddModal()} className="px-6 py-3 bg-black dark:bg-white text-white dark:text-gray-900 rounded-xl font-black uppercase tracking-widest text-[10px] hover:bg-orange-500 dark:hover:bg-orange-500 dark:hover:text-white transition-all shadow-lg">+ Add Item</button>
                     </div>
-                    <div className="flex bg-white dark:bg-gray-700 rounded-xl p-1 border dark:border-gray-600 shadow-inner">
-                      <button onClick={() => setMenuViewMode('grid')} className={`p-2 rounded-lg transition-all ${menuViewMode === 'grid' ? 'bg-orange-500 text-white shadow-sm' : 'text-gray-400'}`}><LayoutGrid size={18} /></button>
-                      <button onClick={() => setMenuViewMode('list')} className={`p-2 rounded-lg transition-all ${menuViewMode === 'list' ? 'bg-orange-500 text-white shadow-sm' : 'text-gray-400'}`}><List size={18} /></button>
+                  ) : (
+                    <div className="flex items-center gap-3">
+                      <div className="flex bg-white dark:bg-gray-800 rounded-xl p-1 border dark:border-gray-700 shadow-sm">
+                        <button onClick={() => setClassViewMode('grid')} className={`p-2 rounded-lg transition-all ${classViewMode === 'grid' ? 'bg-orange-500 text-white shadow-sm' : 'text-gray-400'}`}><LayoutGrid size={18} /></button>
+                        <button onClick={() => setClassViewMode('list')} className={`p-2 rounded-lg transition-all ${classViewMode === 'list' ? 'bg-orange-500 text-white shadow-sm' : 'text-gray-400'}`}><List size={18} /></button>
+                      </div>
+                      <button onClick={() => setShowAddClassModal(true)} className="px-6 py-3 bg-black dark:bg-white text-white dark:text-gray-900 rounded-xl font-black uppercase tracking-widest text-[10px] hover:bg-orange-500 dark:hover:bg-orange-500 dark:hover:text-white transition-all shadow-lg flex items-center gap-2"><Tag size={16} /> + New Class</button>
                     </div>
-                    <button onClick={() => handleOpenAddModal()} className="flex-1 sm:flex-none px-6 py-3 bg-black dark:bg-white text-white dark:text-gray-900 rounded-xl font-black uppercase tracking-widest text-[10px] hover:bg-orange-500 dark:hover:bg-orange-500 dark:hover:text-white transition-all shadow-lg">+ Add Item</button>
-                  </div>
-                ) : (
-                  <div className="flex gap-3">
-                    <button onClick={() => setClassViewMode(classViewMode === 'grid' ? 'list' : 'grid')} className="p-3 bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-xl text-gray-400 hover:text-orange-500 transition-all shadow-sm">{classViewMode === 'grid' ? <List size={18} /> : <LayoutGrid size={18} />}</button>
-                    <button onClick={() => setShowAddClassModal(true)} className="px-6 py-3 bg-black dark:bg-white text-white dark:text-gray-900 rounded-xl font-black uppercase tracking-widest text-[10px] hover:bg-orange-500 dark:hover:bg-orange-500 dark:hover:text-white transition-all shadow-lg ml-auto flex items-center gap-2"><Tag size={16} /> + New Class</button>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
               
               {menuSubTab === 'KITCHEN' && (
@@ -805,6 +821,7 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
                                 </div>
                                 <div className="flex flex-col gap-1">
                                   <button onClick={() => { setRenamingClass(cat); setRenameValue(cat); }} className="p-2 text-gray-400 hover:text-orange-500 hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded-lg transition-all"><Edit3 size={14} /></button>
+                                  <button onClick={() => handleRemoveClassification(cat)} className="p-2 text-red-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all"><Trash2 size={14} /></button>
                                 </div>
                              </div>
                           </div>
@@ -831,6 +848,7 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
                           </div>
                           <div className="flex items-center gap-2">
                             <button onClick={() => { setRenamingClass(cat); setRenameValue(cat); }} className="p-2 text-gray-400 hover:text-orange-500 hover:bg-orange-50 rounded-lg transition-all"><Edit3 size={16} /></button>
+                            <button onClick={() => handleRemoveClassification(cat)} className="p-2 text-red-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"><Trash2 size={16} /></button>
                             <button onClick={() => handleOpenAddModal(cat)} className="p-2 bg-black dark:bg-white text-white dark:text-gray-900 rounded-lg"><Plus size={16} /></button>
                           </div>
                         </div>
