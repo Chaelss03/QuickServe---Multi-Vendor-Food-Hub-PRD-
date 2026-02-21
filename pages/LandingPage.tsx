@@ -10,9 +10,10 @@ interface Props {
   isDarkMode: boolean;
   onToggleDarkMode: () => void;
   locations: Area[];
+  onLearnMore?: () => void;
 }
 
-const LandingPage: React.FC<Props> = ({ onScan, onLoginClick, isDarkMode, onToggleDarkMode, locations }) => {
+const LandingPage: React.FC<Props> = ({ onScan, onLoginClick, isDarkMode, onToggleDarkMode, locations, onLearnMore }) => {
   const [showSimModal, setShowSimModal] = useState(false);
   const [showCamera, setShowCamera] = useState(false);
   const [selectedLocation, setSelectedLocation] = useState('');
@@ -187,6 +188,11 @@ const LandingPage: React.FC<Props> = ({ onScan, onLoginClick, isDarkMode, onTogg
                   <button onClick={() => setShowSimModal(true)} className="w-full py-4 bg-gray-50 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded-2xl font-bold text-sm hover:bg-gray-100 dark:hover:bg-gray-600 transition-all flex items-center justify-center gap-2">
                     <RefreshCcw size={16} /> Manual/Simulate Scan
                   </button>
+                  {onLearnMore && (
+                    <button onClick={onLearnMore} className="mt-4 text-xs font-black text-orange-500 uppercase tracking-widest hover:underline decoration-2 underline-offset-4">
+                      Learn about our system
+                    </button>
+                  )}
                 </div>
               </>
             ) : (

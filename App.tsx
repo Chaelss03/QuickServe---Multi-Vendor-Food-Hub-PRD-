@@ -6,6 +6,7 @@ import VendorView from './pages/VendorView';
 import AdminView from './pages/AdminView';
 import LandingPage from './pages/LandingPage';
 import LoginPage from './pages/LoginPage';
+import MarketingPage from './pages/MarketingPage';
 import { supabase } from './lib/supabase';
 import { LogOut, Sun, Moon, MapPin, LogIn, Loader2 } from 'lucide-react';
 
@@ -66,11 +67,16 @@ const App: React.FC = () => {
     return localStorage.getItem('qs_role') as Role | null;
   });
   
-  const [view, setView] = useState<'LANDING' | 'LOGIN' | 'APP'>(() => {
+  const [view, setView] = useState<'LANDING' | 'LOGIN' | 'APP' | 'MARKETING'>(() => {
     const savedView = localStorage.getItem('qs_view') as any;
     const savedRole = localStorage.getItem('qs_role');
     const params = new URLSearchParams(window.location.search);
     
+    // If no session and no params, show marketing page as the first impression
+    if (!savedView && !params.get('loc')) {
+      return 'MARKETING';
+    }
+
     // If it's a customer and we're at the root without params, always show landing
     if (savedRole === 'CUSTOMER' && !params.get('loc')) {
       return 'LANDING';
@@ -685,8 +691,12 @@ const App: React.FC = () => {
     );
   }
 
+  if (view === 'MARKETING') {
+    return <MarketingPage onGetStarted={() => setView('LANDING')} />;
+  }
+
   if (view === 'LANDING') {
-    return <LandingPage onScan={handleScanSimulation} onLoginClick={() => setView('LOGIN')} isDarkMode={isDarkMode} onToggleDarkMode={() => setIsDarkMode(!isDarkMode)} locations={locations.filter(l => l.isActive !== false)} />;
+    return <LandingPage onScan={handleScanSimulation} onLoginClick={() => setView('LOGIN')} isDarkMode={isDarkMode} onToggleDarkMode={() => setIsDarkMode(!isDarkMode)} locations={locations.filter(l => l.isActive !== false)} onLearnMore={() => setView('MARKETING')} />;
   }
 
   if (view === 'LOGIN') {
