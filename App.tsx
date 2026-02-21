@@ -139,7 +139,7 @@ const App: React.FC = () => {
       setAllUsers(mapped);
       persistCache('qs_cache_users', mapped);
     }
-  }, [currentRole]);
+  }, [currentRole, view]);
 
   const fetchLocations = useCallback(async () => {
     const { data, error } = await supabase.from('areas').select('*').order('name');
