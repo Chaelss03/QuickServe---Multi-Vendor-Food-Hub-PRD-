@@ -19,9 +19,18 @@ async function startServer() {
   const upload = multer({ storage: multer.memoryStorage() });
 
   // API Routes
+  app.get('/api/health', (req, res) => {
+    res.json({ status: 'ok', timestamp: new Date().toISOString() });
+  });
+
   app.post('/api/login', async (req, res) => {
+    console.log('Login attempt for:', req.body?.username);
     const { username, password } = req.body;
     
+    if (!username || !password) {
+      return res.status(400).json({ error: 'Username and password are required' });
+    }
+
     try {
       const { data, error } = await supabase
         .from('users')
@@ -31,17 +40,21 @@ async function startServer() {
         .single();
 
       if (error || !data) {
+        console.log('Login failed for:', username);
         return res.status(401).json({ error: 'Invalid username or password' });
       }
 
       if (data.is_active === false) {
+        console.log('Account deactivated for:', username);
         return res.status(403).json({ error: 'Account deactivated' });
       }
 
+      console.log('Login successful for:', username);
       // Remove password before sending back to client
       const { password: _, ...userWithoutPassword } = data;
       res.json(userWithoutPassword);
     } catch (error) {
+      console.error('Login error:', error);
       res.status(500).json({ error: 'Internal server error' });
     }
   });
@@ -86,4 +99,7 @@ async function startServer() {
   });
 }
 
-startServer();
+startServer().catch(err => {
+  console.error('Failed to start server:', err);
+  process.exit(1);
+});
