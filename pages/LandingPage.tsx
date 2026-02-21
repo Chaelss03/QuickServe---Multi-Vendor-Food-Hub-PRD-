@@ -19,6 +19,17 @@ const LandingPage: React.FC<Props> = ({ onScan, onLoginClick, isDarkMode, onTogg
   const [tableNo, setTableNo] = useState('1');
   const [cameraError, setCameraError] = useState<string | null>(null);
   
+  const [existingSession, setExistingSession] = useState<{loc: string, table: string} | null>(null);
+
+  useEffect(() => {
+    const loc = localStorage.getItem('qs_session_location');
+    const table = localStorage.getItem('qs_session_table');
+    const role = localStorage.getItem('qs_role');
+    if (loc && table && role === 'CUSTOMER') {
+      setExistingSession({ loc, table });
+    }
+  }, []);
+  
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const requestRef = useRef<number>(0);
@@ -161,6 +172,15 @@ const LandingPage: React.FC<Props> = ({ onScan, onLoginClick, isDarkMode, onTogg
                 <h1 className="text-4xl font-extrabold text-gray-900 dark:text-white mb-2">Scan to Order</h1>
                 <p className="text-gray-500 dark:text-gray-400 max-w-xs mx-auto mb-8">Point your camera at a table QR code to start ordering</p>
                 <div className="flex flex-col gap-3 w-full">
+                  {existingSession && (
+                    <button 
+                      onClick={() => onScan(existingSession.loc, existingSession.table)}
+                      className="w-full py-4 bg-gray-900 dark:bg-white text-white dark:text-gray-900 rounded-2xl font-black text-lg hover:scale-[1.02] active:scale-95 transition-all shadow-xl flex items-center justify-center gap-3 border-2 border-transparent"
+                    >
+                      <ShoppingBag size={24} className="text-orange-500" />
+                      Return to Table {existingSession.table}
+                    </button>
+                  )}
                   <button onClick={startCamera} className="w-full py-4 bg-orange-500 text-white rounded-2xl font-black text-lg hover:bg-orange-600 hover:scale-[1.02] active:scale-95 transition-all shadow-xl shadow-orange-100 dark:shadow-none flex items-center justify-center gap-3">
                     <Camera size={24} /> Open Scanner
                   </button>

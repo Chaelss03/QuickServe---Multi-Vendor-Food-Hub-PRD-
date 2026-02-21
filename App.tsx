@@ -67,7 +67,16 @@ const App: React.FC = () => {
   });
   
   const [view, setView] = useState<'LANDING' | 'LOGIN' | 'APP'>(() => {
-    return (localStorage.getItem('qs_view') as any) || 'LANDING';
+    const savedView = localStorage.getItem('qs_view') as any;
+    const savedRole = localStorage.getItem('qs_role');
+    const params = new URLSearchParams(window.location.search);
+    
+    // If it's a customer and we're at the root without params, always show landing
+    if (savedRole === 'CUSTOMER' && !params.get('loc')) {
+      return 'LANDING';
+    }
+    
+    return savedView || 'LANDING';
   });
   
   const [sessionLocation, setSessionLocation] = useState<string | null>(() => {
