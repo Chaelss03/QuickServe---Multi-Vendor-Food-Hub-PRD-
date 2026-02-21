@@ -23,8 +23,7 @@ const REJECTION_REASONS = [
   'Other'
 ];
 
-const VendorView: React.FC<Props> = ({ restaurant, orders: initialOrders, onUpdateOrder, onUpdateMenu, onAddMenuItem, onPermanentDeleteMenuItem, onToggleOnline, lastSyncTime }) => {
-  const [orders, setOrders] = useState<Order[]>(initialOrders);
+const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpdateMenu, onAddMenuItem, onPermanentDeleteMenuItem, onToggleOnline, lastSyncTime }) => {
   const [activeTab, setActiveTab] = useState<'ORDERS' | 'MENU' | 'REPORTS' | 'QR'>('ORDERS');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [orderFilter, setOrderFilter] = useState<OrderStatus | 'ONGOING_ALL' | 'ALL'>('ONGOING_ALL');
@@ -77,60 +76,15 @@ const VendorView: React.FC<Props> = ({ restaurant, orders: initialOrders, onUpda
   const pendingOrders = useMemo(() => orders.filter(o => o.status === OrderStatus.PENDING), [orders]);
   const prevPendingCount = useRef(pendingOrders.length);
 
-  // Component-Level Data Fetching & Subscriptions
+  // Sound & Visual Alert for New Orders
   useEffect(() => {
-    if (!restaurant.id) return;
-
-    const fetchOrders = async () => {
-      const { data, error } = await supabase
-        .from('orders')
-        .select('*')
-        .eq('restaurant_id', restaurant.id)
-        .order('timestamp', { ascending: false })
-        .limit(200);
-
-      if (!error && data) {
-        const mapped: Order[] = data.map(o => ({
-          id: o.id,
-          items: Array.isArray(o.items) ? o.items : (typeof o.items === 'string' ? JSON.parse(o.items) : []),
-          total: Number(o.total || 0),
-          status: o.status as OrderStatus,
-          timestamp: typeof o.timestamp === 'string' ? new Date(o.timestamp).getTime() : o.timestamp,
-          customerId: o.customer_id,
-          restaurantId: o.restaurant_id,
-          tableNumber: o.table_number,
-          locationName: o.location_name,
-          remark: o.remark,
-          rejectionReason: o.rejection_reason,
-          rejectionNote: o.rejection_note
-        }));
-        setOrders(mapped);
-        localStorage.setItem('qs_cache_orders', JSON.stringify(mapped));
-      }
-    };
-
-    fetchOrders();
-
-    // Subscribe to new orders for this restaurant only
-    const channel = supabase.channel(`vendor-${restaurant.id}`)
-      .on('postgres_changes', { 
-        event: '*', 
-        schema: 'public', 
-        table: 'orders',
-        filter: `restaurant_id=eq.${restaurant.id}`
-      }, (payload) => {
-        if (payload.eventType === 'INSERT') {
-          // Play sound and show alert for new orders
-          triggerNewOrderAlert();
-        }
-        fetchOrders();
-      })
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [restaurant.id]);
+    if (pendingOrders.length > prevPendingCount.current) {
+      triggerNewOrderAlert();
+      setShowNewOrderAlert(true);
+      setTimeout(() => setShowNewOrderAlert(false), 5000);
+    }
+    prevPendingCount.current = pendingOrders.length;
+  }, [pendingOrders.length]);
 
   const triggerNewOrderAlert = () => {
     try {
