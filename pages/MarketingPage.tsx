@@ -75,7 +75,7 @@ const MarketingPage: React.FC<Props> = ({ onGetStarted }) => {
               <div className="relative bg-gray-900 rounded-[2rem] p-4 shadow-2xl border-8 border-gray-800 overflow-hidden">
                 <div className="bg-white dark:bg-gray-900 rounded-xl aspect-video overflow-hidden relative">
                   <img 
-                    src="input_file_0.png" 
+                    src="https://qao3rwoi4hh7qspq.public.blob.vercel-storage.com/marketing-img/VENDOR%20VIEW-P0bv7W1mQ2wbxBpN8nDKPwxznuKvx9.png" 
                     alt="Vendor Dashboard Mockup" 
                     className="w-full h-full object-cover"
                     referrerPolicy="no-referrer"
@@ -93,7 +93,7 @@ const MarketingPage: React.FC<Props> = ({ onGetStarted }) => {
               <div className="relative bg-gray-900 rounded-[3rem] p-3 shadow-2xl border-[12px] border-gray-800 h-[580px] overflow-hidden">
                 <div className="bg-white dark:bg-gray-900 rounded-[2rem] h-full overflow-hidden relative">
                   <img 
-                    src="input_file_1.png" 
+                    src="https://qao3rwoi4hh7qspq.public.blob.vercel-storage.com/marketing-img/mobile-view-Fjp7UIn86T3yZtpuXltMyAIjKEE1eo" 
                     alt="Customer Menu Mockup" 
                     className="w-full h-full object-cover"
                     referrerPolicy="no-referrer"
