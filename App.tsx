@@ -126,7 +126,8 @@ const App: React.FC = () => {
   };
 
   const fetchUsers = useCallback(async () => {
-    if (currentRole === 'CUSTOMER' || !currentRole) return;
+    // Allow fetching if we are on the login page or if the user is not a customer
+    if (currentRole === 'CUSTOMER' || (!currentRole && view !== 'LOGIN')) return;
     
     const { data, error } = await supabase.from('users').select('*');
     if (!error && data) {
@@ -533,7 +534,27 @@ const App: React.FC = () => {
 
   const handleLogout = () => {
     setCurrentUser(null); setCurrentRole(null); setSessionLocation(null);
-    setSessionTable(null); setView('LANDING'); localStorage.clear();
+    setSessionTable(null); setView('LANDING'); 
+    localStorage.removeItem('qs_user');
+    localStorage.removeItem('qs_role');
+    localStorage.removeItem('qs_view');
+    localStorage.removeItem('qs_session_location');
+    localStorage.removeItem('qs_session_table');
+    localStorage.removeItem('qs_cache_users');
+    localStorage.removeItem('qs_cache_restaurants');
+    localStorage.removeItem('qs_cache_orders');
+    localStorage.removeItem('qs_cache_locations');
+  };
+
+  const handleClearSession = () => {
+    setSessionLocation(null);
+    setSessionTable(null);
+    localStorage.removeItem('qs_session_location');
+    localStorage.removeItem('qs_session_table');
+    localStorage.removeItem('qs_role');
+    localStorage.removeItem('qs_view');
+    setCurrentRole(null);
+    setView('LANDING');
   };
 
   const updateOrderStatus = async (orderId: string, status: OrderStatus, reason?: string, note?: string) => {
@@ -701,7 +722,7 @@ const App: React.FC = () => {
   }
 
   if (view === 'LANDING') {
-    return <LandingPage onScan={handleScanSimulation} onLoginClick={() => setView('LOGIN')} isDarkMode={isDarkMode} onToggleDarkMode={() => setIsDarkMode(!isDarkMode)} locations={locations.filter(l => l.isActive !== false)} onLearnMore={() => setView('MARKETING')} />;
+    return <LandingPage onScan={handleScanSimulation} onLoginClick={() => setView('LOGIN')} isDarkMode={isDarkMode} onToggleDarkMode={() => setIsDarkMode(!isDarkMode)} locations={locations.filter(l => l.isActive !== false)} onLearnMore={() => setView('MARKETING')} onClearSession={handleClearSession} />;
   }
 
   if (view === 'LOGIN') {

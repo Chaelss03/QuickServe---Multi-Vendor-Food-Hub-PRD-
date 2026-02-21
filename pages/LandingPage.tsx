@@ -11,9 +11,10 @@ interface Props {
   onToggleDarkMode: () => void;
   locations: Area[];
   onLearnMore?: () => void;
+  onClearSession?: () => void;
 }
 
-const LandingPage: React.FC<Props> = ({ onScan, onLoginClick, isDarkMode, onToggleDarkMode, locations, onLearnMore }) => {
+const LandingPage: React.FC<Props> = ({ onScan, onLoginClick, isDarkMode, onToggleDarkMode, locations, onLearnMore, onClearSession }) => {
   const [showSimModal, setShowSimModal] = useState(false);
   const [showCamera, setShowCamera] = useState(false);
   const [selectedLocation, setSelectedLocation] = useState('');
@@ -174,13 +175,26 @@ const LandingPage: React.FC<Props> = ({ onScan, onLoginClick, isDarkMode, onTogg
                 <p className="text-gray-500 dark:text-gray-400 max-w-xs mx-auto mb-8">Point your camera at a table QR code to start ordering</p>
                 <div className="flex flex-col gap-3 w-full">
                   {existingSession && (
-                    <button 
-                      onClick={() => onScan(existingSession.loc, existingSession.table)}
-                      className="w-full py-4 bg-gray-900 dark:bg-white text-white dark:text-gray-900 rounded-2xl font-black text-lg hover:scale-[1.02] active:scale-95 transition-all shadow-xl flex items-center justify-center gap-3 border-2 border-transparent"
-                    >
-                      <ShoppingBag size={24} className="text-orange-500" />
-                      Return to Table {existingSession.table}
-                    </button>
+                    <div className="relative group/session">
+                      <button 
+                        onClick={() => onScan(existingSession.loc, existingSession.table)}
+                        className="w-full py-4 bg-gray-900 dark:bg-white text-white dark:text-gray-900 rounded-2xl font-black text-lg hover:scale-[1.02] active:scale-95 transition-all shadow-xl flex items-center justify-center gap-3 border-2 border-transparent pr-12"
+                      >
+                        <ShoppingBag size={24} className="text-orange-500" />
+                        Return to Table {existingSession.table}
+                      </button>
+                      <button 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (onClearSession) onClearSession();
+                          setExistingSession(null);
+                        }}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 p-2 bg-gray-800 dark:bg-gray-200 text-white dark:text-gray-900 rounded-xl hover:bg-red-500 dark:hover:bg-red-500 hover:text-white transition-all shadow-sm"
+                        title="Clear Session"
+                      >
+                        <X size={16} />
+                      </button>
+                    </div>
                   )}
                   <button onClick={startCamera} className="w-full py-4 bg-orange-500 text-white rounded-2xl font-black text-lg hover:bg-orange-600 hover:scale-[1.02] active:scale-95 transition-all shadow-xl shadow-orange-100 dark:shadow-none flex items-center justify-center gap-3">
                     <Camera size={24} /> Open Scanner
