@@ -49,10 +49,19 @@ async function startServer() {
         return res.status(403).json({ error: 'Account deactivated' });
       }
 
+      // Map to camelCase to match frontend User interface
+      const userResponse = {
+        id: data.id,
+        username: data.username,
+        role: data.role,
+        restaurantId: data.restaurant_id,
+        isActive: data.is_active,
+        email: data.email,
+        phone: data.phone
+      };
+      
       console.log('Login successful for:', username);
-      // Remove password before sending back to client
-      const { password: _, ...userWithoutPassword } = data;
-      res.json(userWithoutPassword);
+      res.json(userResponse);
     } catch (error) {
       console.error('Login error:', error);
       res.status(500).json({ error: 'Internal server error' });

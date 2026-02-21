@@ -38,9 +38,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(403).json({ error: 'Account deactivated' });
     }
 
-    // Remove password before sending back to client
-    const { password: _, ...userWithoutPassword } = data;
-    return res.status(200).json(userWithoutPassword);
+    // Map to camelCase to match frontend User interface
+    const userResponse = {
+      id: data.id,
+      username: data.username,
+      role: data.role,
+      restaurantId: data.restaurant_id,
+      isActive: data.is_active,
+      email: data.email,
+      phone: data.phone
+    };
+
+    return res.status(200).json(userResponse);
   } catch (error) {
     console.error('Login error:', error);
     return res.status(500).json({ error: 'Internal server error' });
