@@ -2,7 +2,7 @@
 import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { Restaurant, Order, OrderStatus, MenuItem, MenuItemVariant } from '../types';
 import { uploadImage } from '../lib/storage';
-import { ShoppingBag, BookOpen, BarChart3, Edit3, CheckCircle, Clock, X, Plus, Trash2, Image as ImageIcon, LayoutGrid, List, Filter, Archive, RotateCcw, Power, Eye, Upload, Hash, MessageSquare, Download, Calendar, Ban, ChevronLeft, ChevronRight, Bell, Activity, RefreshCw, Layers, Tag, Wifi, WifiOff, QrCode, Printer, ExternalLink, ThermometerSun, Info, Settings2, Menu, ToggleLeft, ToggleRight, Link, Search } from 'lucide-react';
+import { ShoppingBag, BookOpen, BarChart3, Edit3, CheckCircle, Clock, X, Plus, Trash2, Image as ImageIcon, LayoutGrid, List, Filter, Archive, RotateCcw, Power, Eye, Upload, Hash, MessageSquare, Download, Calendar, Ban, ChevronLeft, ChevronRight, Bell, Activity, RefreshCw, Layers, Tag, Wifi, WifiOff, QrCode, Printer, ExternalLink, ThermometerSun, Info, Settings2, Menu, ToggleLeft, ToggleRight, Link, Search, ChevronFirst, ChevronLast } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 interface Props {
@@ -70,6 +70,7 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
   const [reportEnd, setReportEnd] = useState<string>(() => new Date().toISOString().split('T')[0]);
   const [entriesPerPage, setEntriesPerPage] = useState<number>(30);
   const [currentPage, setCurrentPage] = useState<number>(1);
+  const [selectedOrderForDetails, setSelectedOrderForDetails] = useState<Order | null>(null);
 
   // New Order Alert State
   const [showNewOrderAlert, setShowNewOrderAlert] = useState(false);
@@ -864,8 +865,8 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
               </div>
 
               <div className="bg-white dark:bg-gray-800 rounded-2xl border dark:border-gray-700 overflow-hidden shadow-sm">
-                <div className="p-4 border-b dark:border-gray-700">
-                  <div className="relative max-w-sm">
+                <div className="p-4 border-b dark:border-gray-700 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className="relative max-w-sm w-full">
                     <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
                     <input 
                       type="text" 
@@ -875,34 +876,101 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
                       className="w-full pl-10 pr-4 py-2 bg-gray-50 dark:bg-gray-700 border-none rounded-xl text-xs font-black dark:text-white outline-none focus:ring-1 focus:ring-orange-500" 
                     />
                   </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Show</span>
+                    <select 
+                      value={entriesPerPage} 
+                      onChange={(e) => setEntriesPerPage(Number(e.target.value))}
+                      className="bg-gray-50 dark:bg-gray-700 border-none rounded-lg text-[10px] font-black dark:text-white p-1.5 outline-none cursor-pointer"
+                    >
+                      <option value={30}>30</option>
+                      <option value={50}>50</option>
+                      <option value={100}>100</option>
+                    </select>
+                    <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Entries</span>
+                  </div>
                 </div>
                 <div className="overflow-x-auto">
                   <table className="w-full">
                     <thead className="bg-gray-50 dark:bg-gray-700/50 text-gray-400 text-[10px] font-black uppercase tracking-widest">
                       <tr>
-                        <th className="px-6 py-4 text-left">Order ID</th>
-                        <th className="px-6 py-4 text-left">Table</th>
-                        <th className="px-6 py-4 text-left">Date</th>
-                        <th className="px-6 py-4 text-left">Time</th>
-                        <th className="px-6 py-4 text-left">Status</th>
-                        <th className="px-6 py-4 text-right">Bill</th>
+                        <th className="px-6 py-3 text-left">Order ID</th>
+                        <th className="px-6 py-3 text-left">Table</th>
+                        <th className="px-6 py-3 text-left">Date</th>
+                        <th className="px-6 py-3 text-left">Time</th>
+                        <th className="px-6 py-3 text-left">Status</th>
+                        <th className="px-6 py-3 text-right">Bill</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y dark:divide-gray-700">
                       {paginatedReports.map(report => (
                         <tr key={report.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors">
-                          <td className="px-6 py-4 text-[10px] font-black dark:text-white uppercase tracking-widest">{report.id}</td>
-                          <td className="px-6 py-4 text-[10px] font-black text-gray-900 dark:text-white">#{report.tableNumber}</td>
-                          <td className="px-6 py-4 text-[10px] font-black text-gray-700 dark:text-gray-300 uppercase tracking-tighter">{new Date(report.timestamp).toLocaleDateString()}</td>
-                          <td className="px-6 py-4 text-[9px] font-bold text-gray-500 dark:text-gray-400 uppercase">{new Date(report.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</td>
-                          <td className="px-6 py-4"><span className={`text-[8px] font-black px-2 py-0.5 rounded-full uppercase tracking-tighter ${report.status === OrderStatus.COMPLETED ? 'bg-green-100 text-green-600' : 'bg-orange-100 text-orange-600'}`}>{report.status === OrderStatus.COMPLETED ? 'Served' : report.status}</span></td>
-                          <td className="px-6 py-4 text-right font-black dark:text-white text-xs">RM{report.total.toFixed(2)}</td>
+                          <td className="px-6 py-2.5">
+                            <button 
+                              onClick={() => setSelectedOrderForDetails(report)}
+                              className="text-[10px] font-black text-orange-500 hover:text-orange-600 uppercase tracking-widest underline decoration-dotted underline-offset-4"
+                            >
+                              {report.id}
+                            </button>
+                          </td>
+                          <td className="px-6 py-2.5 text-[10px] font-black text-gray-900 dark:text-white">#{report.tableNumber}</td>
+                          <td className="px-6 py-2.5 text-[10px] font-black text-gray-700 dark:text-gray-300 uppercase tracking-tighter">{new Date(report.timestamp).toLocaleDateString()}</td>
+                          <td className="px-6 py-2.5 text-[9px] font-bold text-gray-500 dark:text-gray-400 uppercase">{new Date(report.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</td>
+                          <td className="px-6 py-2.5"><span className={`text-[8px] font-black px-2 py-0.5 rounded-full uppercase tracking-tighter ${report.status === OrderStatus.COMPLETED ? 'bg-green-100 text-green-600' : 'bg-orange-100 text-orange-600'}`}>{report.status === OrderStatus.COMPLETED ? 'Served' : report.status}</span></td>
+                          <td className="px-6 py-2.5 text-right font-black dark:text-white text-xs">RM{report.total.toFixed(2)}</td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
                 </div>
               </div>
+
+              {/* Pagination Controls */}
+              {totalPages > 1 && (
+                <div className="mt-8 flex items-center justify-center gap-2 overflow-x-auto py-2 no-print">
+                  <button 
+                    onClick={() => setCurrentPage(1)} 
+                    disabled={currentPage === 1}
+                    className="p-2 bg-gray-100 dark:bg-gray-800 rounded-lg text-gray-400 hover:text-orange-500 disabled:opacity-30 transition-all"
+                  >
+                    <ChevronFirst size={16} />
+                  </button>
+                  <button 
+                    onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))} 
+                    disabled={currentPage === 1}
+                    className="p-2 bg-gray-100 dark:bg-gray-800 rounded-lg text-gray-400 hover:text-orange-500 disabled:opacity-30 transition-all"
+                  >
+                    <ChevronLeft size={16} />
+                  </button>
+                  
+                  <div className="flex items-center gap-1">
+                    {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+                      <button
+                        key={page}
+                        onClick={() => setCurrentPage(page)}
+                        className={`w-8 h-8 rounded-lg text-[10px] font-black transition-all ${currentPage === page ? 'bg-orange-500 text-white shadow-lg shadow-orange-200' : 'bg-white dark:bg-gray-800 text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
+                      >
+                        {page}
+                      </button>
+                    ))}
+                  </div>
+
+                  <button 
+                    onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))} 
+                    disabled={currentPage === totalPages}
+                    className="p-2 bg-gray-100 dark:bg-gray-800 rounded-lg text-gray-400 hover:text-orange-500 disabled:opacity-30 transition-all"
+                  >
+                    <ChevronRight size={16} />
+                  </button>
+                  <button 
+                    onClick={() => setCurrentPage(totalPages)} 
+                    disabled={currentPage === totalPages}
+                    className="p-2 bg-gray-100 dark:bg-gray-800 rounded-lg text-gray-400 hover:text-orange-500 disabled:opacity-30 transition-all"
+                  >
+                    <ChevronLast size={16} />
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -1072,6 +1140,70 @@ const VendorView: React.FC<Props> = ({ restaurant, orders, onUpdateOrder, onUpda
                 <button type="submit" className="w-full py-5 bg-orange-500 text-white rounded-[2rem] font-black uppercase tracking-[0.2em] text-xs shadow-xl shadow-orange-100 dark:shadow-none hover:bg-orange-600 transition-all active:scale-95">Confirm Dish Broadcast</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Order Details Modal */}
+      {selectedOrderForDetails && (
+        <div className="fixed inset-0 z-[120] bg-black/70 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-3xl max-w-md w-full p-8 shadow-2xl relative animate-in zoom-in fade-in duration-300">
+            <button onClick={() => setSelectedOrderForDetails(null)} className="absolute top-6 right-6 p-2 text-gray-400 hover:text-red-500 transition-colors"><X size={24} /></button>
+            <div className="mb-6">
+              <div className="flex items-center gap-2 mb-1">
+                <Hash size={16} className="text-orange-500" />
+                <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Order Details</span>
+              </div>
+              <h2 className="text-xl font-black dark:text-white uppercase tracking-tighter">#{selectedOrderForDetails.id}</h2>
+            </div>
+
+            <div className="space-y-6">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="p-3 bg-gray-50 dark:bg-gray-700/50 rounded-xl">
+                  <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest mb-1">Table Number</p>
+                  <p className="text-sm font-black dark:text-white">#{selectedOrderForDetails.tableNumber}</p>
+                </div>
+                <div className="p-3 bg-gray-50 dark:bg-gray-700/50 rounded-xl">
+                  <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest mb-1">Status</p>
+                  <span className={`text-[8px] font-black px-2 py-0.5 rounded-full uppercase tracking-tighter ${selectedOrderForDetails.status === OrderStatus.COMPLETED ? 'bg-green-100 text-green-600' : 'bg-orange-100 text-orange-600'}`}>
+                    {selectedOrderForDetails.status === OrderStatus.COMPLETED ? 'Served' : selectedOrderForDetails.status}
+                  </span>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Ordered Items</p>
+                <div className="space-y-2 max-h-[30vh] overflow-y-auto custom-scrollbar pr-2">
+                  {selectedOrderForDetails.items.map((item, idx) => (
+                    <div key={idx} className="flex justify-between items-start py-2 border-b dark:border-gray-700 last:border-0">
+                      <div>
+                        <p className="text-xs font-black dark:text-white">x{item.quantity} {item.name}</p>
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {item.selectedSize && <span className="text-[8px] font-bold px-1.5 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-500 rounded uppercase tracking-tighter">Size: {item.selectedSize}</span>}
+                          {item.selectedTemp && <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded uppercase tracking-tighter ${item.selectedTemp === 'Hot' ? 'bg-orange-50 text-orange-600' : 'bg-blue-50 text-blue-600'}`}>Temp: {item.selectedTemp}</span>}
+                        </div>
+                      </div>
+                      <p className="text-xs font-black dark:text-white">RM{(item.price * item.quantity).toFixed(2)}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {selectedOrderForDetails.remark && (
+                <div className="p-4 bg-orange-50 dark:bg-orange-900/10 border border-orange-100 dark:border-orange-900/20 rounded-2xl">
+                  <div className="flex items-center gap-2 mb-1">
+                    <MessageSquare size={14} className="text-orange-500" />
+                    <span className="text-[9px] font-black text-orange-700 dark:text-orange-400 uppercase tracking-widest">Customer Remark</span>
+                  </div>
+                  <p className="text-xs text-gray-700 dark:text-gray-300 italic">{selectedOrderForDetails.remark}</p>
+                </div>
+              )}
+
+              <div className="pt-4 border-t dark:border-gray-700 flex justify-between items-center">
+                <span className="text-xs font-black text-gray-400 uppercase tracking-widest">Total Bill</span>
+                <span className="text-xl font-black dark:text-white">RM{selectedOrderForDetails.total.toFixed(2)}</span>
+              </div>
+            </div>
           </div>
         </div>
       )}
