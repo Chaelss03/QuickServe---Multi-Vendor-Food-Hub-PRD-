@@ -42,6 +42,11 @@ const App: React.FC = () => {
 
   const [isLoading, setIsLoading] = useState(() => {
     try {
+      const params = new URLSearchParams(window.location.search);
+      const savedView = localStorage.getItem('qs_view');
+      // If marketing, we don't need to load anything initially
+      if (!savedView && !params.get('loc')) return false;
+
       const hasRes = localStorage.getItem('qs_cache_restaurants');
       const hasLoc = localStorage.getItem('qs_cache_locations');
       return !(hasRes && hasLoc);
@@ -121,7 +126,7 @@ const App: React.FC = () => {
   };
 
   const fetchUsers = useCallback(async () => {
-    if (currentRole === 'CUSTOMER') return;
+    if (currentRole === 'CUSTOMER' || !currentRole) return;
     
     const { data, error } = await supabase.from('users').select('*');
     if (!error && data) {
@@ -147,7 +152,7 @@ const App: React.FC = () => {
   }, []);
 
   const fetchRestaurants = useCallback(async () => {
-    if (isStatusLocked.current) return;
+    if (isStatusLocked.current || !currentRole) return;
     
     let query = supabase.from('restaurants').select('*');
     
@@ -198,7 +203,7 @@ const App: React.FC = () => {
   }, [currentRole, sessionLocation]);
 
   const fetchOrders = useCallback(async () => {
-    if (isFetchingRef.current) return;
+    if (isFetchingRef.current || !currentRole) return;
     isFetchingRef.current = true;
     try {
       let query = supabase.from('orders').select('*').order('timestamp', { ascending: false }).limit(200);
