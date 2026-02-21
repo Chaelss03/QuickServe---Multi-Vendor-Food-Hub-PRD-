@@ -190,7 +190,7 @@ const App: React.FC = () => {
       
       if (currentRole === 'CUSTOMER') {
         if (sessionLocation && sessionTable) {
-          query = query.eq('location_name', sessionLocation).eq('table_number', sessionTable).limit(50);
+          query = query.eq('location_name', sessionLocation).eq('table_number', sessionTable).limit(10);
         } else {
           isFetchingRef.current = false;
           return;
