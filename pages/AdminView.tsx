@@ -17,9 +17,10 @@ interface Props {
   onDeleteLocation: (areaId: string) => void;
   onToggleOnline: (restaurantId: string, currentStatus: boolean) => void;
   onRemoveVendorFromHub: (restaurantId: string) => void;
+  onFetchReport: (filters: any) => Promise<{ orders: Order[], totalCount: number, stats: any }>;
 }
 
-const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, onAddVendor, onUpdateVendor, onImpersonateVendor, onAddLocation, onUpdateLocation, onDeleteLocation, onToggleOnline, onRemoveVendorFromHub }) => {
+const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, onAddVendor, onUpdateVendor, onImpersonateVendor, onAddLocation, onUpdateLocation, onDeleteLocation, onToggleOnline, onRemoveVendorFromHub, onFetchReport }) => {
   const [activeTab, setActiveTab] = useState<'VENDORS' | 'LOCATIONS' | 'REPORTS' | 'SYSTEM'>('VENDORS');
   const [searchQuery, setSearchQuery] = useState('');
   const [hubSearchQuery, setHubSearchQuery] = useState('');
@@ -66,7 +67,6 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
   const [reportVendor, setReportVendor] = useState<string>('ALL');
   const [reportHub, setReportHub] = useState<string>('ALL');
   const [reportStart, setReportStart] = useState<string>(() => {
-    // Default to 30 days ago to ensure users see recent data by default
     const d = new Date();
     d.setDate(d.getDate() - 30); 
     return d.toISOString().split('T')[0];
@@ -74,6 +74,13 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
   const [reportEnd, setReportEnd] = useState<string>(() => new Date().toISOString().split('T')[0]);
   const [entriesPerPage, setEntriesPerPage] = useState<number>(25);
   const [currentPage, setCurrentPage] = useState<number>(1);
+  const [isDownloading, setIsDownloading] = useState(false);
+
+  // Server-side Report Data
+  const [reportOrders, setReportOrders] = useState<Order[]>([]);
+  const [reportTotalCount, setReportTotalCount] = useState(0);
+  const [reportStats, setReportStats] = useState({ totalRevenue: 0, orderVolume: 0, efficiency: 0 });
+  const [isReportLoading, setIsReportLoading] = useState(false);
 
   const filteredVendors = useMemo(() => {
     return vendors.filter(vendor => {
@@ -92,61 +99,83 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
     );
   }, [locations, hubSearchQuery]);
 
-  const filteredReports = useMemo(() => {
-    return orders.filter(o => {
-      let orderDate = '';
+  // Fetch Report Data
+  useEffect(() => {
+    if (activeTab !== 'REPORTS') return;
+    
+    const loadReport = async () => {
+      setIsReportLoading(true);
       try {
-        const d = new Date(o.timestamp);
-        if (isNaN(d.getTime())) return false; 
-        orderDate = d.toISOString().split('T')[0];
-      } catch { return false; }
-      const matchesDate = orderDate >= reportStart && orderDate <= reportEnd;
-      const matchesStatus = reportStatus === 'ALL' || o.status === reportStatus;
-      const matchesVendor = reportVendor === 'ALL' || o.restaurantId === reportVendor;
-      const matchesHub = reportHub === 'ALL' || o.locationName === reportHub;
-      
-      const res = restaurants.find(r => r.id === o.restaurantId);
-      const searchLower = reportSearchQuery.toLowerCase();
-      const matchesSearch = o.id.toLowerCase().includes(searchLower) || 
-                           (res?.name.toLowerCase().includes(searchLower) || false);
-      
-      return matchesDate && matchesStatus && matchesSearch && matchesVendor && matchesHub;
-    });
-  }, [orders, reportStart, reportEnd, reportStatus, reportSearchQuery, restaurants, reportVendor, reportHub]);
+        const result = await onFetchReport({
+          startDate: reportStart,
+          endDate: reportEnd,
+          status: reportStatus,
+          search: reportSearchQuery,
+          limit: entriesPerPage,
+          offset: (currentPage - 1) * entriesPerPage,
+          restaurantId: reportVendor === 'ALL' ? undefined : reportVendor,
+          locationName: reportHub === 'ALL' ? undefined : reportHub
+        });
+        setReportOrders(result.orders);
+        setReportTotalCount(result.totalCount);
+        setReportStats(result.stats);
+      } catch (error) {
+        console.error("Failed to fetch report", error);
+      } finally {
+        setIsReportLoading(false);
+      }
+    };
 
-  const totalPages = Math.ceil(filteredReports.length / entriesPerPage);
+    loadReport();
+  }, [activeTab, reportStart, reportEnd, reportStatus, reportSearchQuery, reportVendor, reportHub, entriesPerPage, currentPage, onFetchReport]);
 
-  const paginatedReports = useMemo(() => {
-    const startIdx = (currentPage - 1) * entriesPerPage;
-    return filteredReports.slice(startIdx, startIdx + entriesPerPage);
-  }, [filteredReports, currentPage, entriesPerPage]);
+  const totalPages = Math.ceil(reportTotalCount / entriesPerPage);
 
-  const handleDownloadReport = () => {
-    if (filteredReports.length === 0) return;
-    const headers = ['Order ID', 'Kitchen', 'Hub', 'Table No', 'Date', 'Time', 'Status', 'Menu Order', 'Total Bill'];
-    const rows = filteredReports.map(o => {
-      const res = restaurants.find(r => r.id === o.restaurantId);
-      return [
-        o.id, 
-        res?.name || 'Unknown', 
-        o.locationName || 'Unknown', 
-        o.tableNumber || 'N/A',
-        new Date(o.timestamp).toLocaleDateString(),
-        new Date(o.timestamp).toLocaleTimeString(),
-        o.status, 
-        o.items.map(i => `${i.name} (x${i.quantity})`).join('; '), 
-        o.total.toFixed(2)
-      ];
-    });
-    const csvContent = [headers, ...rows].map(e => e.join(',')).join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.setAttribute('href', url);
-    link.setAttribute('download', `platform_sales_report_${reportStart}_to_${reportEnd}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+  const handleDownloadReport = async () => {
+    setIsDownloading(true);
+    try {
+      const result = await onFetchReport({
+        startDate: reportStart,
+        endDate: reportEnd,
+        status: reportStatus,
+        search: reportSearchQuery,
+        limit: 10000, // Large limit for download
+        offset: 0,
+        restaurantId: reportVendor === 'ALL' ? undefined : reportVendor,
+        locationName: reportHub === 'ALL' ? undefined : reportHub,
+        isDownload: true
+      });
+
+      if (result.orders.length === 0) return;
+      const headers = ['Order ID', 'Kitchen', 'Hub', 'Table No', 'Date', 'Time', 'Status', 'Menu Order', 'Total Bill'];
+      const rows = result.orders.map(o => {
+        const res = restaurants.find(r => r.id === o.restaurantId);
+        return [
+          o.id, 
+          res?.name || 'Unknown', 
+          o.locationName || 'Unknown', 
+          o.tableNumber || 'N/A',
+          new Date(o.timestamp).toLocaleDateString(),
+          new Date(o.timestamp).toLocaleTimeString(),
+          o.status, 
+          o.items.map(i => `${i.name} (x${i.quantity})`).join('; '), 
+          o.total.toFixed(2)
+        ];
+      });
+      const csvContent = [headers, ...rows].map(e => e.join(',')).join('\n');
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.setAttribute('href', url);
+      link.setAttribute('download', `platform_sales_report_${reportStart}_to_${reportEnd}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (error) {
+      console.error("Download failed", error);
+    } finally {
+      setIsDownloading(false);
+    }
   };
 
   const handleOpenEdit = (user: User) => {
@@ -435,10 +464,11 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
                 </div>
                 <button 
                   onClick={handleDownloadReport} 
-                  disabled={filteredReports.length === 0} 
-                  className="h-[36px] px-4 py-2 bg-black dark:bg-white text-white dark:text-gray-900 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center gap-2 hover:bg-orange-500 hover:text-white transition-all shadow-lg whitespace-nowrap"
+                  disabled={isDownloading || reportTotalCount === 0} 
+                  className="h-[36px] px-4 py-2 bg-black dark:bg-white text-white dark:text-gray-900 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center gap-2 hover:bg-orange-500 hover:text-white transition-all shadow-lg whitespace-nowrap disabled:opacity-50"
                 >
-                  <Download size={14} /> Download report
+                  {isDownloading ? <RefreshCw size={14} className="animate-spin" /> : <Download size={14} />} 
+                  {isDownloading ? 'Exporting...' : 'Download report'}
                 </button>
               </div>
             </div>
@@ -514,17 +544,17 @@ const AdminView: React.FC<Props> = ({ vendors, restaurants, orders, locations, o
                 <div className="bg-white dark:bg-gray-800 p-2 md:p-3 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
                   <p className="text-gray-400 dark:text-gray-500 text-[8px] md:text-[9px] font-black mb-1 uppercase tracking-widest">Platform Revenue</p>
                   <p className="text-lg md:text-xl font-black text-gray-900 dark:text-white tracking-tighter leading-none">
-                    RM{filteredReports.filter(o => o.status === OrderStatus.COMPLETED).reduce((acc, o) => acc + o.total, 0).toFixed(2)}
+                    RM{reportStats.totalRevenue.toFixed(2)}
                   </p>
                 </div>
                 <div className="bg-white dark:bg-gray-800 p-2 md:p-3 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
                   <p className="text-gray-400 dark:text-gray-500 text-[8px] md:text-[9px] font-black mb-1 uppercase tracking-widest">Filtered Orders</p>
-                  <p className="text-lg md:text-xl font-black text-gray-900 dark:text-white tracking-tighter leading-none">{filteredReports.length}</p>
+                  <p className="text-lg md:text-xl font-black text-gray-900 dark:text-white tracking-tighter leading-none">{reportStats.orderVolume}</p>
                 </div>
                 <div className="bg-white dark:bg-gray-800 p-2 md:p-3 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
                   <p className="text-gray-400 dark:text-gray-500 text-[8px] md:text-[9px] font-black mb-1 uppercase tracking-widest">Global Health</p>
                   <p className="text-lg md:text-xl font-black text-green-500 tracking-tighter leading-none">
-                    {filteredReports.length > 0 ? Math.round((filteredReports.filter(r => r.status === OrderStatus.COMPLETED).length / filteredReports.length) * 100) : 0}%
+                    {reportStats.efficiency}%
                   </p>
                 </div>
               </div>
