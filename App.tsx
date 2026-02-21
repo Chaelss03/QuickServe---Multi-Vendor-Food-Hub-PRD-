@@ -106,6 +106,8 @@ const App: React.FC = () => {
   };
 
   const fetchUsers = useCallback(async () => {
+    if (currentRole === 'CUSTOMER') return;
+    
     const { data, error } = await supabase.from('users').select('*');
     if (!error && data) {
       const mapped = data.map(u => ({
@@ -116,7 +118,7 @@ const App: React.FC = () => {
       setAllUsers(mapped);
       persistCache('qs_cache_users', mapped);
     }
-  }, []);
+  }, [currentRole]);
 
   const fetchLocations = useCallback(async () => {
     const { data, error } = await supabase.from('areas').select('*').order('name');
@@ -135,19 +137,22 @@ const App: React.FC = () => {
     let query = supabase.from('restaurants').select('*');
     
     // Optimization: If customer, only fetch restaurants for their location
-    const savedRole = localStorage.getItem('qs_role');
-    const savedLoc = localStorage.getItem('qs_session_location');
-    if (savedRole === 'CUSTOMER' && savedLoc) {
-      query = query.eq('location_name', savedLoc);
+    if (currentRole === 'CUSTOMER' && sessionLocation) {
+      query = query.eq('location_name', sessionLocation).eq('is_online', true);
     }
 
     const { data: resData, error: resError } = await query;
     if (resError || !resData) return;
 
     const restaurantIds = resData.map(r => r.id);
-    const { data: menuData, error: menuError } = await supabase.from('menu_items')
-      .select('*')
-      .in('restaurant_id', restaurantIds);
+    let menuQuery = supabase.from('menu_items').select('*').in('restaurant_id', restaurantIds);
+    
+    // Optimization: Customers only need non-archived items
+    if (currentRole === 'CUSTOMER') {
+      menuQuery = menuQuery.eq('is_archived', false);
+    }
+
+    const { data: menuData, error: menuError } = await menuQuery;
 
     if (!menuError && menuData) {
       const formatted: Restaurant[] = resData.map(res => ({
@@ -175,7 +180,7 @@ const App: React.FC = () => {
       setRestaurants(formatted);
       persistCache('qs_cache_restaurants', formatted);
     }
-  }, []);
+  }, [currentRole, sessionLocation]);
 
   const fetchOrders = useCallback(async () => {
     if (isFetchingRef.current) return;
@@ -183,13 +188,15 @@ const App: React.FC = () => {
     try {
       let query = supabase.from('orders').select('*').order('timestamp', { ascending: false }).limit(200);
       
-      // Optimization: Vendors only need their own orders
-      const savedUser = localStorage.getItem('qs_user');
-      if (savedUser) {
-        const user = JSON.parse(savedUser);
-        if (user.role === 'VENDOR' && user.restaurantId) {
-          query = query.eq('restaurant_id', user.restaurantId);
+      if (currentRole === 'CUSTOMER') {
+        if (sessionLocation && sessionTable) {
+          query = query.eq('location_name', sessionLocation).eq('table_number', sessionTable).limit(50);
+        } else {
+          isFetchingRef.current = false;
+          return;
         }
+      } else if (currentRole === 'VENDOR' && currentUser?.restaurantId) {
+        query = query.eq('restaurant_id', currentUser.restaurantId);
       }
 
       const { data, error } = await query;
@@ -233,7 +240,7 @@ const App: React.FC = () => {
     } finally {
       isFetchingRef.current = false;
     }
-  }, []);
+  }, [currentRole, sessionLocation, sessionTable, currentUser]);
 
   const fetchNewOrders = useCallback(async () => {
     if (isFetchingRef.current) return;
@@ -324,19 +331,22 @@ const App: React.FC = () => {
 
   // Real-time Subscriptions
   useEffect(() => {
-    const channel = supabase.channel('qs-realtime-global')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'orders' }, (payload) => {
-        const o = payload.new;
-        
-        // Optimization: If vendor, only add if it belongs to them
-        const savedUser = localStorage.getItem('qs_user');
-        if (savedUser) {
-          const user = JSON.parse(savedUser);
-          if (user.role === 'VENDOR' && o.restaurant_id !== user.restaurantId) {
-            return;
-          }
-        }
+    // Determine filter based on role
+    let orderFilter = undefined;
+    if (currentRole === 'CUSTOMER' && sessionLocation) {
+      orderFilter = `location_name=eq.${sessionLocation}`;
+    } else if (currentRole === 'VENDOR' && currentUser?.restaurantId) {
+      orderFilter = `restaurant_id=eq.${currentUser.restaurantId}`;
+    }
 
+    const channel = supabase.channel('qs-realtime-optimized')
+      .on('postgres_changes', { 
+        event: 'INSERT', 
+        schema: 'public', 
+        table: 'orders',
+        filter: orderFilter
+      }, (payload) => {
+        const o = payload.new;
         const mappedOrder: Order = {
           id: o.id, 
           items: Array.isArray(o.items) ? o.items : (typeof o.items === 'string' ? JSON.parse(o.items) : []), 
@@ -356,16 +366,19 @@ const App: React.FC = () => {
           if (prev.some(existing => existing.id === mappedOrder.id)) return prev;
           const updated = [mappedOrder, ...prev].slice(0, 200);
           persistCache('qs_cache_orders', updated);
-          
           if (mappedOrder.timestamp > lastOrderTimestampRef.current) {
             lastOrderTimestampRef.current = mappedOrder.timestamp;
           }
-          
           return updated;
         });
         setLastSyncTime(new Date());
       })
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders' }, (payload) => {
+      .on('postgres_changes', { 
+        event: 'UPDATE', 
+        schema: 'public', 
+        table: 'orders',
+        filter: orderFilter
+      }, (payload) => {
         const o = payload.new;
         setOrders(prev => {
           const updated = prev.map(existing => {
@@ -389,7 +402,12 @@ const App: React.FC = () => {
         });
         setLastSyncTime(new Date());
       })
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'restaurants' }, (payload) => {
+      .on('postgres_changes', { 
+        event: 'UPDATE', 
+        schema: 'public', 
+        table: 'restaurants',
+        filter: currentRole === 'CUSTOMER' && sessionLocation ? `location_name=eq.${sessionLocation}` : undefined
+      }, (payload) => {
         const res = payload.new;
         setRestaurants(prev => {
           const updated = prev.map(r => r.id === res.id ? { ...r, isOnline: res.is_online === true || res.is_online === null } : r);
@@ -403,7 +421,7 @@ const App: React.FC = () => {
     return () => { 
       supabase.removeChannel(channel); 
     };
-  }, []);
+  }, [currentRole, sessionLocation, currentUser]);
 
   // Vendor Polling Fallback
   useEffect(() => {
